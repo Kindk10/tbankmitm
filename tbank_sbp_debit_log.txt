@@ -1,0 +1,26 @@
+=== T-Bank SBP injector ===
+Настройки: tbank_sbp_injector.json (рядом со скриптом)
+Логотипы: bank_merchants_presets.json → bank_preset
+Карта: config.json → balance.new_card_number
+
+OK Debit 1250.0 RUB | preset=alfa | time_ms=1776555204958
+URL: https://www.tbank.ru/api/common/v1/operations_category_list_user?platform=web&appName=supreme&appVersion=0.0.1&origin=web&sessionid=TAL7Rj8uz3M0aY7aN9SSsMqXT0P7ZVWC.authenticon-577bd45b98-wm5k2
+
+OK Debit 1250.0 RUB | preset=alfa | time_ms=1776555204974
+URL: https://www.tbank.ru/api/common/v1/operations_category_list_bank?platform=web&appName=supreme&appVersion=0.0.1&origin=web&sessionid=TAL7Rj8uz3M0aY7aN9SSsMqXT0P7ZVWC.authenticon-577bd45b98-wm5k2
+
+OK Debit 1250.0 RUB | preset=alfa | time_ms=1776555206029
+URL: https://www.tbank.ru/api/common/v1/operations?appName=supreme&appVersion=0.0.1&origin=web%2Cib5%2Cplatform&sessionid=TAL7Rj8uz3M0aY7aN9SSsMqXT0P7ZVWC.authenticon-577bd45b98-wm5k2&end=1776641603773&start=1773954000000
+
+manual ops updated: injected=4 existing_changed=0 | URL: https://www.tbank.ru/api/common/v1/operations_category_list_bank?platform=web&appName=supreme&appVersion=0.0.1&origin=web&sessionid=QM6mTmy5dLGhRx8GnUPphCgrnJv51L6I.authenticon-577bd45b98-wm5k2
+
+manual ops updated: injected=4 existing_changed=0 | URL: https://www.tbank.ru/api/common/v1/operations_category_list_user?platform=web&appName=supreme&appVersion=0.0.1&origin=web&sessionid=QM6mTmy5dLGhRx8GnUPphCgrnJv51L6I.authenticon-577bd45b98-wm5k2
+
+manual ops updated: injected=4 existing_changed=0 | URL: https://www.tbank.ru/api/common/v1/operations?appName=supreme&appVersion=0.0.1&origin=web%2Cib5%2Cplatform&sessionid=QM6mTmy5dLGhRx8GnUPphCgrnJv51L6I.authenticon-577bd45b98-wm5k2&end=1776641936880&start=1773954000000
+
+manual ops updated: injected=4 existing_changed=0 | URL: https://www.tbank.ru/api/common/v1/operations_category_list_user?platform=web&appName=supreme&appVersion=0.0.1&origin=web&sessionid=NC5b6fSOF0oRr1T0GH9h6LWY3EvpUDfz.authenticon-577bd45b98-wm5k2
+
+manual ops updated: injected=4 existing_changed=0 | URL: https://www.tbank.ru/api/common/v1/operations_category_list_bank?platform=web&appName=supreme&appVersion=0.0.1&origin=web&sessionid=NC5b6fSOF0oRr1T0GH9h6LWY3EvpUDfz.authenticon-577bd45b98-wm5k2
+
+manual ops updated: injected=4 existing_changed=0 | URL: https://www.tbank.ru/api/common/v1/operations?appName=supreme&appVersion=0.0.1&origin=web%2Cib5%2Cplatform&sessionid=NC5b6fSOF0oRr1T0GH9h6LWY3EvpUDfz.authenticon-577bd45b98-wm5k2&end=1776641965634&start=1773954000000
+

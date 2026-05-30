@@ -1,0 +1,23 @@
+{
+  "amount": 20000.0,
+  "transaction_id": "UNIFIED_1776358055809",
+  "date_full": "16.04.2026, 19:47:35",
+  "receiver_phone": "+7 (927) 406-25-65",
+  "receiver_name": "Светлана Д.",
+  "sender_name": "Ирина Кузнецова",
+  "sender_account": "408178106977004241",
+  "bank_receiver": "Райффайзенбанк",
+  "operation_type": "sbp",
+  "kvit_number": "912-920-287",
+  "sbp_operation_id": "B610616473574289O000000600117005",
+  "last_pdf_path": "receipt_1775072695483_20260401_224455.pdf",
+  "type": "sbp",
+  "payment_id": "0393228931199425",
+  "timestamp_ms": 1774047600246,
+  "transfer_completed": true,
+  "fake_history": [],
+  "bank_logo": "https://imgproxy.cdn-tinkoff.ru/compressed95/aHR0cHM6Ly9icmFuZHMtcHJvZC5jZG4tdGlua29mZi5ydS9nZW5lcmFsX2xvZ28vcmFpZmZlaXNlbi5wbmc=",
+  "merchant_name": null,
+  "merchant_logo": null,
+  "is_merchant_payment": false
+}

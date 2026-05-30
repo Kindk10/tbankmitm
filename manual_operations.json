@@ -1,0 +1,90 @@
+{
+  "m_41263bd6f0f3": {
+    "id": "m_41263bd6f0f3",
+    "date": "19.04.2026, 00:23:00",
+    "amount": 25000.0,
+    "type": "Debit",
+    "description": "",
+    "bank": "WB Банк",
+    "title": "Никита С.",
+    "subtitle": "Переводы",
+    "sender_name": "",
+    "requisite_sender_name": "",
+    "phone": "+79277357459",
+    "requisite_phone": "+79277357459",
+    "receipt_phone": "",
+    "card_number": "",
+    "bank_preset": "wb",
+    "operationTime": {
+      "milliseconds": 1776547380000,
+      "seconds": 1776547380.0
+    },
+    "pdf_path": "receipt_m_41263bd6f0_20260419_023450.pdf"
+  },
+  "m_22dc4ab79fe1": {
+    "id": "m_22dc4ab79fe1",
+    "date": "19.04.2026, 00:03:21",
+    "amount": 233.0,
+    "type": "Debit",
+    "description": "",
+    "bank": "Т-Банк",
+    "title": "Майя Ч.",
+    "subtitle": "Переводы",
+    "sender_name": "",
+    "requisite_sender_name": "",
+    "phone": "+79274023932",
+    "requisite_phone": "+79274023932",
+    "receipt_phone": "",
+    "card_number": "",
+    "bank_preset": "tbank",
+    "operationTime": {
+      "milliseconds": 1776546201000,
+      "seconds": 1776546201.0
+    },
+    "pdf_path": "receipt_m_22dc4ab79f_20260419_023553.pdf"
+  },
+  "m_b19ee2b91d8d": {
+    "id": "m_b19ee2b91d8d",
+    "date": "18.04.2026, 22:11:21",
+    "amount": 75000.0,
+    "type": "Debit",
+    "description": "",
+    "bank": "Сбербанк",
+    "title": "Евгений В.",
+    "subtitle": "Переводы",
+    "sender_name": "",
+    "requisite_sender_name": "",
+    "phone": "+79869029311",
+    "requisite_phone": "+79869029311",
+    "receipt_phone": "",
+    "card_number": "",
+    "bank_preset": "sber",
+    "operationTime": {
+      "milliseconds": 1776539481000,
+      "seconds": 1776539481.0
+    },
+    "pdf_path": "receipt_m_b19ee2b91d_20260419_023742.pdf"
+  },
+  "m_91a4902d448e": {
+    "id": "m_91a4902d448e",
+    "date": "18.04.2026, 22:11:21",
+    "amount": 1000.0,
+    "type": "Debit",
+    "description": "",
+    "bank": "Т-Банк",
+    "title": "Светлана Д.",
+    "subtitle": "Переводы",
+    "sender_name": "",
+    "requisite_sender_name": "",
+    "phone": "+79274021849",
+    "requisite_phone": "+79274021849",
+    "receipt_phone": "",
+    "card_number": "",
+    "bank_preset": "tbank",
+    "operationTime": {
+      "milliseconds": 1776539481000,
+      "seconds": 1776539481.0
+    },
+    "pdf_path": "receipt_m_91a4902d44_20260419_023813.pdf"
+  }
+}
