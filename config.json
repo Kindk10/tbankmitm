@@ -1,10 +1,19 @@
 {
+  "ios_app": {
+    "bundle_id": "com.delivery.drive.almagul.daurbayeva",
+    "user_agent_markers": [
+      "com.delivery.drive",
+      "delivery.drive",
+      "almagul.daurbayeva"
+    ],
+    "gate_mode": "relaxed"
+  },
   "name": {
-    "first_name": "Эвелина",
-    "last_name": "Гилязова",
-    "middle_name": "Ивановна",
-    "full_name": "Гилязова Эвелина Ивановна",
-    "phone": "+79274061466",
+    "first_name": "Сергей",
+    "last_name": "Олегович",
+    "middle_name": "Владимирович",
+    "full_name": "Олегович Сергей Владимирович",
+    "phone": "+79108169323",
     "phone_number": "9991112233",
     "first_name_en": "Irina",
     "last_name_en": "Kuznetsova",
@@ -16,7 +25,7 @@
     "passport_issued_by": "ОТДЕЛОМ УФМС ПО КРАСНОДАРСКОМУ КРАЮ",
     "passport_issue_date": "2015-10-09",
     "inn": "498861865079",
-    "email": "evelinka08@gmail.com"
+    "email": "user65069@mail.ru"
   },
   "reki": {
     "contract": "1025558704",
@@ -25,7 +34,7 @@
     "beneficiary": "Перевод средств по договору № 5456920 Кузнецова Ирина Владимировна НДС не облагается"
   },
   "balance": {
-    "new_balance": 120304.8,
+    "new_balance": 9980000.22,
     "new_card_number": "6800******2733",
     "new_collect_sum": 24925,
     "new_card_number2": "6181******8690"
@@ -42,8 +51,8 @@
   "browser_finanalytics_dom_patch": false,
   "panel_fetch_origin": "http://85.192.60.79:8082",
   "manual": {
-    "histogram_sync_with_operations": false,
-    "expense": 38568,
-    "income": 39050.0
+    "histogram_sync_with_operations": true,
+    "expense": 0.0,
+    "income": 0.0
   }
 }
