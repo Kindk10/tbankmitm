@@ -28,6 +28,10 @@ def _env_truthy(name: str) -> bool:
 
 
 _PANEL_ALLOW_ANY = _env_truthy("TBANKMITM_PANEL_ALLOW_ANY")
+# Если прокси слушает 0.0.0.0 (телефон / Potatso / VPS) — не режем панель по IP.
+_LISTEN_HOST = (os.environ.get("TBANKMITM_PROXY_LISTEN_HOST") or "127.0.0.1").strip() or "127.0.0.1"
+if _LISTEN_HOST in ("0.0.0.0", "::", "*"):
+    _PANEL_ALLOW_ANY = True
 
 
 def _normalize_client_ip(raw: str) -> str:
@@ -824,7 +828,16 @@ HTML_PANEL = """<!DOCTYPE html>
 
         <div id="statement" class="tab-pane">
             <div class="section-title"><i class="fas fa-file-invoice"></i> Выписка по операциям (PDF)</div>
-            <p style="color:#718096;font-size:13px;margin-bottom:14px;max-width:720px;">Генерация из Выписка.pdf (tbankmitm): макет и линии из файла; текст как в чеках — TinkoffSans-Regular/Medium.ttf из папки tbankmitm. Если адрес не задан — подставляется типовой московский адрес; если дата договора не задана — как в образце выписки. В config.json: name.registration_address, name.contract_sign_date или statement.default_address, statement.default_contract_sign_date.</p>
+            <p style="color:#718096;font-size:13px;margin-bottom:14px;max-width:720px;">Генерация из Выписка.pdf. Адрес и дата договора ниже попадают в PDF при формировании.</p>
+            <div class="form-group"><label>Адрес регистрации (места жительства)</label>
+                <textarea id="stmt_registration_address" rows="2" placeholder="119021, г. Москва, район Хамовники, ул. Льва Толстого, д. 16"></textarea>
+            </div>
+            <div class="form-group"><label>Дата заключения договора</label>
+                <input type="text" id="stmt_contract_sign_date" placeholder="09.09.2023">
+            </div>
+            <div class="save-bar" style="margin-bottom:16px;">
+                <button type="button" class="btn btn-primary" onclick="saveStatementProfile()"><i class="fas fa-save"></i> Сохранить адрес</button>
+            </div>
             <div class="form-row">
                 <div class="form-group"><label>С даты</label><input type="date" id="stmt_date_from"></div>
                 <div class="form-group"><label>По дату</label><input type="date" id="stmt_date_to"></div>
@@ -903,6 +916,10 @@ HTML_PANEL = """<!DOCTYPE html>
                     <option value="true">По операциям в прокси</option>
                     <option value="false">Только ручные суммы (клик по доходам/расходам)</option>
                 </select>
+            </div>
+            <div class="form-group"><label>panel_fetch_origin (для телефона / Potatso)</label>
+                <input type="text" id="panel_fetch_origin" placeholder="http://192.168.1.50:8082">
+                <div style="color:#718096;font-size:12px;margin-top:6px;">Откуда WebView Т‑Банка тянет суммы трат. На телефоне укажите IP сервера, не 127.0.0.1.</div>
             </div>
             <div class="save-bar"><button class="btn btn-primary" onclick="saveSettings()"><i class="fas fa-save"></i> Сохранить</button></div>
         </div>
@@ -1402,6 +1419,16 @@ HTML_PANEL = """<!DOCTYPE html>
                     document.getElementById('passport_issued').value = config.name.passport_issued_by || '';
                     document.getElementById('passport_date').value = config.name.passport_issue_date || '';
                     document.getElementById('inn').value = config.name.inn || '';
+                    const ra = document.getElementById('stmt_registration_address');
+                    if (ra) ra.value = config.name.registration_address || config.name.address || '';
+                    const csd = document.getElementById('stmt_contract_sign_date');
+                    if (csd) csd.value = config.name.contract_sign_date || '';
+                }
+                if ((!config.name || !config.name.registration_address) && config.statement) {
+                    const ra2 = document.getElementById('stmt_registration_address');
+                    if (ra2 && !ra2.value) ra2.value = config.statement.default_address || '';
+                    const csd2 = document.getElementById('stmt_contract_sign_date');
+                    if (csd2 && !csd2.value) csd2.value = config.statement.default_contract_sign_date || '';
                 }
                 if (config.history) {
                     document.getElementById('show_categories').value = config.history.show_categories ? 'true' : 'false';
@@ -1415,6 +1442,8 @@ HTML_PANEL = """<!DOCTYPE html>
                     const hs = document.getElementById('histogram_sync_with_operations');
                     if (hs) hs.value = config.manual.histogram_sync_with_operations === false ? 'false' : 'true';
                 }
+                const pfo = document.getElementById('panel_fetch_origin');
+                if (pfo) pfo.value = config.panel_fetch_origin || '';
             }).catch(console.error);
         }
 
@@ -1549,7 +1578,24 @@ HTML_PANEL = """<!DOCTYPE html>
             });
         }
 
+        function saveStatementProfile() {
+            const addrEl = document.getElementById('stmt_registration_address');
+            const dateEl = document.getElementById('stmt_contract_sign_date');
+            saveConfig({ name: {
+                registration_address: addrEl ? (addrEl.value || '').trim() : '',
+                contract_sign_date: dateEl ? (dateEl.value || '').trim() : ''
+            }});
+        }
+
+        function phoneToPhoneNumber(phone) {
+            let d = String(phone || '').replace(/\\D/g, '');
+            if (d.length >= 11 && (d[0] === '7' || d[0] === '8')) d = d.slice(1);
+            if (d.length > 10) d = d.slice(-10);
+            return d;
+        }
+
         function saveName() {
+            const phone = document.getElementById('name_phone').value;
             saveConfig({ name: {
                 last_name: document.getElementById('name_last').value,
                 first_name: document.getElementById('name_first').value,
@@ -1558,7 +1604,8 @@ HTML_PANEL = """<!DOCTYPE html>
                 last_name_en: document.getElementById('name_last_en').value,
                 first_name_en: document.getElementById('name_first_en').value,
                 middle_name_en: document.getElementById('name_middle_en').value,
-                phone: document.getElementById('name_phone').value,
+                phone: phone,
+                phone_number: phoneToPhoneNumber(phone),
                 email: document.getElementById('name_email').value,
                 gender: document.getElementById('name_gender').value,
                 sex_code: document.getElementById('name_sex_code').value
@@ -1597,6 +1644,9 @@ HTML_PANEL = """<!DOCTYPE html>
             })
             .then(r => r.json())
             .then(d => {
+                // #region agent log
+                fetch('http://127.0.0.1:7282/ingest/3dd357cb-edb0-4b4c-aa35-b366d0c21a09',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f24997'},body:JSON.stringify({sessionId:'f24997',runId:'verify1',hypothesisId:'H3',location:'panel_bridge.addManualOperation',message:'add response',data:{ok:!d.error,hasId:!!d.id,hasReceipt:!!d.receipt_path},timestamp:Date.now()})}).catch(()=>{});
+                // #endregion
                 if (d.error) throw new Error(d.error);
                 showToast('Добавлена новая операция');
                 document.getElementById('manual_amount').value = '';
@@ -1610,7 +1660,7 @@ HTML_PANEL = """<!DOCTYPE html>
                 document.getElementById('manual_desc').value = '';
                 loadOperations();
             })
-            .catch(() => showToast('Ошибка добавления'));
+            .catch(err => showToast((err && err.message) ? ('Ошибка: ' + err.message) : 'Ошибка добавления'));
         }
 
         function deleteManualOp(id) {
@@ -1647,6 +1697,8 @@ HTML_PANEL = """<!DOCTYPE html>
         }
 
         function saveSettings() {
+            const originEl = document.getElementById('panel_fetch_origin');
+            const origin = originEl ? (originEl.value || '').trim().replace(/\\/+$/, '') : '';
             saveConfig({
                 history: {
                     show_categories: document.getElementById('show_categories').value === 'true',
@@ -1656,7 +1708,8 @@ HTML_PANEL = """<!DOCTYPE html>
                 manual: {
                     panel_sync_bank_histogram: document.getElementById('panel_sync_bank_histogram').value === 'true',
                     histogram_sync_with_operations: document.getElementById('histogram_sync_with_operations').value === 'true'
-                }
+                },
+                panel_fetch_origin: origin
             });
         }
 
@@ -1697,11 +1750,34 @@ def request(flow: http.HTTPFlow) -> None:
 
     client_ip = flow.client_conn.address[0]
     if not _client_ok_for_panel(client_ip):
+        # #region agent log
+        try:
+            from _agent_debug_log import dbg
+            dbg("H5", "panel_bridge.request", "panel 403", {
+                "client_ip_kind": "private" if str(client_ip).startswith(("192.168.", "10.", "127.")) else "other",
+                "allow_any": bool(_PANEL_ALLOW_ANY),
+                "listen_host": _LISTEN_HOST,
+            })
+        except Exception:
+            pass
+        # #endregion
         flow.response = http.Response.make(403, b"Forbidden")
         return
 
     path = flow.request.path
     path_only = _panel_request_path_only(path)
+    # #region agent log
+    if path_only in ("/admin", "/admin/", "/api/config"):
+        try:
+            from _agent_debug_log import dbg
+            dbg("H5", "panel_bridge.request", "panel ok", {
+                "path": path_only,
+                "allow_any": bool(_PANEL_ALLOW_ANY),
+                "listen_host": _LISTEN_HOST,
+            })
+        except Exception:
+            pass
+    # #endregion
 
     cors_pdf = {
         "Content-Type": "application/pdf",
@@ -1834,7 +1910,26 @@ def request(flow: http.HTTPFlow) -> None:
                     controller.config[key].update(value)
                 else:
                     controller.config[key] = value
+            if isinstance(controller.config.get("name"), dict):
+                controller.sync_name_phone_number(controller.config["name"])
             controller.save_config()
+            # #region agent log
+            try:
+                from _agent_debug_log import dbg
+                nm = controller.config.get("name") or {}
+                dbg("H1", "panel_bridge.config/save", "config saved", {
+                    "keys": list(new_config.keys()),
+                    "has_reg_addr": bool((nm.get("registration_address") or "").strip()),
+                    "phone_digits_len": len("".join(c for c in str(nm.get("phone_number") or "") if c.isdigit())),
+                    "panel_fetch_origin_set": bool((controller.config.get("panel_fetch_origin") or "").strip()),
+                })
+                if "name" in new_config and "registration_address" in (new_config.get("name") or {}):
+                    dbg("H4", "panel_bridge.config/save", "registration_address saved", {
+                        "addr_len": len(str((nm.get("registration_address") or "")).strip()),
+                    })
+            except Exception:
+                pass
+            # #endregion
             flow.response = http.Response.make(200, json.dumps({"status": "ok"}).encode('utf-8'), {"Content-Type": "application/json"})
         except Exception:
             flow.response = http.Response.make(400, b'{"error":"bad request"}')

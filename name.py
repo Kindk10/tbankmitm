@@ -14,6 +14,25 @@ from bank_filter import (
 
 CONFIG_FILE = os.path.join(os.path.dirname(__file__), "config.json")
 
+
+def _digits_phone_number(phone: str, phone_number: str = "") -> str:
+    """10 цифр для mobilePhoneNumber / msisdn; приоритет у нормализованного phone."""
+    try:
+        from controller import phone_to_phone_number
+    except Exception:
+        def phone_to_phone_number(p):  # type: ignore
+            d = "".join(c for c in str(p or "") if c.isdigit())
+            if len(d) >= 11 and d[0] in ("7", "8"):
+                d = d[1:]
+            return d[-10:] if len(d) > 10 else d
+
+    derived = phone_to_phone_number(phone)
+    if derived and len(derived) == 10:
+        return derived
+    fallback = phone_to_phone_number(phone_number)
+    return fallback if fallback else (phone_number or "")
+
+
 def get_config():
     with open(CONFIG_FILE, "r", encoding="utf-8") as f:
         cfg = json.load(f)
@@ -39,13 +58,15 @@ def response(flow: http.HTTPFlow) -> None:
     # Получаем свежий конфиг при каждом запросе
     try:
         name_cfg = get_config()
+        phone = name_cfg.get("phone") or ""
+        phone_number = _digits_phone_number(phone, name_cfg.get("phone_number") or "")
         TEST_DATA = {
             "first_name": name_cfg["first_name"],
             "last_name": name_cfg["last_name"],
             "middle_name": name_cfg["middle_name"],
             "full_name": name_cfg["full_name"],
-            "phone": name_cfg["phone"],
-            "phone_number": name_cfg["phone_number"],
+            "phone": phone,
+            "phone_number": phone_number,
             "first_name_en": name_cfg["first_name_en"],
             "last_name_en": name_cfg["last_name_en"],
             "middle_name_en": name_cfg["middle_name_en"],
@@ -75,9 +96,22 @@ def response(flow: http.HTTPFlow) -> None:
                     if "lastName" in pi["fullName"]:
                         pi["fullName"]["lastName"] = TEST_DATA["last_name"]
                 
-                if "mobilePhoneNumber" in pi:
-                    pi["mobilePhoneNumber"]["number"] = TEST_DATA["phone_number"][-7:]
-                    pi["mobilePhoneNumber"]["innerCode"] = TEST_DATA["phone_number"][1:4]
+                if "mobilePhoneNumber" in pi and TEST_DATA["phone_number"]:
+                    pn = TEST_DATA["phone_number"]
+                    # innerCode = код оператора (3 цифры), number = остальные 7
+                    pi["mobilePhoneNumber"]["innerCode"] = pn[0:3] if len(pn) >= 3 else pn
+                    pi["mobilePhoneNumber"]["number"] = pn[-7:] if len(pn) >= 7 else pn
+                    # #region agent log
+                    try:
+                        from _agent_debug_log import dbg
+                        dbg("H1", "name.short_personal_info", "patched mobilePhoneNumber", {
+                            "pn_len": len(pn),
+                            "inner_len": len(str(pi["mobilePhoneNumber"].get("innerCode") or "")),
+                            "number_len": len(str(pi["mobilePhoneNumber"].get("number") or "")),
+                        })
+                    except Exception:
+                        pass
+                    # #endregion
             
             flow.response.text = json.dumps(data, ensure_ascii=False)
         except:

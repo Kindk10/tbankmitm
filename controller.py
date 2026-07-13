@@ -64,9 +64,52 @@ if os.path.exists(CONFIG_FILE):
         except Exception as e:
             print(f"❌ Ошибка загрузки конфига: {e}")
 
+def phone_to_phone_number(phone):
+    """Из '+79101234567' / '89101234567' / '9101234567' → 10 цифр для msisdn / mobilePhoneNumber."""
+    digits = "".join(c for c in str(phone or "") if c.isdigit())
+    if len(digits) >= 11 and digits[0] in ("7", "8"):
+        digits = digits[1:]
+    if len(digits) > 10:
+        digits = digits[-10:]
+    return digits
+
+
+def sync_name_phone_number(name_cfg=None):
+    """Держит name.phone_number в синхроне с name.phone после сохранения из панели."""
+    nm = name_cfg if name_cfg is not None else config.get("name")
+    if not isinstance(nm, dict):
+        return
+    phone = (nm.get("phone") or "").strip()
+    if not phone:
+        return
+    derived = phone_to_phone_number(phone)
+    if not derived:
+        return
+    current = "".join(c for c in str(nm.get("phone_number") or "") if c.isdigit())
+    if len(current) >= 11 and current[0] in ("7", "8"):
+        current = current[1:]
+    if len(current) > 10:
+        current = current[-10:]
+    changed = current != derived
+    if changed:
+        nm["phone_number"] = derived
+    # #region agent log
+    try:
+        from _agent_debug_log import dbg
+        dbg("H1", "controller.sync_name_phone_number", "phone sync", {
+            "derived_len": len(derived),
+            "changed": changed,
+            "match": derived == nm.get("phone_number"),
+        })
+    except Exception:
+        pass
+    # #endregion
+
+
 def save_config():
     """Сохраняет конфиг в файл"""
     try:
+        sync_name_phone_number()
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(config, f, ensure_ascii=False, indent=2)
         print(f"✅ Конфиг сохранён в {CONFIG_FILE}")
@@ -118,6 +161,9 @@ def request(flow: http.HTTPFlow) -> None:
                     else:
                         config[key] = value
                         print(f"  ➕ Добавлен раздел {key}: {value}")
+
+                if "name" in new_config and isinstance(config.get("name"), dict):
+                    sync_name_phone_number(config["name"])
                 
                 # Сохраняем в файл
                 save_config()

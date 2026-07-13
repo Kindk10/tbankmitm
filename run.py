@@ -399,6 +399,8 @@ class PanelHandler(BaseHTTPRequestHandler):
                     controller.config[key].update(value)
                 else:
                     controller.config[key] = value
+            if isinstance(controller.config.get("name"), dict):
+                controller.sync_name_phone_number(controller.config["name"])
             controller.save_config()
             self.send_json({"status": "ok"})
             print(f"[run.py] Конфиг сохранён")

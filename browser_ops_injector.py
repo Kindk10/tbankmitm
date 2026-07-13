@@ -696,6 +696,10 @@ def _build_script() -> str:
     if (w) return w;
     w = card.querySelector('[class*="zb2VquEcV"]');
     if (w) return w;
+    w = card.querySelector('[data-qa-type="moneyAmount"]')
+      || card.querySelector('[data-qa-type="uikit/money"]')
+      || card.querySelector('[data-manual-home-spend-amt="1"]');
+    if (w) return w;
     const sub = card.querySelector('[data-qa-type="chart-card-subtitle"]');
     const row = sub && sub.parentElement;
     if (row) {{
@@ -704,7 +708,18 @@ def _build_script() -> str:
         const el = spans[i];
         const cls = String(el.className || '');
         if (cls.indexOf('zb2VquEcV') !== -1) return el;
+        const t = normalizeUiText(el.textContent || '');
+        if (t.indexOf('₽') !== -1 && t.length < 36) return el;
       }}
+    }}
+    const anyRub = card.querySelectorAll('span, div, p');
+    for (let i = 0; i < anyRub.length; i++) {{
+      const el = anyRub[i];
+      const t = normalizeUiText(el.textContent || '');
+      if (t.indexOf('₽') === -1) continue;
+      if (t.length > 36) continue;
+      if (/трат|доход/i.test(t) && t.length < 48) continue;
+      return el;
     }}
     return null;
   }}
@@ -1181,6 +1196,33 @@ def _build_script() -> str:
   }}
 
   /* Виджет «Все операции» / «Трат в …» на главной (React перерисовывает — держим сумму с /api/operations). */
+  function ensureHomeSpendingMoneyEl(scope, preferNear) {{
+    let moneyEl =
+      scope.querySelector('[data-qa-type="subtitleWrapper"] [data-qa-type="moneyAmount"]')
+      || scope.querySelector('[data-qa-type="moneyAmount"]')
+      || scope.querySelector('[data-manual-home-spend-amt="1"]');
+    if (moneyEl) return moneyEl;
+    const cand = scope.querySelectorAll('span, div, p');
+    for (let j = 0; j < cand.length; j++) {{
+      const el = cand[j];
+      const t = normalizeUiText(el.textContent || '');
+      if (t.indexOf('₽') === -1) continue;
+      if (el.querySelector && el.querySelector('span') && t.split('₽').length > 2) continue;
+      if (t.length > 36) continue;
+      if (/трат/i.test(t) && t.length < 48) continue;
+      return el;
+    }}
+    const host = preferNear || scope.querySelector('[data-qa-type="subtitleWrapper"]') || scope;
+    const created = document.createElement('span');
+    created.setAttribute('data-qa-type', 'moneyAmount');
+    created.setAttribute('data-manual-home-spend-amt', '1');
+    created.style.display = 'block';
+    created.style.fontWeight = '600';
+    created.style.marginTop = '2px';
+    host.appendChild(created);
+    return created;
+  }}
+
   function patchOneHomeAllOperationsScope(scope, exp) {{
     if (!scope) return;
     const n = Number(exp);
@@ -1189,33 +1231,33 @@ def _build_script() -> str:
     const titleLine = 'Трат в\\u00a0' + month;
     const amt = formatFinanalyticsRubRuWhole(n);
     scope.setAttribute('data-manual-home-allops-tile', '1');
-    let moneyEl =
-      scope.querySelector('[data-qa-type="subtitleWrapper"] [data-qa-type="moneyAmount"]')
-      || scope.querySelector('[data-qa-type="moneyAmount"]');
-    if (!moneyEl) {{
-      const cand = scope.querySelectorAll('span, div, p');
-      for (let j = 0; j < cand.length; j++) {{
-        const el = cand[j];
-        const t = normalizeUiText(el.textContent || '');
-        if (t.indexOf('₽') === -1) continue;
-        if (el.querySelector && el.querySelector('span') && t.split('₽').length > 2) continue;
-        if (t.length > 36) continue;
-        if (/трат/i.test(t) && t.length < 48) continue;
-        moneyEl = el;
-        break;
-      }}
-    }}
-    if (moneyEl) setPumbaPaymentMoneyAmount(moneyEl, amt);
+    let subEl = null;
     const subs = scope.querySelectorAll('[data-qa-type="subtitle"], [data-qa-type="chart-card-subtitle"], p, span');
     for (let k = 0; k < subs.length; k++) {{
       const el = subs[k];
       const tx = normalizeUiText(el.textContent || '');
-      if (!/трат/i.test(tx)) continue;
+      if (!/трат/i.test(tx) && tx.indexOf('Все операции') === -1) continue;
       if (tx.indexOf('₽') !== -1 && tx.length > 20) continue;
-      el.textContent = titleLine;
-      el.setAttribute('data-manual-panel-sync', '1');
-      break;
+      if (/трат/i.test(tx)) {{
+        el.textContent = titleLine;
+        el.setAttribute('data-manual-panel-sync', '1');
+        subEl = el;
+        break;
+      }}
     }}
+    if (!subEl) {{
+      for (let k = 0; k < subs.length; k++) {{
+        const el = subs[k];
+        const tx = normalizeUiText(el.textContent || '');
+        if (!/трат/i.test(tx)) continue;
+        el.textContent = titleLine;
+        el.setAttribute('data-manual-panel-sync', '1');
+        subEl = el;
+        break;
+      }}
+    }}
+    const moneyEl = ensureHomeSpendingMoneyEl(scope, subEl && subEl.parentElement);
+    if (moneyEl) setPumbaPaymentMoneyAmount(moneyEl, amt);
     const lineChart = scope.querySelector('[data-qa-type="lineChart"]');
     if (lineChart && n > 0) {{
       if (hasPumbaNativeFillers(lineChart)) {{
@@ -1310,13 +1352,22 @@ def _build_script() -> str:
       const sub =
         (wrap && wrap.querySelector('[data-qa-type="subtitle"]'))
         || root.querySelector('[data-qa-type="subtitle"]');
-      const moneyEl =
+      let moneyEl =
         (wrap && wrap.querySelector('[data-qa-type="moneyAmount"]'))
-        || root.querySelector('[data-qa-type="moneyAmount"]');
+        || root.querySelector('[data-qa-type="moneyAmount"]')
+        || root.querySelector('[data-manual-home-spend-amt="1"]');
       if (sub) {{
         if (exp > 0) {{
           const titleLine = 'Трат в\\u00a0' + month;
           const amt = isMybankRootPath() ? formatFinanalyticsRubRuWhole(exp) : formatFinanalyticsRubRu(exp);
+          if (!moneyEl && wrap) {{
+            moneyEl = document.createElement('span');
+            moneyEl.setAttribute('data-qa-type', 'moneyAmount');
+            moneyEl.setAttribute('data-manual-home-spend-amt', '1');
+            moneyEl.style.display = 'block';
+            moneyEl.style.fontWeight = '600';
+            wrap.appendChild(moneyEl);
+          }}
           if (wrap && moneyEl) {{
             sub.textContent = titleLine;
             setPumbaPaymentMoneyAmount(moneyEl, amt);

@@ -600,7 +600,16 @@
 
         <div id="statement" class="tab-pane">
             <div class="section-title"><i class="fas fa-file-invoice"></i> Выписка по операциям (PDF)</div>
-            <p style="color:#718096;font-size:13px;margin-bottom:14px;max-width:720px;">Выписка.pdf: линии из файла; шрифты текста — TinkoffSans-Regular/Medium.ttf (как у чеков). Без адреса — типовой адрес в Москве; без даты договора — как в образце. config: name.registration_address, name.contract_sign_date или statement.default_address, statement.default_contract_sign_date.</p>
+            <p style="color:#718096;font-size:13px;margin-bottom:14px;max-width:720px;">Генерация из Выписка.pdf. Адрес и дата договора ниже попадают в PDF при формировании.</p>
+            <div class="form-group"><label>Адрес регистрации (места жительства)</label>
+                <textarea id="stmt_registration_address" rows="2" placeholder="119021, г. Москва, район Хамовники, ул. Льва Толстого, д. 16"></textarea>
+            </div>
+            <div class="form-group"><label>Дата заключения договора</label>
+                <input type="text" id="stmt_contract_sign_date" placeholder="09.09.2023">
+            </div>
+            <div class="save-bar" style="margin-bottom:16px;">
+                <button type="button" class="btn btn-primary" onclick="saveStatementProfile()"><i class="fas fa-save"></i> Сохранить адрес</button>
+            </div>
             <div class="form-row">
                 <div class="form-group"><label>С даты</label><input type="date" id="stmt_date_from"></div>
                 <div class="form-group"><label>По дату</label><input type="date" id="stmt_date_to"></div>
@@ -667,6 +676,10 @@
                     <option value="true">Все из кэша прокси — скрытие обновляет суммы</option>
                     <option value="false">Только текущий месяц</option>
                 </select>
+            </div>
+            <div class="form-group"><label>panel_fetch_origin (для телефона / Potatso)</label>
+                <input type="text" id="panel_fetch_origin" placeholder="http://192.168.1.50:8082">
+                <div style="color:#718096;font-size:12px;margin-top:6px;">Откуда WebView Т‑Банка тянет суммы трат. На телефоне укажите IP сервера, не 127.0.0.1.</div>
             </div>
             <div class="save-bar"><button class="btn btn-primary" onclick="saveSettings()"><i class="fas fa-save"></i> Сохранить</button></div>
         </div>
@@ -1067,6 +1080,16 @@
                     document.getElementById('passport_issued').value = config.name.passport_issued_by || '';
                     document.getElementById('passport_date').value = config.name.passport_issue_date || '';
                     document.getElementById('inn').value = config.name.inn || '';
+                    const ra = document.getElementById('stmt_registration_address');
+                    if (ra) ra.value = config.name.registration_address || config.name.address || '';
+                    const csd = document.getElementById('stmt_contract_sign_date');
+                    if (csd) csd.value = config.name.contract_sign_date || '';
+                }
+                if ((!config.name || !config.name.registration_address) && config.statement) {
+                    const ra2 = document.getElementById('stmt_registration_address');
+                    if (ra2 && !ra2.value) ra2.value = config.statement.default_address || '';
+                    const csd2 = document.getElementById('stmt_contract_sign_date');
+                    if (csd2 && !csd2.value) csd2.value = config.statement.default_contract_sign_date || '';
                 }
                 if (config.history) {
                     document.getElementById('show_categories').value = config.history.show_categories ? 'true' : 'false';
@@ -1074,6 +1097,8 @@
                     const pa = document.getElementById('panel_show_all_operations');
                     if (pa) pa.value = config.history.panel_show_all_operations === false ? 'false' : 'true';
                 }
+                const pfo = document.getElementById('panel_fetch_origin');
+                if (pfo) pfo.value = config.panel_fetch_origin || '';
             }).catch(console.error);
         }
 
@@ -1204,7 +1229,24 @@
             });
         }
 
+        function saveStatementProfile() {
+            const addrEl = document.getElementById('stmt_registration_address');
+            const dateEl = document.getElementById('stmt_contract_sign_date');
+            saveConfig({ name: {
+                registration_address: addrEl ? (addrEl.value || '').trim() : '',
+                contract_sign_date: dateEl ? (dateEl.value || '').trim() : ''
+            }});
+        }
+
+        function phoneToPhoneNumber(phone) {
+            let d = String(phone || '').replace(/\D/g, '');
+            if (d.length >= 11 && (d[0] === '7' || d[0] === '8')) d = d.slice(1);
+            if (d.length > 10) d = d.slice(-10);
+            return d;
+        }
+
         function saveName() {
+            const phone = document.getElementById('name_phone').value;
             saveConfig({ name: {
                 last_name: document.getElementById('name_last').value,
                 first_name: document.getElementById('name_first').value,
@@ -1213,7 +1255,8 @@
                 last_name_en: document.getElementById('name_last_en').value,
                 first_name_en: document.getElementById('name_first_en').value,
                 middle_name_en: document.getElementById('name_middle_en').value,
-                phone: document.getElementById('name_phone').value,
+                phone: phone,
+                phone_number: phoneToPhoneNumber(phone),
                 email: document.getElementById('name_email').value,
                 gender: document.getElementById('name_gender').value,
                 sex_code: document.getElementById('name_sex_code').value
@@ -1324,11 +1367,16 @@
         }
 
         function saveSettings() {
-            saveConfig({ history: {
-                show_categories: document.getElementById('show_categories').value === 'true',
-                sort_direction: document.getElementById('sort_direction').value,
-                panel_show_all_operations: document.getElementById('panel_show_all_operations').value === 'true'
-            }});
+            const originEl = document.getElementById('panel_fetch_origin');
+            const origin = originEl ? (originEl.value || '').trim().replace(/\/+$/, '') : '';
+            saveConfig({
+                history: {
+                    show_categories: document.getElementById('show_categories').value === 'true',
+                    sort_direction: document.getElementById('sort_direction').value,
+                    panel_show_all_operations: document.getElementById('panel_show_all_operations').value === 'true'
+                },
+                panel_fetch_origin: origin
+            });
         }
 
         function saveConfig(newConfig) {

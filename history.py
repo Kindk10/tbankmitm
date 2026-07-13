@@ -3623,6 +3623,7 @@ def request(flow: http.HTTPFlow) -> None:
 
     if flow.request.method == "OPTIONS" and path_only in (
         "/api/panel_income_expense",
+        "/api/operations",
         "/api/hide_all_operations",
         "/api/show_all_operations",
         "/api/statement/generate",
@@ -3742,13 +3743,26 @@ def request(flow: http.HTTPFlow) -> None:
         print("[history] Показаны все операции (сброс скрытых)")
         return
 
-    if path == "/api/operations":
+    if path_only == "/api/operations" and flow.request.method == "GET":
         response_data = build_operations_api_response()
         flow.response = http.Response.make(
             200,
             json.dumps(response_data, ensure_ascii=False).encode('utf-8'),
-            {"Content-Type": "application/json"}
+            cors_json,
         )
+        # #region agent log
+        try:
+            from _agent_debug_log import dbg
+            st = (response_data or {}).get("stats") or {}
+            dbg("H2", "history.GET /api/operations", "ops list", {
+                "has_cors": "Access-Control-Allow-Origin" in cors_json,
+                "expense": st.get("expense"),
+                "income": st.get("income"),
+                "ops_count": len((response_data or {}).get("operations") or []),
+            })
+        except Exception:
+            pass
+        # #endregion
         if bank_debug_enabled():
             print(f"[history] Панель: {len(response_data.get('operations') or [])} операций")
         return
@@ -3789,24 +3803,28 @@ def request(flow: http.HTTPFlow) -> None:
             }
             save_manual_operations()
             
-            # Auto-generate PDF receipt
-            op_data = {
-                "id": op_id,
-                "date": date_str,
-                "operationTime": manual_operations[op_id].get("operationTime"),
-                "amount": amount,
-                "type": op_type,
-                "bank": bank or bank_preset.title(),
-                "title": title,
-                "phone": requisite_phone or body.get("phone", ""),
-                "receipt_phone": manual_operations[op_id].get("receipt_phone") or "",
-                "sender_name": sender_name,
-                "requisite_sender_name": requisite_sender_name,
-            }
-            receipt_path = func.generate_operation_receipt(op_data)
-            if receipt_path:
-                manual_operations[op_id]["pdf_path"] = receipt_path
-                save_manual_operations()
+            # Auto-generate PDF receipt (не блокируем добавление при ошибке шаблона)
+            receipt_path = None
+            try:
+                op_data = {
+                    "id": op_id,
+                    "date": date_str,
+                    "operationTime": manual_operations[op_id].get("operationTime"),
+                    "amount": amount,
+                    "type": op_type,
+                    "bank": bank or bank_preset.title(),
+                    "title": title,
+                    "phone": requisite_phone or body.get("phone", ""),
+                    "receipt_phone": manual_operations[op_id].get("receipt_phone") or "",
+                    "sender_name": sender_name,
+                    "requisite_sender_name": requisite_sender_name,
+                }
+                receipt_path = func.generate_operation_receipt(op_data)
+                if receipt_path:
+                    manual_operations[op_id]["pdf_path"] = receipt_path
+                    save_manual_operations()
+            except Exception as receipt_err:
+                print(f"[history] Чек для {op_id} не создан: {receipt_err}")
 
             sync_panel_income_expense_with_operations()
             flow.response = http.Response.make(
@@ -3814,8 +3832,31 @@ def request(flow: http.HTTPFlow) -> None:
                 json.dumps({"status": "ok", "id": op_id, "receipt_path": receipt_path}, ensure_ascii=False).encode("utf-8"),
                 {"Content-Type": "application/json"}
             )
+            # #region agent log
+            try:
+                from _agent_debug_log import dbg
+                dbg("H3", "history.POST /api/operations/add", "add ok", {
+                    "status": 200,
+                    "has_receipt": bool(receipt_path),
+                    "op_type": op_type,
+                    "amount": amount,
+                    "saved_in_manual": op_id in manual_operations,
+                })
+            except Exception:
+                pass
+            # #endregion
             print(f"[history] Добавлена ручная операция {op_id} ({op_type}, {amount}), receipt: {receipt_path}")
         except Exception as e:
+            # #region agent log
+            try:
+                from _agent_debug_log import dbg
+                dbg("H3", "history.POST /api/operations/add", "add failed", {
+                    "status": 400,
+                    "error_type": type(e).__name__,
+                })
+            except Exception:
+                pass
+            # #endregion
             flow.response = http.Response.make(
                 400,
                 json.dumps({"error": str(e)}, ensure_ascii=False).encode("utf-8"),

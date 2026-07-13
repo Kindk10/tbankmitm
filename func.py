@@ -369,17 +369,48 @@ def format_receipt_debit_account_line(account_raw: str) -> str:
     return prefix12 + "****" + last4
 
 
+def _resolve_receipt_template_path() -> Optional[str]:
+    """Ищет sbpfinaltbanksend.pdf рядом со скриптом или fallback на существующий receipt_*.pdf."""
+    base = Path(__file__).resolve().parent
+    primary = base / "sbpfinaltbanksend.pdf"
+    if primary.is_file():
+        return str(primary)
+    cwd_primary = Path("sbpfinaltbanksend.pdf")
+    if cwd_primary.is_file():
+        return str(cwd_primary.resolve())
+    candidates = sorted(base.glob("receipt_UNIFIED_*.pdf"), key=lambda p: p.stat().st_mtime, reverse=True)
+    if not candidates:
+        candidates = sorted(base.glob("receipt_m_*.pdf"), key=lambda p: p.stat().st_mtime, reverse=True)
+    if not candidates:
+        candidates = sorted(base.glob("receipt_*.pdf"), key=lambda p: p.stat().st_mtime, reverse=True)
+    for p in candidates:
+        if p.is_file() and p.stat().st_size > 1000:
+            return str(p)
+    return None
+
+
 def generate_operation_receipt(op_data, output_path=None):
     """
     Генерирует PDF-чек для ручной операции.
     op_data: dict с полями: date, amount, type, bank, title, sender_name, receiver_phone, etc.
+    Возвращает путь к PDF или None, если шаблон недоступен / ошибка генерации.
     """
+    import controller
+
+    try:
+        return _generate_operation_receipt_impl(op_data, output_path)
+    except Exception as e:
+        print(f"[func] generate_operation_receipt: {e}")
+        return None
+
+
+def _generate_operation_receipt_impl(op_data, output_path=None):
     import controller
     
     if output_path is None:
         op_id = op_data.get("id", "unknown")[:12]
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_path = f"receipt_{op_id}_{timestamp}.pdf"
+        output_path = str(Path(__file__).resolve().parent / f"receipt_{op_id}_{timestamp}.pdf")
     
     # Конфигурация
     config = controller.config
@@ -432,10 +463,18 @@ def generate_operation_receipt(op_data, output_path=None):
     bukva = random.choice(["А", "В"])
     identificator = bukva + f"{random.randint(111111111111, 999999999999)}" + "406000004001" + f"{random.randint(11,99)}"
     identificator2 = f"{random.randint(11111, 99999)}"
-    
-    TEMPLATE_PATH = "sbpfinaltbanksend.pdf"
-    FONT_NORMAL = "TinkoffSans-Regular.ttf"
-    FONT_BOLD = "TinkoffSans-Medium.ttf"
+
+    base = Path(__file__).resolve().parent
+    TEMPLATE_PATH = _resolve_receipt_template_path()
+    if not TEMPLATE_PATH:
+        print("[func] Нет шаблона чека (sbpfinaltbanksend.pdf / receipt_*.pdf)")
+        return None
+    FONT_NORMAL = str(base / "TinkoffSans-Regular.ttf")
+    FONT_BOLD = str(base / "TinkoffSans-Medium.ttf")
+    if not os.path.isfile(FONT_NORMAL):
+        FONT_NORMAL = "TinkoffSans-Regular.ttf"
+    if not os.path.isfile(FONT_BOLD):
+        FONT_BOLD = "TinkoffSans-Medium.ttf"
 
     POSITIONS = {
         "date": (20, 86.5),
@@ -483,7 +522,7 @@ def generate_operation_receipt(op_data, output_path=None):
     try:
         compress_pdf_ghostscript(output_path, final_path)
         return final_path
-    except:
+    except Exception:
         return output_path
 
 
