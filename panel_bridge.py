@@ -1806,8 +1806,14 @@ def request(flow: http.HTTPFlow) -> None:
     if flow.request.port != PANEL_PORT:
         return
 
+    path = flow.request.path
+    path_only = _panel_request_path_only(path)
+
     client_ip = flow.client_conn.address[0]
     if not _client_ok_for_panel(client_ip):
+        # history.py уже ответил на /api/* — не перезаписывать 403 (ломает fetch из WebView)
+        if flow.response is not None or path_only.startswith("/api/"):
+            return
         # #region agent log
         try:
             from _agent_debug_log import dbg
@@ -1822,8 +1828,6 @@ def request(flow: http.HTTPFlow) -> None:
         flow.response = http.Response.make(403, b"Forbidden")
         return
 
-    path = flow.request.path
-    path_only = _panel_request_path_only(path)
     # #region agent log
     if path_only in ("/admin", "/admin/", "/api/config"):
         try:

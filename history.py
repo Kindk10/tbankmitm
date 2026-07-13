@@ -256,6 +256,44 @@ def panel_include_all_cached_operations() -> bool:
     return bool((controller.config.get("history") or {}).get("panel_show_all_operations", True))
 
 
+def app_include_all_operations() -> bool:
+    """Приложение: те же правила видимости, что и панель (panel_show_all_operations)."""
+    return panel_include_all_cached_operations()
+
+
+def op_passes_app_month_filter(date_str: str) -> bool:
+    if app_include_all_operations():
+        return True
+    return is_current_month(date_str)
+
+
+def pending_fake_history_ops(month_restrict: bool = None) -> list:
+    """Записи fake_history из last_transfer*.json для inject в ленту банка."""
+    if month_restrict is None:
+        month_restrict = not app_include_all_operations()
+    out = []
+    seen = set()
+    for path in _last_transfer_json_paths():
+        if not os.path.isfile(path):
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            continue
+        for op in data.get("fake_history") or []:
+            if not isinstance(op, dict):
+                continue
+            oid = str(op.get("id") or "").strip()
+            if not oid or oid in hidden_operations or oid in seen:
+                continue
+            seen.add(oid)
+            if month_restrict and not _fake_op_in_current_month(op):
+                continue
+            out.append(copy.deepcopy(op))
+    return out
+
+
 def get_panel_chart_display_totals():
     """Единые доход/расход для панели и подмены гистограмм: если в config.manual заданы income/expense — они главные;
     иначе при histogram_sync_with_operations: сводка банка + только ручные/мок‑переводы; без кэша реальных операций."""
@@ -1759,18 +1797,20 @@ def inject_manual_into_response(
             print(f"[history] ручные операции: GraphQL operationName — виджет/шум, пропуск: {url[:120]}")
         return False
 
+    show_all = app_include_all_operations()
     pending = []
     for op_id, op in manual_operations.items():
         if op_id in hidden_operations:
             continue
-        if not is_current_month(op.get("date", "")):
+        if not show_all and not is_current_month(op.get("date", "")):
             continue
         pending.append((op_id, op))
-    if not pending:
+    pending_fake = pending_fake_history_ops(month_restrict=not show_all)
+    if not pending and not pending_fake:
         if manual_operations and bank_debug_enabled():
             print(
-                "[history] ручные операции есть, но ни одна не в текущем месяце — "
-                "проверьте дату в панели (формат ДД.ММ.ГГГГ в текущем месяце)."
+                "[history] ручные операции есть, но ни одна не проходит фильтр месяца — "
+                "проверьте дату в панели или включите panel_show_all_operations."
             )
         return False
 
@@ -1854,6 +1894,23 @@ def inject_manual_into_response(
                 manual_tie = 1 if oid.startswith("m_") else 0
                 return (operation_time_ms(e["node"]), manual_tie)
 
+            for fake_item in pending_fake:
+                op_id = fake_item.get("id")
+                if not op_id or op_id in existing_ids:
+                    continue
+                if share_injected_ids and op_id in injected_ids:
+                    continue
+                if use_cross_debounce and _cross_response_inject_debounce_hit(op_id):
+                    continue
+                node = copy.deepcopy(fake_item)
+                lst.insert(0, {"cursor": f"fake_{op_id}", "node": node})
+                existing_ids.add(op_id)
+                if share_injected_ids:
+                    injected_ids.add(op_id)
+                if use_cross_debounce:
+                    _cross_response_inject_mark(op_id)
+                changed = True
+
             lst.sort(key=relay_sk, reverse=True)
             if bank_debug_enabled() and changed:
                 print(f"[history] inject GraphQL edges: count={len(lst)}")
@@ -1887,6 +1944,22 @@ def inject_manual_into_response(
                 print(f"[history] overlay операции: {ex}")
                 continue
             lst.insert(0, item)
+            existing_ids.add(op_id)
+            if share_injected_ids:
+                injected_ids.add(op_id)
+            if use_cross_debounce:
+                _cross_response_inject_mark(op_id)
+            changed = True
+
+        for fake_item in pending_fake:
+            op_id = fake_item.get("id")
+            if not op_id or op_id in existing_ids:
+                continue
+            if share_injected_ids and op_id in injected_ids:
+                continue
+            if use_cross_debounce and _cross_response_inject_debounce_hit(op_id):
+                continue
+            lst.insert(0, copy.deepcopy(fake_item))
             existing_ids.add(op_id)
             if share_injected_ids:
                 injected_ids.add(op_id)
@@ -2038,8 +2111,8 @@ def _fake_op_in_current_month(op: dict) -> bool:
     if isinstance(ot, dict):
         ms = ot.get("milliseconds")
         if isinstance(ms, (int, float)) and ms > 0:
-            dt = datetime.fromtimestamp(ms / 1000)
-            now = datetime.now()
+            dt = moscow_from_timestamp(ms / 1000)
+            now = now_moscow()
             return dt.year == now.year and dt.month == now.month
     return False
 
@@ -3794,7 +3867,7 @@ def request(flow: http.HTTPFlow) -> None:
             print(f"[history] Панель: {len(response_data.get('operations') or [])} операций")
         return
 
-    if flow.request.method == "POST" and path == "/api/operations/add":
+    if flow.request.method == "POST" and path_only == "/api/operations/add":
         try:
             body = json.loads(flow.request.text or "{}")
             direction = body.get("direction", "out")
@@ -3891,7 +3964,7 @@ def request(flow: http.HTTPFlow) -> None:
             )
         return
 
-    if flow.request.method == "POST" and path == "/api/operations/delete":
+    if flow.request.method == "POST" and path_only == "/api/operations/delete":
         try:
             body = json.loads(flow.request.text or "{}")
             op_id = body.get("id") or ""
@@ -3912,7 +3985,7 @@ def request(flow: http.HTTPFlow) -> None:
             flow.response = http.Response.make(400, json.dumps({"error": str(e)}).encode("utf-8"), {"Content-Type": "application/json"})
         return
 
-    if flow.request.method == "POST" and path == "/api/operations/update":
+    if flow.request.method == "POST" and path_only == "/api/operations/update":
         try:
             body = json.loads(flow.request.text or "{}")
             op_id = (body.get("id") or "").strip()
@@ -3953,7 +4026,7 @@ def request(flow: http.HTTPFlow) -> None:
             )
         return
 
-    if flow.request.method == "POST" and path == "/api/toggle":
+    if flow.request.method == "POST" and path_only == "/api/toggle":
         body = flow.request.text
         op_id = parse_qs(body).get("id", [""])[0]
         if op_id and (op_id in operations_cache or op_id in manual_operations or op_id_in_fake_history_files(op_id)):

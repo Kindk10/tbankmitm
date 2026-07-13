@@ -76,6 +76,24 @@ def main():
         "start_bat_allow_any": "TBANKMITM_PANEL_ALLOW_ANY=1" in open(os.path.join(ROOT, "start.bat"), encoding="utf-8", errors="ignore").read(),
     })
 
+    # H6 app month filter + fake_history repair
+    try:
+        import transfer
+        import history as hist
+        april_ok = hist.app_include_all_operations() or hist.is_current_month("17.04.2026, 02:08:36")
+        pending = hist.pending_fake_history_ops(month_restrict=not hist.app_include_all_operations())
+        dbg("H6", "smoke.app_filter", "month filter", {
+            "show_all": hist.app_include_all_operations(),
+            "april_passes": april_ok,
+            "fake_pending_count": len(pending),
+        })
+        dbg("H6", "smoke.fake_repair", "fake_history on disk", {
+            "fake_history_len": len(transfer.transfer_data.get("fake_history") or []),
+            "transaction_id": transfer.transfer_data.get("transaction_id"),
+        })
+    except Exception as e:
+        dbg("H6", "smoke.app_filter", "failed", {"error_type": type(e).__name__})
+
     print("smoke done -> debug-f24997.log")
 
 

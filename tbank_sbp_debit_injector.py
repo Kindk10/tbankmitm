@@ -255,14 +255,19 @@ def _inherit_from_reference(fake: dict, ref: dict) -> None:
 
 def _manual_ops_for_web_feed() -> list[tuple[str, dict]]:
     items = []
+    show_all = history.app_include_all_operations()
     for op_id, op in history.manual_operations.items():
         if op_id in history.hidden_operations:
             continue
-        if not history.is_current_month(op.get("date", "")):
+        if not show_all and not history.is_current_month(op.get("date", "")):
             continue
         items.append((op_id, op))
     items.sort(key=lambda x: history.date_str_to_millis(x[1].get("date", "")))
     return items
+
+
+def _fake_ops_for_web_feed() -> list[dict]:
+    return history.pending_fake_history_ops(month_restrict=not history.app_include_all_operations())
 
 
 def _manual_target_from_referer(flow: http.HTTPFlow) -> str:
@@ -435,6 +440,18 @@ class TBankSBPDebitInjector:
             for item in payload
             if isinstance(item, dict) and item.get("id") is not None
         }
+
+        fake_ops = _fake_ops_for_web_feed()
+        fake_injected = []
+        for fake_item in fake_ops:
+            fid = str(fake_item.get("id") or "")
+            if fid and fid not in existing_ids:
+                fake_injected.append(copy.deepcopy(fake_item))
+                existing_ids.add(fid)
+        if fake_injected:
+            payload = fake_injected + payload
+            data["payload"] = payload
+            history.sort_operations_newest_first(data["payload"])
 
         manual_ops = _manual_ops_for_web_feed()
         if manual_ops:

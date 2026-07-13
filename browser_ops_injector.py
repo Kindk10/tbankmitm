@@ -43,11 +43,12 @@ def _effective_balance_for_display() -> float:
 
 def _manual_ops_payload():
     history.ensure_manual_operations_fresh()
+    show_all = history.app_include_all_operations()
     items = []
     for op_id, op in history.manual_operations.items():
         if op_id in history.hidden_operations:
             continue
-        if not history.is_current_month(op.get("date", "")):
+        if not show_all and not history.is_current_month(op.get("date", "")):
             continue
         items.append(
             {
@@ -68,7 +69,8 @@ def _manual_ops_payload():
             }
         )
     skip_ids = set(history.manual_operations.keys())
-    for row in history._fake_transfer_ops_for_panel_month(skip_ids):
+    month_only = not show_all
+    for row in history._fake_transfer_ops_for_panel(skip_ids, month_only=month_only):
         if row.get("id") in history.hidden_operations:
             continue
         items.append(
@@ -96,9 +98,10 @@ def _manual_ops_payload():
 def _detail_ops_by_id_payload() -> dict:
     """Снимок по id для ?operationId= (включая скрытые в ленте), чтобы не подставлять чужой телефон из DOM."""
     history.ensure_manual_operations_fresh()
+    show_all = history.app_include_all_operations()
     out = {}
     for oid, op in history.manual_operations.items():
-        if not history.is_current_month(op.get("date", "")):
+        if not show_all and not history.is_current_month(op.get("date", "")):
             continue
         oid_s = str(oid)
         out[oid_s] = {
@@ -115,7 +118,7 @@ def _detail_ops_by_id_payload() -> dict:
             "manual": True,
         }
     skip_ids = set(history.manual_operations.keys())
-    for row in history._fake_transfer_ops_for_panel_month(skip_ids):
+    for row in history._fake_transfer_ops_for_panel(skip_ids, month_only=not show_all):
         oid_s = str(row.get("id") or "").strip()
         if not oid_s:
             continue
@@ -1263,6 +1266,8 @@ def _build_script() -> str:
       wrap.appendChild(created);
     }} else if (lineChart && lineChart.parentElement) {{
       lineChart.parentElement.insertBefore(created, lineChart);
+    }} else if (scope) {{
+      scope.appendChild(created);
     }} else {{
       return null;
     }}
@@ -1320,6 +1325,7 @@ def _build_script() -> str:
     if (!isMybankRootPath()) return;
     const n = Number(exp);
     if (!isFinite(n)) return;
+    ensurePaymentHistorySubtitleStyles();
 
     const mainRoot =
       document.querySelector('main[data-qa-type="mobile-ib-container"]')
@@ -1377,8 +1383,9 @@ def _build_script() -> str:
     }}
 
     mainRoot.querySelectorAll('[data-qa-type="mobile-pumba-payment-history"]').forEach(function (root) {{
-      if (normalizeUiText(root.innerText || '').indexOf('Все операции') === -1) return;
       if (seenScopes.has(root)) return;
+      const hasAllOps = normalizeUiText(root.innerText || '').indexOf('Все операции') !== -1;
+      if (!hasAllOps && !isMybankRootPath()) return;
       seenScopes.add(root);
       patchOneHomeAllOperationsScope(root, exp);
     }});
