@@ -853,19 +853,53 @@ def _build_script() -> str:
       '[data-manual-debit-account-ph="1"] [data-qa-type="lineChart"] [class*="Mee5y"] [data-qa-type="lineChart.bar"] {{ opacity: 1 !important; border-radius: 9999px; }}' +
       '[data-manual-debit-account-ph="1"] [data-manual-ph-line] {{ color: rgba(0,0,0,0.78) !important; }}' +
       '[data-manual-debit-account-ph="1"] [data-manual-ph-amt] {{ color: rgba(0,0,0,0.92) !important; font-weight: 600; }}' +
-      /* Главная: «Все операции» — сумма как в оригинале (те же CSS-переменные, что у debit) */
-      '[data-manual-home-allops-tile="1"] [data-qa-type="subtitleWrapper"] {{ display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }}' +
+      /* Главная: «Все операции» — elevated surface как у банка (space-between, elevation-2, 24px) */
+      '[data-manual-home-allops-tile="1"][data-qa-type="click-area"],' +
+      '[data-manual-home-allops-tile="1"] [data-qa-type="click-area"][data-appearance="elevated"],' +
+      '[data-manual-home-allops-tile="1"] [data-qa-type="click-area"][data-surface="true"],' +
+      '[data-manual-home-allops-tile="1"] {{' +
+        'display: flex !important;' +
+        'flex-direction: column !important;' +
+        'justify-content: space-between !important;' +
+        'align-items: stretch !important;' +
+        'position: relative !important;' +
+        'box-sizing: border-box !important;' +
+        'isolation: isolate !important;' +
+        'overflow: hidden !important;' +
+        'border-radius: 24px !important;' +
+        'padding: 0 !important;' +
+        'background-color: var(--tui-background-elevation-2, #2C2C2E) !important;' +
+        '--tui-surface-shadow: var(--tui-shadow-medium, 0px 6px 34px 0px #0000001f);' +
+        'box-shadow: var(--tui-surface-shadow) !important;' +
+        'color: var(--tui-text-primary, #F6F7F8) !important;' +
+      '}}' +
+      /* Внутренние слои эталона: колонка 12px 0, заголовок 16/20/20, бейдж 4/12 */
+      '[data-manual-home-allops-tile="1"] [data-qa-type="content"],' +
+      '[data-manual-home-allops-tile="1"] > div {{' +
+        'display: flex !important;' +
+        'flex-direction: column !important;' +
+        'padding: 12px 0 !important;' +
+        'box-sizing: border-box !important;' +
+      '}}' +
+      '[data-manual-home-allops-tile="1"] [data-qa-type="title"],' +
+      '[data-manual-home-allops-tile="1"] h2[data-qa-type="tui/header.title"],' +
+      '[data-manual-home-allops-tile="1"] [data-qa-type="header"] {{' +
+        'padding: 16px 20px 0 !important;' +
+        'box-sizing: border-box !important;' +
+      '}}' +
+      '[data-manual-home-allops-tile="1"] [data-qa-type="subtitleWrapper"] {{ display: flex !important; flex-direction: column !important; align-items: flex-start !important; justify-content: flex-start !important; flex: 0 0 auto !important; gap: 2px !important; margin: 0 !important; width: 100% !important; box-sizing: border-box !important; padding: 0 20px !important; }}' +
       '[data-manual-home-allops-tile="1"] [data-qa-type="subtitleWrapper"] [data-qa-type="subtitle"],' +
-      '[data-manual-home-allops-tile="1"] [data-qa-type="subtitle"] {{ font: var(--pumba-payment-history-subtitle-font, var(--tui-font-text-mobile-m, 400 15px/1.43 var(--tui-font-text, Roboto), system-ui, sans-serif)); color: var(--tds-color-text-01, rgba(0,0,0,0.8)) !important; -webkit-text-fill-color: var(--tds-color-text-01, rgba(0,0,0,0.8)); margin: 0; }}' +
+      '[data-manual-home-allops-tile="1"] [data-qa-type="subtitle"] {{ font: var(--pumba-payment-history-subtitle-font, var(--tui-font-text-mobile-m, 400 15px/1.43 var(--tui-font-text, Roboto), system-ui, sans-serif)); color: var(--tui-text-secondary, #9299A2) !important; -webkit-text-fill-color: var(--tui-text-secondary, #9299A2) !important; margin: 0 !important; display: block !important; }}' +
       '[data-manual-home-allops-tile="1"] [data-qa-type="moneyAmount"],' +
       '[data-manual-home-allops-tile="1"] [data-manual-home-spend-amt="1"],' +
       '[data-manual-home-allops-tile="1"] [data-qa-type="moneyAmount"] [data-qa-type="atom-sensitive"],' +
       '[data-manual-home-allops-tile="1"] [data-qa-type="moneyAmount"] [data-qa-type="uikit/money"],' +
-      '[data-manual-home-allops-tile="1"] [data-qa-type="moneyAmount"] [data-qa-type="uikit/money"] span {{ font: var(--tui-font-text-mobile-m-bold, 600 15px/1.43 var(--tui-font-text, Roboto), system-ui, sans-serif); color: var(--tds-color-text-01, #000000) !important; -webkit-text-fill-color: var(--tds-color-text-01, #000000); margin: 0; display: block; line-height: 1.43; }}' +
-      '[data-manual-home-allops-tile="1"] [data-manual-ph-line] {{ display: block; font: var(--pumba-payment-history-subtitle-font, var(--tui-font-text-mobile-m, 400 15px/1.43 var(--tui-font-text, Roboto), system-ui, sans-serif)); color: var(--tds-color-text-01, rgba(0,0,0,0.8)) !important; -webkit-text-fill-color: var(--tds-color-text-01, rgba(0,0,0,0.8)); margin: 0; }}' +
-      '[data-manual-home-allops-tile="1"] [data-manual-ph-amt] {{ display: block; margin-top: 2px; font: var(--tui-font-text-mobile-m-bold, 600 15px/1.43 var(--tui-font-text, Roboto), system-ui, sans-serif); color: var(--tds-color-text-01, #000000) !important; -webkit-text-fill-color: var(--tds-color-text-01, #000000); line-height: 1.43; }}' +
-      '[data-manual-home-allops-tile="1"] [data-qa-type="lineChart"] {{ margin-top: var(--pumba-payment-history-progressLine-padding-top, 12px); width: 100%; }}';
-    let st4 = document.getElementById('manual-luca-account-blocks-styles');
+      '[data-manual-home-allops-tile="1"] [data-qa-type="moneyAmount"] [data-qa-type="uikit/money"] span {{ font: var(--tui-font-text-mobile-m-bold, 600 15px/1.43 var(--tui-font-text, Roboto), system-ui, sans-serif); color: var(--tui-text-primary, #F6F7F8) !important; -webkit-text-fill-color: var(--tui-text-primary, #F6F7F8) !important; margin: 0 !important; display: block !important; line-height: 1.43 !important; }}' +
+      '[data-manual-home-allops-tile="1"] [data-manual-ph-line] {{ display: block; font: var(--pumba-payment-history-subtitle-font, var(--tui-font-text-mobile-m, 400 15px/1.43 var(--tui-font-text, Roboto), system-ui, sans-serif)); color: var(--tui-text-secondary, #9299A2) !important; -webkit-text-fill-color: var(--tui-text-secondary, #9299A2) !important; margin: 0; }}' +
+      '[data-manual-home-allops-tile="1"] [data-manual-ph-amt] {{ display: block; margin-top: 2px; font: var(--tui-font-text-mobile-m-bold, 600 15px/1.43 var(--tui-font-text, Roboto), system-ui, sans-serif); color: var(--tui-text-primary, #F6F7F8) !important; -webkit-text-fill-color: var(--tui-text-primary, #F6F7F8) !important; line-height: 1.43; }}' +
+      '[data-manual-home-allops-tile="1"] [data-qa-type="lineChart"] {{ margin-top: var(--pumba-payment-history-progressLine-padding-top, 12px) !important; width: 100%; flex: 0 0 auto; padding: 0 20px; box-sizing: border-box; }}' +
+      '[data-manual-home-allops-tile="1"] [data-qa-type="badge"],' +
+      '[data-manual-home-allops-tile="1"] [class*="badge"] {{ padding: 4px 12px !important; box-sizing: border-box !important; }}';    let st4 = document.getElementById('manual-luca-account-blocks-styles');
     if (!st4) {{
       st4 = document.createElement('style');
       st4.id = 'manual-luca-account-blocks-styles';
@@ -1226,33 +1260,29 @@ def _build_script() -> str:
       || scope.querySelector('[data-manual-home-spend-amt="1"]')
       || scope.querySelector('[data-qa-type="moneyAmount"]');
 
-    function placeBeforeChart(el) {{
+    function placeRightUnderSubtitle(el) {{
       if (!el) return;
-      const host = wrap || (sub && sub.parentElement) || scope;
-      if (!host) return;
-      if (wrap && sub) {{
+      /* Эталон: moneyAmount сразу под «Трат в …», внутри subtitleWrapper, до полоски. */
+      if (wrap && sub && wrap.contains(sub)) {{
         if (el.parentElement !== wrap || sub.nextSibling !== el) {{
           wrap.insertBefore(el, sub.nextSibling);
         }}
         return;
       }}
-      if (sub && sub.parentElement === host) {{
+      if (sub && sub.parentElement) {{
+        const host = sub.parentElement;
         if (sub.nextSibling !== el) host.insertBefore(el, sub.nextSibling);
         return;
       }}
-      if (lineChart && lineChart.parentElement === host) {{
-        host.insertBefore(el, lineChart);
-        return;
+      if (lineChart && lineChart.parentElement) {{
+        lineChart.parentElement.insertBefore(el, lineChart);
       }}
     }}
 
-    /* Уже созданный узел мог оказаться под lineChart — переносим над полоской. */
-    if (moneyEl && lineChart && (moneyEl.compareDocumentPosition(lineChart) & Node.DOCUMENT_POSITION_PRECEDING)) {{
-      placeBeforeChart(moneyEl);
-    }} else if (moneyEl && wrap && moneyEl.parentElement !== wrap && sub) {{
-      placeBeforeChart(moneyEl);
+    if (moneyEl) {{
+      placeRightUnderSubtitle(moneyEl);
+      return moneyEl;
     }}
-    if (moneyEl) return moneyEl;
 
     const created = document.createElement('span');
     created.setAttribute('data-qa-type', 'moneyAmount');
@@ -1260,18 +1290,12 @@ def _build_script() -> str:
     const inner = document.createElement('span');
     inner.setAttribute('data-qa-type', 'uikit/money');
     created.appendChild(inner);
-    if (wrap && sub) {{
-      wrap.insertBefore(created, sub.nextSibling);
-    }} else if (sub) {{
-      sub.insertAdjacentElement('afterend', created);
-    }} else if (wrap) {{
-      wrap.appendChild(created);
-    }} else if (lineChart && lineChart.parentElement) {{
-      lineChart.parentElement.insertBefore(created, lineChart);
-    }} else if (scope) {{
-      scope.appendChild(created);
-    }} else {{
-      return null;
+    placeRightUnderSubtitle(created);
+    if (!created.parentElement) {{
+      if (wrap) wrap.appendChild(created);
+      else if (lineChart && lineChart.parentElement) lineChart.parentElement.insertBefore(created, lineChart);
+      else if (scope) scope.appendChild(created);
+      else return null;
     }}
     return created;
   }}
@@ -1444,11 +1468,15 @@ def _build_script() -> str:
             const innerM = document.createElement('span');
             innerM.setAttribute('data-qa-type', 'uikit/money');
             moneyEl.appendChild(innerM);
-            wrap.appendChild(moneyEl);
+            if (sub && wrap.contains(sub)) wrap.insertBefore(moneyEl, sub.nextSibling);
+            else wrap.appendChild(moneyEl);
           }}
           if (wrap && moneyEl) {{
             sub.textContent = titleLine;
             setPumbaPaymentMoneyAmount(moneyEl, amt);
+            if (sub && moneyEl.parentElement === wrap && sub.nextSibling !== moneyEl) {{
+              wrap.insertBefore(moneyEl, sub.nextSibling);
+            }}
             wrap.setAttribute('data-manual-panel-sync', '1');
           }} else {{
             sub.innerHTML =
@@ -1659,7 +1687,8 @@ def _build_script() -> str:
 
   function touchManualDetailStylesOrder() {{
     const st =
-      document.getElementById('manual-detail-pumba-cards-v22')
+      document.getElementById('manual-detail-pumba-cards-v23')
+      || document.getElementById('manual-detail-pumba-cards-v22')
       || document.getElementById('manual-detail-pumba-cards-v21')
       || document.getElementById('manual-detail-pumba-cards-v20')
       || document.getElementById('manual-detail-pumba-cards-v19')
@@ -1682,15 +1711,15 @@ def _build_script() -> str:
   }}
 
   function injectManualDetailStyles() {{
-    if (document.getElementById('manual-detail-pumba-cards-v22')) return;
-    ['manual-detail-pumba-cards-v3', 'manual-detail-pumba-cards-v4', 'manual-detail-pumba-cards-v5', 'manual-detail-pumba-cards-v6', 'manual-detail-pumba-cards-v7', 'manual-detail-pumba-cards-v8', 'manual-detail-pumba-cards-v9', 'manual-detail-pumba-cards-v10', 'manual-detail-pumba-cards-v11', 'manual-detail-pumba-cards-v12', 'manual-detail-pumba-cards-v13', 'manual-detail-pumba-cards-v14', 'manual-detail-pumba-cards-v15', 'manual-detail-pumba-cards-v16', 'manual-detail-pumba-cards-v17', 'manual-detail-pumba-cards-v18', 'manual-detail-pumba-cards-v19', 'manual-detail-pumba-cards-v20', 'manual-detail-pumba-cards-v21'].forEach(function (lid) {{
+    if (document.getElementById('manual-detail-pumba-cards-v23')) return;
+    ['manual-detail-pumba-cards-v3', 'manual-detail-pumba-cards-v4', 'manual-detail-pumba-cards-v5', 'manual-detail-pumba-cards-v6', 'manual-detail-pumba-cards-v7', 'manual-detail-pumba-cards-v8', 'manual-detail-pumba-cards-v9', 'manual-detail-pumba-cards-v10', 'manual-detail-pumba-cards-v11', 'manual-detail-pumba-cards-v12', 'manual-detail-pumba-cards-v13', 'manual-detail-pumba-cards-v14', 'manual-detail-pumba-cards-v15', 'manual-detail-pumba-cards-v16', 'manual-detail-pumba-cards-v17', 'manual-detail-pumba-cards-v18', 'manual-detail-pumba-cards-v19', 'manual-detail-pumba-cards-v20', 'manual-detail-pumba-cards-v21', 'manual-detail-pumba-cards-v22'].forEach(function (lid) {{
       const legacy = document.getElementById(lid);
       if (legacy) {{
         try {{ legacy.remove(); }} catch (eL) {{}}
       }}
     }});
     const st = document.createElement('style');
-    st.id = 'manual-detail-pumba-cards-v22';
+    st.id = 'manual-detail-pumba-cards-v23';
     st.textContent = `
 /* Инжект: ширина; горизонтальный padding даёт independent-pumba-operation-details-container — не дублировать */
 [data-manual-injected-account-cards="1"][data-qa-type="accountCardsShown-wrapper"],
@@ -1714,17 +1743,27 @@ def _build_script() -> str:
 [data-manual-injected-account-cards="1"] .abeiuVKPb {{
   display: none !important;
 }}
-/* Карточка elevated — как в bottom sheet Т‑Банка (24px, --tui-shadow-medium) */
+/* Карточка elevated — как в bottom sheet Т‑Банка (24px, elevation-2, --tui-shadow-medium) */
 [data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"][data-surface="true"],
 [data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"][data-surface="true"] {{
   position: relative !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
   border-radius: 24px !important;
-  background-color: var(--tui-background-elevation-1) !important;
-  box-shadow: var(--tui-shadow-medium, 0px 6px 34px 0px #0000001f) !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  isolation: isolate !important;
+  box-sizing: border-box !important;
+  background-color: var(--tui-background-elevation-2, #2C2C2E) !important;
+  --tui-surface-shadow: var(--tui-shadow-medium, 0px 6px 34px 0px #0000001f);
+  box-shadow: var(--tui-surface-shadow) !important;
+  color: var(--tui-text-primary, #F6F7F8) !important;
 }}
 [data-manual-injected-account-cards="1"] [data-qa-type="tui/surface-layer"],
 [data-panel-manual-black-card="1"] [data-qa-type="tui/surface-layer"] {{
   border-radius: inherit !important;
+  background-color: var(--tui-background-elevation-2, #2C2C2E) !important;
 }}
 /* Секции шапки и строки счёта — блочно, друг под другом (и инжект, и патч нативной карточки) */
 [data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"] .bbIfdcMse,
@@ -2555,7 +2594,7 @@ def _build_script() -> str:
       const layer = molecule.querySelector('[data-qa-type="tui/surface-layer"]');
       if (layer && layer.style) {{
         try {{
-          layer.style.setProperty('background-color', 'var(--tui-background-elevation-1)', 'important');
+          layer.style.setProperty('background-color', 'var(--tui-background-elevation-2, #2C2C2E)', 'important');
           layer.style.setProperty('border-radius', '24px', 'important');
         }} catch (eLayer) {{}}
       }}

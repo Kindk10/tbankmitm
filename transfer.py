@@ -629,7 +629,11 @@ def _add_to_fake_history() -> bool:
         from history import millis_to_bank_date_str as _msk_date
         transfer_data["date_full"] = _msk_date(op_ts_ms)
     except Exception:
-        transfer_data["date_full"] = datetime.fromtimestamp(op_ts_ms / 1000).strftime("%d.%m.%Y, %H:%M:%S")
+        try:
+            from history import moscow_from_timestamp as _msk_from_ts
+            transfer_data["date_full"] = _msk_from_ts(op_ts_ms / 1000).strftime("%d.%m.%Y, %H:%M:%S")
+        except Exception:
+            transfer_data["date_full"] = (datetime.utcnow() + timedelta(hours=3)).strftime("%d.%m.%Y, %H:%M:%S")
     if not transfer_data.get("kvit_number"):
         transfer_data["kvit_number"] = generate_kvit()
     save_data(transfer_data)
@@ -800,7 +804,11 @@ def generate_receipt_for_manual_op(op_data):
                     from history import millis_to_bank_date_str as _msk_date
                     date_s = _msk_date(_ms)
                 except Exception:
-                    date_s = datetime.fromtimestamp(_ms / 1000).strftime("%d.%m.%Y, %H:%M:%S")
+                    try:
+                        from history import moscow_from_timestamp as _msk_from_ts
+                        date_s = _msk_from_ts(_ms / 1000).strftime("%d.%m.%Y, %H:%M:%S")
+                    except Exception:
+                        date_s = ""
         except (TypeError, ValueError, OSError):
             pass
     if not date_s:

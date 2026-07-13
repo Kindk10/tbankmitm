@@ -439,11 +439,20 @@ def _generate_operation_receipt_impl(op_data, output_path=None):
         try:
             _v = int(ot_ms.get("milliseconds") or 0)
             if _v > 0:
-                date_str = datetime.fromtimestamp(_v / 1000).strftime("%d.%m.%Y, %H:%M:%S")
+                try:
+                    from history import millis_to_bank_date_str as _msk_date
+                    date_str = _msk_date(_v)
+                except Exception:
+                    from datetime import timezone, timedelta
+                    date_str = datetime.fromtimestamp(_v / 1000, timezone(timedelta(hours=3))).strftime("%d.%m.%Y, %H:%M:%S")
         except (TypeError, ValueError, OSError):
             pass
     if not date_str:
-        date_str = datetime.now().strftime("%d.%m.%Y, %H:%M:%S")
+        try:
+            from history import now_moscow as _now_msk
+            date_str = _now_msk().strftime("%d.%m.%Y, %H:%M:%S")
+        except Exception:
+            date_str = datetime.now().strftime("%d.%m.%Y, %H:%M:%S")
     if date_str and "," not in date_str and re.search(r"\d{2}\.\d{2}\.\d{4}\s+\d{2}:\d{2}:\d{2}", date_str):
         date_str = re.sub(r"(\d{2}\.\d{2}\.\d{4})\s+", r"\1, ", date_str, count=1)
     amount = abs(float(op_data.get("amount") or 0))

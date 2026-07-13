@@ -13,6 +13,7 @@ FILES=(
   operation_detail.py
   panel_bridge.py
   transfer.py
+  func.py
   tbank_sbp_debit_injector.py
   mitm_addon_chain.py
   tls_passthrough_hosts.py

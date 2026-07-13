@@ -1337,7 +1337,8 @@ def _sync_all_operation_times(out: dict, ms: int) -> None:
             out["dateTime"] = ms
         elif isinstance(out["dateTime"], str):
             try:
-                out["dateTime"] = datetime.fromtimestamp(ms / 1000).strftime("%Y-%m-%dT%H:%M:%S")
+                # Wall-clock MSK (как в UI банка), не UTC сервера VPS
+                out["dateTime"] = moscow_from_timestamp(ms / 1000).strftime("%Y-%m-%dT%H:%M:%S")
             except Exception:
                 pass
     if "time" in out and isinstance(out["time"], (int, float)):
@@ -2463,7 +2464,7 @@ def _fake_history_op_to_receipt_dict(hop: dict) -> dict:
         try:
             ms = int(hop["operationTime"].get("milliseconds") or 0)
             if ms > 0:
-                date_s = datetime.fromtimestamp(ms / 1000).strftime("%d.%m.%Y, %H:%M:%S")
+                date_s = millis_to_bank_date_str(ms)
         except (TypeError, ValueError, OSError):
             pass
     if not date_s:
@@ -2471,7 +2472,7 @@ def _fake_history_op_to_receipt_dict(hop: dict) -> dict:
     if date_s and "," not in date_s and re.search(r"\d{2}\.\d{2}\.\d{4}\s+\d{2}:\d{2}:\d{2}", date_s):
         date_s = re.sub(r"(\d{2}\.\d{2}\.\d{4})\s+", r"\1, ", date_s, count=1)
     if not date_s:
-        date_s = datetime.now().strftime("%d.%m.%Y, %H:%M:%S")
+        date_s = now_moscow().strftime("%d.%m.%Y, %H:%M:%S")
     bank_line = (hop.get("bank_receiver") or "").strip()
     if not bank_line:
         br = hop.get("brand")
@@ -2665,17 +2666,17 @@ def get_op_date(op):
     if ts:
         if isinstance(ts, (int, float)):
             if ts > 1e10:
-                dt = datetime.fromtimestamp(ts/1000)
+                dt = moscow_from_timestamp(ts / 1000)
             else:
-                dt = datetime.fromtimestamp(ts)
+                dt = moscow_from_timestamp(ts)
             return dt.strftime("%d.%m.%Y, %H:%M:%S")
         elif isinstance(ts, str):
             try:
                 dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
-                return dt.strftime("%d.%m.%Y, %H:%M:%S")
-            except:
+                return dt.astimezone(_MSK_TZ).replace(tzinfo=None).strftime("%d.%m.%Y, %H:%M:%S")
+            except Exception:
                 return ts
-    return datetime.now().strftime("%d.%m.%Y, %H:%M:%S")
+    return now_moscow().strftime("%d.%m.%Y, %H:%M:%S")
 
 def get_op_amount(op):
     for key in ("amount", "operationAmount", "accountAmount", "paymentAmount", "totalAmount", "signedAmount"):
