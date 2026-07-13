@@ -1,4 +1,4 @@
-from mitmproxy import http
+﻿from mitmproxy import http
 import json
 import os
 import re
@@ -829,10 +829,10 @@ def _build_script() -> str:
     st.textContent =
       '[data-qa-type="mobile-pumba-payment-history"] [data-manual-ph-line] {{ display: block; line-height: 1.25; }}' +
       '[data-qa-type="mobile-pumba-payment-history"] [data-manual-ph-amt] {{ display: block; margin-top: 4px; line-height: 1.35; font-weight: 400; color: rgba(0,0,0,0.55); font-size: 14px; }}';
-    let st2 = document.getElementById('manual-payment-history-ext-styles');
+    let st2 = document.getElementById('manual-payment-history-ext-styles-v2');
     if (!st2) {{
       st2 = document.createElement('style');
-      st2.id = 'manual-payment-history-ext-styles';
+      st2.id = 'manual-payment-history-ext-styles-v2';
       (document.head || document.documentElement).appendChild(st2);
     }}
     st2.textContent =
@@ -853,41 +853,8 @@ def _build_script() -> str:
       '[data-manual-debit-account-ph="1"] [data-qa-type="lineChart"] [class*="Mee5y"] [data-qa-type="lineChart.bar"] {{ opacity: 1 !important; border-radius: 9999px; }}' +
       '[data-manual-debit-account-ph="1"] [data-manual-ph-line] {{ color: rgba(0,0,0,0.78) !important; }}' +
       '[data-manual-debit-account-ph="1"] [data-manual-ph-amt] {{ color: rgba(0,0,0,0.92) !important; font-weight: 600; }}' +
-      /* Главная: «Все операции» — elevated surface как у банка (space-between, elevation-2, 24px) */
-      '[data-manual-home-allops-tile="1"][data-qa-type="click-area"],' +
-      '[data-manual-home-allops-tile="1"] [data-qa-type="click-area"][data-appearance="elevated"],' +
-      '[data-manual-home-allops-tile="1"] [data-qa-type="click-area"][data-surface="true"],' +
-      '[data-manual-home-allops-tile="1"] {{' +
-        'display: flex !important;' +
-        'flex-direction: column !important;' +
-        'justify-content: space-between !important;' +
-        'align-items: stretch !important;' +
-        'position: relative !important;' +
-        'box-sizing: border-box !important;' +
-        'isolation: isolate !important;' +
-        'overflow: hidden !important;' +
-        'border-radius: 24px !important;' +
-        'padding: 0 !important;' +
-        'background-color: var(--tui-background-elevation-2, #2C2C2E) !important;' +
-        '--tui-surface-shadow: var(--tui-shadow-medium, 0px 6px 34px 0px #0000001f);' +
-        'box-shadow: var(--tui-surface-shadow) !important;' +
-        'color: var(--tui-text-primary, #F6F7F8) !important;' +
-      '}}' +
-      /* Внутренние слои эталона: колонка 12px 0, заголовок 16/20/20, бейдж 4/12 */
-      '[data-manual-home-allops-tile="1"] [data-qa-type="content"],' +
-      '[data-manual-home-allops-tile="1"] > div {{' +
-        'display: flex !important;' +
-        'flex-direction: column !important;' +
-        'padding: 12px 0 !important;' +
-        'box-sizing: border-box !important;' +
-      '}}' +
-      '[data-manual-home-allops-tile="1"] [data-qa-type="title"],' +
-      '[data-manual-home-allops-tile="1"] h2[data-qa-type="tui/header.title"],' +
-      '[data-manual-home-allops-tile="1"] [data-qa-type="header"] {{' +
-        'padding: 16px 20px 0 !important;' +
-        'box-sizing: border-box !important;' +
-      '}}' +
-      '[data-manual-home-allops-tile="1"] [data-qa-type="subtitleWrapper"] {{ display: flex !important; flex-direction: column !important; align-items: flex-start !important; justify-content: flex-start !important; flex: 0 0 auto !important; gap: 2px !important; margin: 0 !important; width: 100% !important; box-sizing: border-box !important; padding: 0 20px !important; }}' +
+      /* Главная: только типографика суммы — без restyle карточки */
+      '[data-manual-home-allops-tile="1"] [data-qa-type="subtitleWrapper"] {{ display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }}' +
       '[data-manual-home-allops-tile="1"] [data-qa-type="subtitleWrapper"] [data-qa-type="subtitle"],' +
       '[data-manual-home-allops-tile="1"] [data-qa-type="subtitle"] {{ font: var(--pumba-payment-history-subtitle-font, var(--tui-font-text-mobile-m, 400 15px/1.43 var(--tui-font-text, Roboto), system-ui, sans-serif)); color: var(--tui-text-secondary, #9299A2) !important; -webkit-text-fill-color: var(--tui-text-secondary, #9299A2) !important; margin: 0 !important; display: block !important; }}' +
       '[data-manual-home-allops-tile="1"] [data-qa-type="moneyAmount"],' +
@@ -897,9 +864,8 @@ def _build_script() -> str:
       '[data-manual-home-allops-tile="1"] [data-qa-type="moneyAmount"] [data-qa-type="uikit/money"] span {{ font: var(--tui-font-text-mobile-m-bold, 600 15px/1.43 var(--tui-font-text, Roboto), system-ui, sans-serif); color: var(--tui-text-primary, #F6F7F8) !important; -webkit-text-fill-color: var(--tui-text-primary, #F6F7F8) !important; margin: 0 !important; display: block !important; line-height: 1.43 !important; }}' +
       '[data-manual-home-allops-tile="1"] [data-manual-ph-line] {{ display: block; font: var(--pumba-payment-history-subtitle-font, var(--tui-font-text-mobile-m, 400 15px/1.43 var(--tui-font-text, Roboto), system-ui, sans-serif)); color: var(--tui-text-secondary, #9299A2) !important; -webkit-text-fill-color: var(--tui-text-secondary, #9299A2) !important; margin: 0; }}' +
       '[data-manual-home-allops-tile="1"] [data-manual-ph-amt] {{ display: block; margin-top: 2px; font: var(--tui-font-text-mobile-m-bold, 600 15px/1.43 var(--tui-font-text, Roboto), system-ui, sans-serif); color: var(--tui-text-primary, #F6F7F8) !important; -webkit-text-fill-color: var(--tui-text-primary, #F6F7F8) !important; line-height: 1.43; }}' +
-      '[data-manual-home-allops-tile="1"] [data-qa-type="lineChart"] {{ margin-top: var(--pumba-payment-history-progressLine-padding-top, 12px) !important; width: 100%; flex: 0 0 auto; padding: 0 20px; box-sizing: border-box; }}' +
-      '[data-manual-home-allops-tile="1"] [data-qa-type="badge"],' +
-      '[data-manual-home-allops-tile="1"] [class*="badge"] {{ padding: 4px 12px !important; box-sizing: border-box !important; }}';    let st4 = document.getElementById('manual-luca-account-blocks-styles');
+      '[data-manual-home-allops-tile="1"] [data-qa-type="lineChart"] {{ margin-top: var(--pumba-payment-history-progressLine-padding-top, 12px); width: 100%; }}';
+    let st4 = document.getElementById('manual-luca-account-blocks-styles');
     if (!st4) {{
       st4 = document.createElement('style');
       st4.id = 'manual-luca-account-blocks-styles';
@@ -1418,12 +1384,6 @@ def _build_script() -> str:
       if (!scope) scope = a.closest('article, section');
       if (!scope) scope = a.parentElement;
       if (!scope) continue;
-      let big = scope;
-      for (let up = 0; up < 6 && big && big.parentElement; up++) {{
-        if (normalizeUiText(big.innerText || '').indexOf('Все операции') !== -1) break;
-        big = big.parentElement;
-      }}
-      if (big && normalizeUiText(big.innerText || '').indexOf('Все операции') !== -1) scope = big;
       if (normalizeUiText(scope.innerText || '').indexOf('Все операции') === -1) continue;
       if (seenScopes.has(scope)) continue;
       seenScopes.add(scope);
