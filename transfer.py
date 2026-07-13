@@ -299,6 +299,16 @@ def save_data(data):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
+
+def _is_operations_feed_url(url: str) -> bool:
+    """Только лента /api/common/v1/operations — не operations_category_list_*."""
+    path_only = (url or "").split("?", 1)[0].lower().rstrip("/")
+    if "/api/common/v1/operations" not in path_only:
+        return False
+    after = path_only.split("/api/common/v1/operations", 1)[-1]
+    return after == "" or after.startswith("?")
+
+
 def clean_sender_name(full_name):
     if not full_name:
         return "Клиент Т-Банка"
@@ -371,10 +381,15 @@ def generate_kvit():
 
 def generate_sbp_operation_id():
     prefix = random.choice(["A", "B"])
-    dt = datetime.now()
+    try:
+        from history import now_moscow as _now_msk
+        dt = _now_msk()
+    except Exception:
+        dt = datetime.now()
     base = datetime(2009, 7, 28)
     days = (dt.date() - base.date()).days
     code_day = f"{days:04d}"
+    # SBP id embeds UTC time; MSK wall-clock → UTC is −3h
     dt_utc = dt - timedelta(hours=3)
     time_str = f"{dt_utc.hour:02d}{dt_utc.minute:02d}{dt_utc.second:02d}"
     seq = random.randint(10000, 99999)
@@ -456,127 +471,153 @@ def _handle_payment_commission_request(flow: http.HTTPFlow) -> None:
 
 def _add_to_fake_history() -> bool:
     """Добавляет полноформатную операцию в fake_history (transfer2) для ленты и PDF."""
-    global _last_fake_ts, _last_fake_op_id, _last_fake_hash, _fake_payment_done
-    if transfer_data.get("amount", 0) <= 0 or _fake_payment_done:
+    global _last_fake_ts, _last_fake_op_id, _last_fake_hash, _fake_payment_done, fake_history
+    if transfer_data.get("amount", 0) <= 0:
+        print("[transfer] fake_history skip: amount<=0")
+        return False
+    if _fake_payment_done:
+        print("[transfer] fake_history skip: _fake_payment_done")
         return False
     current_time = time.time()
     if current_time - _last_fake_ts < 8:
+        print("[transfer] fake_history skip: debounce 8s")
         return False
     operation_id = "UNIFIED_" + str(int(current_time * 1000))
     if operation_id == _last_fake_op_id:
+        print("[transfer] fake_history skip: duplicate op id")
         return False
     current_hash = f"{transfer_data.get('amount')}_{transfer_data.get('receiver_phone')}_{transfer_data.get('receiver_name')}"
     if current_hash == _last_fake_hash:
+        print("[transfer] fake_history skip: duplicate hash")
         return False
     _last_fake_hash = current_hash
     _last_fake_op_id = operation_id
     _last_fake_ts = current_time
     transfer_data["transaction_id"] = operation_id
     op_ts_ms = int(current_time * 1000)
-    transfer_data["date_full"] = datetime.fromtimestamp(op_ts_ms / 1000).strftime("%d.%m.%Y, %H:%M:%S")
+    try:
+        from history import millis_to_bank_date_str as _msk_date
+        transfer_data["date_full"] = _msk_date(op_ts_ms)
+    except Exception:
+        transfer_data["date_full"] = datetime.fromtimestamp(op_ts_ms / 1000).strftime("%d.%m.%Y, %H:%M:%S")
     if not transfer_data.get("kvit_number"):
         transfer_data["kvit_number"] = generate_kvit()
     save_data(transfer_data)
 
-    if transfer_data.get("is_merchant_payment") and transfer_data.get("merchant_name"):
-        display_name = transfer_data["merchant_name"]
-        logo_url = transfer_data.get("merchant_logo") or get_bank_logo(display_name)
-    else:
-        display_name = transfer_data.get("receiver_name") or transfer_data.get("bank_receiver", "Т-Банк")
-        logo_url = transfer_data.get("bank_logo") or get_bank_logo(transfer_data.get("bank_receiver", "Т-Банк"))
-
-    bank_line = (clean_bank_name(transfer_data.get("bank_receiver") or "") or "").strip() or display_name
-    op_for_receipt = {
-        "id": operation_id,
-        "date": transfer_data.get("date_full") or datetime.now().strftime("%d.%m.%Y %H:%M:%S"),
-        "amount": float(transfer_data.get("amount") or 0),
-        "type": "Debit",
-        "bank": bank_line,
-        "title": (transfer_data.get("receiver_name") or "").strip() or display_name,
-        "phone": str(transfer_data.get("receiver_phone") or "").strip(),
-        "requisite_phone": str(transfer_data.get("receiver_phone") or "").strip(),
-        "sender_name": str(transfer_data.get("sender_name") or "").strip(),
-        "requisite_sender_name": str(transfer_data.get("sender_name") or "").strip(),
-    }
-    pdf_path = None
     try:
-        pdf_path = generate_receipt_for_manual_op(op_for_receipt)
-    except Exception as ex:
-        print(f"[transfer] generate_operation_receipt (как у ручных): {ex}")
-    if not pdf_path:
-        pdf_path = create_real_receipt(operation_id)
+        if transfer_data.get("is_merchant_payment") and transfer_data.get("merchant_name"):
+            display_name = transfer_data["merchant_name"]
+            logo_url = transfer_data.get("merchant_logo") or get_bank_logo(display_name)
+        else:
+            display_name = transfer_data.get("receiver_name") or transfer_data.get("bank_receiver", "Т-Банк")
+            logo_url = transfer_data.get("bank_logo") or get_bank_logo(transfer_data.get("bank_receiver", "Т-Банк"))
 
-    new_fake = {
-        "id": operation_id,
-        "operationId": {"value": operation_id, "source": "PrimeAuth"},
-        "isExternalCard": False,
-        "account": "5860068322",
-        "card": "383947501",
-        "ucid": "1386102627",
-        "cardNumber": "220070******6404",
-        "authorizationId": operation_id,
-        "operationTime": {"milliseconds": op_ts_ms},
-        "debitingTime": {"milliseconds": op_ts_ms},
-        "type": "Debit",
-        "status": "OK",
-        "amount": {"value": int(transfer_data.get("amount", 0)), "currency": {"code": 643, "name": "RUB", "strCode": "643"}},
-        "accountAmount": {"value": int(transfer_data.get("amount", 0)), "currency": {"code": 643, "name": "RUB", "strCode": "643"}},
-        "cashback": 0.0,
-        "cashbackAmount": {"value": 0.0, "currency": {"code": 643, "name": "RUB", "strCode": "643"}},
-        "idSourceType": "Prime",
-        "mcc": 0,
-        "mccString": "0000",
-        "description": display_name,
-        "category": {"id": "45", "name": "Другое"},
-        "brand": {"id": "11250", "name": display_name, "logo": logo_url, "baseColor": "f12e16", "fileLink": logo_url},
-        "spendingCategory": {"id": "24", "name": "Переводы", "icon": "transfers-c1", "baseColor": "4FC5DF"},
-        "senderDetails": "",
-        "subcategory": display_name,
-        "loyaltyBonus": [],
-        "loyaltyPayment": [],
-        "loyaltyBonusSummary": {"amount": 0.0},
-        "categoryInfo": {
-            "bankCategory": {"id": "24", "language": "ru", "name": "Переводы", "baseColor": "4FC5DF", "fileLink": "https://brands-prod.cdn-tinkoff.ru/general_logo/transfers-c1.png"},
-            "metacategory": {"id": "12", "language": "ru", "name": "Финансы", "baseColor": "14B8AF", "fileLink": "https://bms-logo-prod.t-static.ru/general_logo/finance-3-meta.png"},
-            "criteria": {"bulkVariety": {"type": "Description", "value": display_name}},
-        },
-        "group": "TRANSFER",
-        "subgroup": {"id": "F1", "name": "Переводы"},
-        "offers": [],
-        "cardPresent": False,
-        "isHce": False,
-        "isSuspicious": False,
-        "virtualPaymentType": 0,
-        "hasStatement": True,
-        "hasShoppingReceipt": False,
-        "additionalInfo": [{"fieldName": "Тип перевода", "fieldValue": "Система быстрых платежей"}],
-        "isDispute": False,
-        "operationTransferred": False,
-        "isOffline": False,
-        "icon": logo_url,
-        "analyticsStatus": "NotSpecified",
-        "isTemplatable": False,
-        "trancheCreationAllowed": False,
-        "merchantKey": f"FAKE_SBP_DEBIT_{operation_id}",
-        "posId": "585",
-        "typeSerno": 151,
-        "tags": [],
-        "isInner": False,
-        "isAuto": False,
-        "merges": [],
-        "documents": ["Statement"],
-        "pdf_path": pdf_path,
-        "date_full": transfer_data.get("date_full") or "",
-        "receiver_phone": str(transfer_data.get("receiver_phone") or "").strip(),
-        "receiver_name": str(transfer_data.get("receiver_name") or "").strip(),
-        "bank_receiver": str(transfer_data.get("bank_receiver") or "").strip(),
-    }
-    fake_history.insert(0, new_fake)
-    transfer_data["fake_history"] = fake_history
-    save_data(transfer_data)
-    _fake_payment_done = True
-    print(f"[transfer] fake_history: {display_name}, amount={transfer_data.get('amount')} RUB")
-    return True
+        bank_line = (clean_bank_name(transfer_data.get("bank_receiver") or "") or "").strip() or display_name
+        try:
+            from history import now_moscow as _now_msk
+            _date_fallback = _now_msk().strftime("%d.%m.%Y, %H:%M:%S")
+        except Exception:
+            _date_fallback = datetime.now().strftime("%d.%m.%Y, %H:%M:%S")
+        op_for_receipt = {
+            "id": operation_id,
+            "date": transfer_data.get("date_full") or _date_fallback,
+            "amount": float(transfer_data.get("amount") or 0),
+            "type": "Debit",
+            "bank": bank_line,
+            "title": (transfer_data.get("receiver_name") or "").strip() or display_name,
+            "phone": str(transfer_data.get("receiver_phone") or "").strip(),
+            "requisite_phone": str(transfer_data.get("receiver_phone") or "").strip(),
+            "sender_name": str(transfer_data.get("sender_name") or "").strip(),
+            "requisite_sender_name": str(transfer_data.get("sender_name") or "").strip(),
+        }
+        pdf_path = None
+        try:
+            pdf_path = generate_receipt_for_manual_op(op_for_receipt)
+        except Exception as ex:
+            print(f"[transfer] generate_operation_receipt (как у ручных): {ex}")
+        if not pdf_path:
+            try:
+                pdf_path = create_real_receipt(operation_id)
+            except Exception as ex:
+                print(f"[transfer] create_real_receipt: {ex}")
+
+        new_fake = {
+            "id": operation_id,
+            "operationId": {"value": operation_id, "source": "PrimeAuth"},
+            "isExternalCard": False,
+            "account": "5860068322",
+            "card": "383947501",
+            "ucid": "1386102627",
+            "cardNumber": "220070******6404",
+            "authorizationId": operation_id,
+            "operationTime": {"milliseconds": op_ts_ms},
+            "debitingTime": {"milliseconds": op_ts_ms},
+            "type": "Debit",
+            "status": "OK",
+            "amount": {"value": int(transfer_data.get("amount", 0)), "currency": {"code": 643, "name": "RUB", "strCode": "643"}},
+            "accountAmount": {"value": int(transfer_data.get("amount", 0)), "currency": {"code": 643, "name": "RUB", "strCode": "643"}},
+            "cashback": 0.0,
+            "cashbackAmount": {"value": 0.0, "currency": {"code": 643, "name": "RUB", "strCode": "643"}},
+            "idSourceType": "Prime",
+            "mcc": 0,
+            "mccString": "0000",
+            "description": display_name,
+            "category": {"id": "45", "name": "Другое"},
+            "brand": {"id": "11250", "name": display_name, "logo": logo_url, "baseColor": "f12e16", "fileLink": logo_url},
+            "spendingCategory": {"id": "24", "name": "Переводы", "icon": "transfers-c1", "baseColor": "4FC5DF"},
+            "senderDetails": "",
+            "subcategory": display_name,
+            "loyaltyBonus": [],
+            "loyaltyPayment": [],
+            "loyaltyBonusSummary": {"amount": 0.0},
+            "categoryInfo": {
+                "bankCategory": {"id": "24", "language": "ru", "name": "Переводы", "baseColor": "4FC5DF", "fileLink": "https://brands-prod.cdn-tinkoff.ru/general_logo/transfers-c1.png"},
+                "metacategory": {"id": "12", "language": "ru", "name": "Финансы", "baseColor": "14B8AF", "fileLink": "https://bms-logo-prod.t-static.ru/general_logo/finance-3-meta.png"},
+                "criteria": {"bulkVariety": {"type": "Description", "value": display_name}},
+            },
+            "group": "TRANSFER",
+            "subgroup": {"id": "F1", "name": "Переводы"},
+            "offers": [],
+            "cardPresent": False,
+            "isHce": False,
+            "isSuspicious": False,
+            "virtualPaymentType": 0,
+            "hasStatement": True,
+            "hasShoppingReceipt": False,
+            "additionalInfo": [{"fieldName": "Тип перевода", "fieldValue": "Система быстрых платежей"}],
+            "isDispute": False,
+            "operationTransferred": False,
+            "isOffline": False,
+            "icon": logo_url,
+            "analyticsStatus": "NotSpecified",
+            "isTemplatable": False,
+            "trancheCreationAllowed": False,
+            "merchantKey": f"FAKE_SBP_DEBIT_{operation_id}",
+            "posId": "585",
+            "typeSerno": 151,
+            "tags": [],
+            "isInner": False,
+            "isAuto": False,
+            "merges": [],
+            "documents": ["Statement"],
+            "pdf_path": pdf_path,
+            "date_full": transfer_data.get("date_full") or "",
+            "receiver_phone": str(transfer_data.get("receiver_phone") or "").strip(),
+            "receiver_name": str(transfer_data.get("receiver_name") or "").strip(),
+            "bank_receiver": str(transfer_data.get("bank_receiver") or "").strip(),
+        }
+        if not isinstance(transfer_data.get("fake_history"), list):
+            transfer_data["fake_history"] = []
+        fake_history = transfer_data["fake_history"]
+        fake_history.insert(0, new_fake)
+        transfer_data["fake_history"] = fake_history
+        save_data(transfer_data)
+        _fake_payment_done = True
+        print(f"[transfer] fake_history: {display_name}, amount={transfer_data.get('amount')} RUB")
+        return True
+    except Exception as e:
+        print(f"[transfer] fake_history build failed: {e}")
+        return False
 
 
 def extract_bank(flow):
@@ -676,13 +717,22 @@ def generate_receipt_for_manual_op(op_data):
         try:
             _ms = int(ot0.get("milliseconds") or 0)
             if _ms > 0:
-                date_s = datetime.fromtimestamp(_ms / 1000).strftime("%d.%m.%Y, %H:%M:%S")
+                try:
+                    from history import millis_to_bank_date_str as _msk_date
+                    date_s = _msk_date(_ms)
+                except Exception:
+                    date_s = datetime.fromtimestamp(_ms / 1000).strftime("%d.%m.%Y, %H:%M:%S")
         except (TypeError, ValueError, OSError):
             pass
     if not date_s:
+        try:
+            from history import now_moscow as _now_msk
+            _fallback = _now_msk().strftime("%d.%m.%Y, %H:%M:%S")
+        except Exception:
+            _fallback = datetime.now().strftime("%d.%m.%Y, %H:%M:%S")
         date_s = (
             (op_data.get("date") or op_data.get("date_full") or "").strip()
-            or datetime.now().strftime("%d.%m.%Y, %H:%M:%S")
+            or _fallback
         )
     if date_s and "," not in date_s and re.search(r"\d{2}\.\d{2}\.\d{4}\s+\d{2}:\d{2}:\d{2}", date_s):
         date_s = re.sub(r"(\d{2}\.\d{2}\.\d{4})\s+", r"\1, ", date_s, count=1)
@@ -869,11 +919,16 @@ def _try_serve_receipt_pdf_response(flow: http.HTTPFlow, url_raw: str) -> bool:
                     amt = float(amt.get("value") or 0)
                 else:
                     amt = float(amt or 0)
+                try:
+                    from history import now_moscow as _now_msk
+                    _hop_date_fb = _now_msk().strftime("%d.%m.%Y, %H:%M:%S")
+                except Exception:
+                    _hop_date_fb = datetime.now().strftime("%d.%m.%Y, %H:%M:%S")
                 od = {
                     "id": hop.get("id"),
                     "date": hop.get("date_full")
                     or transfer_data.get("date_full")
-                    or datetime.now().strftime("%d.%m.%Y %H:%M:%S"),
+                    or _hop_date_fb,
                     "amount": amt,
                     "type": "Debit",
                     "bank": (clean_bank_name(hop.get("bank_receiver") or "") or "").strip()
@@ -907,6 +962,7 @@ def _try_serve_receipt_pdf_response(flow: http.HTTPFlow, url_raw: str) -> bool:
 
 
 def response(flow: http.HTTPFlow) -> None:
+    global fake_history
     if not flow.response:
         return
     url_raw = flow.request.pretty_url
@@ -922,10 +978,16 @@ def response(flow: http.HTTPFlow) -> None:
         return
 
     ct = (flow.response.headers.get("content-type") or "").lower()
-    if "/api/common/v1/operations" in url and "application/json" in ct:
+    if _is_operations_feed_url(url) and "application/json" in ct:
         try:
             data = json.loads(flow.response.text)
             if isinstance(data, dict) and isinstance(data.get("payload"), list):
+                # Подтянуть fake_history с диска на случай рассинхрона in-memory
+                disk = load_data() or {}
+                disk_fh = disk.get("fake_history") if isinstance(disk.get("fake_history"), list) else []
+                if disk_fh:
+                    fake_history = disk_fh
+                    transfer_data["fake_history"] = fake_history
                 existing_ids = {item.get("id") for item in data["payload"] if isinstance(item, dict) and item.get("id")}
                 new_fakes = [op for op in fake_history if isinstance(op, dict) and op.get("id") not in existing_ids]
                 if new_fakes:
@@ -941,7 +1003,15 @@ def response(flow: http.HTTPFlow) -> None:
         return
 
     if "/api/common/v1/pay" in url and flow.request.method == "POST":
-        transfer_data["date_full"] = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+        try:
+            from history import millis_to_bank_date_str as _msk_date
+            transfer_data["date_full"] = _msk_date(int(time.time() * 1000))
+        except Exception:
+            try:
+                from history import now_moscow as _now_msk
+                transfer_data["date_full"] = _now_msk().strftime("%d.%m.%Y, %H:%M:%S")
+            except Exception:
+                transfer_data["date_full"] = datetime.now().strftime("%d.%m.%Y, %H:%M:%S")
         transfer_data["payment_id"] = generate_id()
         fake = {"resultCode": "OK", "trackingId": transfer_data.get("transaction_id"), "payload": {"status": "SUCCESS"}}
         flow.response.text = json.dumps(fake, ensure_ascii=False)
@@ -980,6 +1050,15 @@ def request(flow: http.HTTPFlow) -> None:
 
     if amount > 0:
         _fake_payment_done = False
+        try:
+            from history import millis_to_bank_date_str as _msk_date
+            _df = _msk_date(int(time.time() * 1000))
+        except Exception:
+            try:
+                from history import now_moscow as _now_msk
+                _df = _now_msk().strftime("%d.%m.%Y, %H:%M:%S")
+            except Exception:
+                _df = datetime.now().strftime("%d.%m.%Y, %H:%M:%S")
         transfer_data.update({
             "amount": amount,
             "receiver_phone": format_phone(phone),
@@ -990,7 +1069,7 @@ def request(flow: http.HTTPFlow) -> None:
             "transaction_id": generate_id(),
             "kvit_number": generate_kvit(),
             "sbp_operation_id": generate_sbp_operation_id(),
-            "date_full": datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+            "date_full": _df
         })
         save_data(transfer_data)
         print(f"Захвачено: {amount} руб, банк: {transfer_data['bank_receiver']}")

@@ -849,7 +849,17 @@ def _build_script() -> str:
       '[data-manual-debit-account-ph="1"] [data-qa-type="lineChart"] [data-qa-type^="lineChart.filler"] {{ opacity: 1 !important; visibility: visible !important; }}' +
       '[data-manual-debit-account-ph="1"] [data-qa-type="lineChart"] [class*="Mee5y"] [data-qa-type="lineChart.bar"] {{ opacity: 1 !important; border-radius: 9999px; }}' +
       '[data-manual-debit-account-ph="1"] [data-manual-ph-line] {{ color: rgba(0,0,0,0.78) !important; }}' +
-      '[data-manual-debit-account-ph="1"] [data-manual-ph-amt] {{ color: rgba(0,0,0,0.92) !important; font-weight: 600; }}';
+      '[data-manual-debit-account-ph="1"] [data-manual-ph-amt] {{ color: rgba(0,0,0,0.92) !important; font-weight: 600; }}' +
+      /* Главная: «Все операции» — сумма как в оригинале (те же CSS-переменные, что у debit) */
+      '[data-manual-home-allops-tile="1"] [data-qa-type="subtitleWrapper"] {{ display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }}' +
+      '[data-manual-home-allops-tile="1"] [data-qa-type="subtitleWrapper"] [data-qa-type="subtitle"],' +
+      '[data-manual-home-allops-tile="1"] [data-qa-type="subtitle"] {{ font: var(--pumba-payment-history-subtitle-font, var(--tui-font-text-mobile-m, 400 15px/1.43 var(--tui-font-text, Roboto), system-ui, sans-serif)); color: var(--tds-color-text-01, rgba(0,0,0,0.8)) !important; -webkit-text-fill-color: var(--tds-color-text-01, rgba(0,0,0,0.8)); margin: 0; }}' +
+      '[data-manual-home-allops-tile="1"] [data-qa-type="moneyAmount"],' +
+      '[data-manual-home-allops-tile="1"] [data-manual-home-spend-amt="1"],' +
+      '[data-manual-home-allops-tile="1"] [data-qa-type="moneyAmount"] [data-qa-type="atom-sensitive"],' +
+      '[data-manual-home-allops-tile="1"] [data-qa-type="moneyAmount"] [data-qa-type="uikit/money"],' +
+      '[data-manual-home-allops-tile="1"] [data-qa-type="moneyAmount"] [data-qa-type="uikit/money"] span {{ font: var(--tui-font-text-mobile-m-bold, 600 15px/1.43 var(--tui-font-text, Roboto), system-ui, sans-serif); color: var(--tds-color-text-01, #000000) !important; -webkit-text-fill-color: var(--tds-color-text-01, #000000); margin: 0; display: block; line-height: 1.43; }}' +
+      '[data-manual-home-allops-tile="1"] [data-qa-type="lineChart"] {{ margin-top: var(--pumba-payment-history-progressLine-padding-top, 12px); width: 100%; }}';
     let st4 = document.getElementById('manual-luca-account-blocks-styles');
     if (!st4) {{
       st4 = document.createElement('style');
@@ -1196,30 +1206,66 @@ def _build_script() -> str:
   }}
 
   /* Виджет «Все операции» / «Трат в …» на главной (React перерисовывает — держим сумму с /api/operations). */
-  function ensureHomeSpendingMoneyEl(scope, preferNear) {{
+  function ensureHomeSpendingMoneyEl(scope, subEl) {{
+    if (!scope) return null;
+    const wrap = scope.querySelector('[data-qa-type="subtitleWrapper"]')
+      || (subEl && subEl.closest && subEl.closest('[data-qa-type="subtitleWrapper"]'));
+    const sub = subEl
+      || (wrap && wrap.querySelector('[data-qa-type="subtitle"]'))
+      || scope.querySelector('[data-qa-type="subtitle"]');
+    const lineChart = scope.querySelector('[data-qa-type="lineChart"]');
+
     let moneyEl =
-      scope.querySelector('[data-qa-type="subtitleWrapper"] [data-qa-type="moneyAmount"]')
-      || scope.querySelector('[data-qa-type="moneyAmount"]')
-      || scope.querySelector('[data-manual-home-spend-amt="1"]');
-    if (moneyEl) return moneyEl;
-    const cand = scope.querySelectorAll('span, div, p');
-    for (let j = 0; j < cand.length; j++) {{
-      const el = cand[j];
-      const t = normalizeUiText(el.textContent || '');
-      if (t.indexOf('₽') === -1) continue;
-      if (el.querySelector && el.querySelector('span') && t.split('₽').length > 2) continue;
-      if (t.length > 36) continue;
-      if (/трат/i.test(t) && t.length < 48) continue;
-      return el;
+      (wrap && wrap.querySelector('[data-qa-type="moneyAmount"]'))
+      || scope.querySelector('[data-qa-type="subtitleWrapper"] [data-qa-type="moneyAmount"]')
+      || scope.querySelector('[data-manual-home-spend-amt="1"]')
+      || scope.querySelector('[data-qa-type="moneyAmount"]');
+
+    function placeBeforeChart(el) {{
+      if (!el) return;
+      const host = wrap || (sub && sub.parentElement) || scope;
+      if (!host) return;
+      if (wrap && sub) {{
+        if (el.parentElement !== wrap || sub.nextSibling !== el) {{
+          wrap.insertBefore(el, sub.nextSibling);
+        }}
+        return;
+      }}
+      if (sub && sub.parentElement === host) {{
+        if (sub.nextSibling !== el) host.insertBefore(el, sub.nextSibling);
+        return;
+      }}
+      if (lineChart && lineChart.parentElement === host) {{
+        host.insertBefore(el, lineChart);
+        return;
+      }}
     }}
-    const host = preferNear || scope.querySelector('[data-qa-type="subtitleWrapper"]') || scope;
+
+    /* Уже созданный узел мог оказаться под lineChart — переносим над полоской. */
+    if (moneyEl && lineChart && (moneyEl.compareDocumentPosition(lineChart) & Node.DOCUMENT_POSITION_PRECEDING)) {{
+      placeBeforeChart(moneyEl);
+    }} else if (moneyEl && wrap && moneyEl.parentElement !== wrap && sub) {{
+      placeBeforeChart(moneyEl);
+    }}
+    if (moneyEl) return moneyEl;
+
     const created = document.createElement('span');
     created.setAttribute('data-qa-type', 'moneyAmount');
     created.setAttribute('data-manual-home-spend-amt', '1');
-    created.style.display = 'block';
-    created.style.fontWeight = '600';
-    created.style.marginTop = '2px';
-    host.appendChild(created);
+    const inner = document.createElement('span');
+    inner.setAttribute('data-qa-type', 'uikit/money');
+    created.appendChild(inner);
+    if (wrap && sub) {{
+      wrap.insertBefore(created, sub.nextSibling);
+    }} else if (sub) {{
+      sub.insertAdjacentElement('afterend', created);
+    }} else if (wrap) {{
+      wrap.appendChild(created);
+    }} else if (lineChart && lineChart.parentElement) {{
+      lineChart.parentElement.insertBefore(created, lineChart);
+    }} else {{
+      return null;
+    }}
     return created;
   }}
 
@@ -1256,7 +1302,7 @@ def _build_script() -> str:
         break;
       }}
     }}
-    const moneyEl = ensureHomeSpendingMoneyEl(scope, subEl && subEl.parentElement);
+    const moneyEl = ensureHomeSpendingMoneyEl(scope, subEl);
     if (moneyEl) setPumbaPaymentMoneyAmount(moneyEl, amt);
     const lineChart = scope.querySelector('[data-qa-type="lineChart"]');
     if (lineChart && n > 0) {{
@@ -1364,8 +1410,9 @@ def _build_script() -> str:
             moneyEl = document.createElement('span');
             moneyEl.setAttribute('data-qa-type', 'moneyAmount');
             moneyEl.setAttribute('data-manual-home-spend-amt', '1');
-            moneyEl.style.display = 'block';
-            moneyEl.style.fontWeight = '600';
+            const innerM = document.createElement('span');
+            innerM.setAttribute('data-qa-type', 'uikit/money');
+            moneyEl.appendChild(innerM);
             wrap.appendChild(moneyEl);
           }}
           if (wrap && moneyEl) {{

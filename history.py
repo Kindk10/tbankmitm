@@ -2,7 +2,7 @@ from mitmproxy import http
 import json
 import copy
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from urllib.parse import parse_qs, urlparse
 import time
 import re
@@ -23,6 +23,31 @@ from bank_filter import (
     text_indicates_statements_spravki,
     url_prohibit_proxy_json_mutation,
 )
+
+try:
+    from zoneinfo import ZoneInfo
+    _MSK_TZ = ZoneInfo("Europe/Moscow")
+except Exception:
+    _MSK_TZ = timezone(timedelta(hours=3), name="MSK")
+
+
+def now_moscow() -> datetime:
+    """Текущее время в Europe/Moscow (naive datetime с московским wall-clock)."""
+    return datetime.now(_MSK_TZ).replace(tzinfo=None)
+
+
+def moscow_from_timestamp(ts: float) -> datetime:
+    """epoch seconds → naive datetime в московском wall-clock."""
+    return datetime.fromtimestamp(ts, _MSK_TZ).replace(tzinfo=None)
+
+
+def moscow_datetime_to_epoch_ms(dt: datetime) -> int:
+    """Naive datetime трактуем как московское local → epoch ms."""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=_MSK_TZ)
+    else:
+        dt = dt.astimezone(_MSK_TZ)
+    return int(dt.timestamp() * 1000)
 
 operations_cache = {}
 manual_operations = {}
@@ -847,7 +872,8 @@ def _propagate_amount_fields(out, amt, typ):
 
 
 def parse_bank_date_str_to_ms(date_str) -> Optional[int]:
-    """Строка вида 20.03.2025, 14:30:00 или 20.03.2025 14:30:00 — иначе None."""
+    """Строка вида 20.03.2025, 14:30:00 или 20.03.2025 14:30:00 — иначе None.
+    Wall-clock трактуется как Europe/Moscow."""
     if not date_str or not isinstance(date_str, str):
         return None
     s = date_str.strip()
@@ -861,14 +887,14 @@ def parse_bank_date_str_to_ms(date_str) -> Optional[int]:
             if m:
                 d, mo, y, H, M, S = map(int, m.groups())
                 dt = datetime(y, mo, d, H, M, S)
-                return int(dt.timestamp() * 1000)
+                return moscow_datetime_to_epoch_ms(dt)
         except Exception:
             pass
     return None
 
 
 def millis_to_bank_date_str(ms: int) -> str:
-    return datetime.fromtimestamp(ms / 1000).strftime("%d.%m.%Y, %H:%M:%S")
+    return moscow_from_timestamp(ms / 1000).strftime("%d.%m.%Y, %H:%M:%S")
 
 
 def parse_iso_date_to_ms(val) -> Optional[int]:
@@ -884,29 +910,30 @@ def parse_iso_date_to_ms(val) -> Optional[int]:
 def parse_panel_datetime_iso(dt_raw) -> tuple:
     """
     Панель и <input datetime-local> шлют ISO-подобную строку, часто без секунд (…TЧЧ:ММ).
-    Возвращает (date_str в формате банка, миллисекунды эпохи). Без dt_raw — текущий момент.
+    Значение без timezone трактуем как московское wall-clock.
+    Возвращает (date_str в формате банка, миллисекунды эпохи). Без dt_raw — текущий момент MSK.
     """
     if not dt_raw:
-        now = datetime.now()
-        return now.strftime("%d.%m.%Y, %H:%M:%S"), int(now.timestamp() * 1000)
+        now = now_moscow()
+        return now.strftime("%d.%m.%Y, %H:%M:%S"), moscow_datetime_to_epoch_ms(now)
     s = str(dt_raw).strip().replace("Z", "")
     if "+" in s:
         s = s.split("+", 1)[0]
     if re.match(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$", s):
         s = s + ":00"
-    now = datetime.now()
+    now = now_moscow()
     try:
         dt = datetime.fromisoformat(s)
-        return dt.strftime("%d.%m.%Y, %H:%M:%S"), int(dt.timestamp() * 1000)
+        return dt.strftime("%d.%m.%Y, %H:%M:%S"), moscow_datetime_to_epoch_ms(dt)
     except ValueError:
         pass
     for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
         try:
             dt = datetime.strptime(s, fmt)
-            return dt.strftime("%d.%m.%Y, %H:%M:%S"), int(dt.timestamp() * 1000)
+            return dt.strftime("%d.%m.%Y, %H:%M:%S"), moscow_datetime_to_epoch_ms(dt)
         except ValueError:
             continue
-    return now.strftime("%d.%m.%Y, %H:%M:%S"), int(now.timestamp() * 1000)
+    return now.strftime("%d.%m.%Y, %H:%M:%S"), moscow_datetime_to_epoch_ms(now)
 
 
 # Явные ключи ленты (пустой массив тоже кандидат). items/payload — только если содержимое похоже на операции.
@@ -1967,12 +1994,12 @@ def apply_hidden_operations_filter(
     return modified
 
 def is_current_month(date_str):
-    """Текущий календарный месяц (не «как при старте mitm»)."""
+    """Текущий календарный месяц по Europe/Moscow (не «как при старте mitm»)."""
     try:
         match = re.search(r"(\d{2})\.(\d{2})\.(\d{4})", date_str or "")
         if match:
             day, month, year = map(int, match.groups())
-            now = datetime.now()
+            now = now_moscow()
             return year == now.year and month == now.month
     except Exception:
         pass

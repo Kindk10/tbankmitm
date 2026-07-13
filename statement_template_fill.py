@@ -3,9 +3,8 @@
 Выписка: копируем страницы из Выписка.pdf (insert_pdf). Тело таблицы — белый redact по clip
 (как в макете), без удаления вложенных PNG из файла (PDF_REDACT_IMAGE_NONE) + insert_text / insert_textbox.
 
-Шрифты для сгенерированного текста: системные Arial / DejaVu (имена ресурсов JbRg/JbBd — без TinkoffSans-*,
-как ожидают PDF-проверки); знак ₽ — Symbola.ttf (ресурс F3 при наличии файла). TinkoffSans остаётся только
-в неизменённом тексте шаблона. При сбое — helv.
+Шрифты для сгенерированного текста: TinkoffSans-Regular / TinkoffSans-Medium (как в шаблоне и чеках);
+знак ₽ — Symbola.ttf (ресурс F3 при наличии файла). При сбое — helv.
 
 Начертание: span flags + имя шрифта в шаблоне (Medium → жирная гарнитура).
 
@@ -126,13 +125,11 @@ def _font_paths_statement_embedding() -> Tuple[Optional[str], Optional[str]]:
 
 
 def _text_width_mm(text: str, fontsize: float, use_emphasis: bool) -> float:
-    """Ширина строки в pt для того же TTF, что и при отрисовке выписки."""
+    """Ширина строки в pt для того же TTF, что и при отрисовке выписки (TinkoffSans)."""
     s = text or ""
     if not s:
         return 0.0
-    reg_p, bd_p = _font_paths_statement_embedding()
-    if not reg_p or not os.path.isfile(reg_p):
-        reg_p, bd_p = _font_paths_regular_bold()
+    reg_p, bd_p = _font_paths_regular_bold()
     path = bd_p if use_emphasis and bd_p else reg_p
     if path and os.path.isfile(path):
         try:
@@ -273,39 +270,8 @@ def _register_template_fonts(page: fitz.Page) -> Tuple[str, str]:
 
 
 def _register_statement_fonts(page: fitz.Page) -> Tuple[str, str]:
-    """
-    Встраиваемые шрифты для всего текста, который мы рисуем заново: не TinkoffSans-* в словаре шрифтов.
-    """
-    doc = page.parent
-    paths = getattr(doc, _STMT_FONT_PATHS_STMT, None)
-    if paths is None:
-        reg_path, bd_path = _font_paths_statement_embedding()
-        setattr(doc, _STMT_FONT_PATHS_STMT, (reg_path, bd_path))
-    else:
-        reg_path, bd_path = paths
-    if not reg_path:
-        return "helv", "helv"
-    reg_name = _STMT_JASPER_REG
-    try:
-        page.insert_font(fontname=reg_name, fontfile=reg_path)
-    except Exception:
-        try:
-            reg_name = "my_normal"
-            page.insert_font(fontname=reg_name, fontfile=reg_path)
-        except Exception:
-            return "helv", "helv"
-    bd_name = reg_name
-    if bd_path and bd_path != reg_path:
-        try:
-            page.insert_font(fontname=_STMT_JASPER_BD, fontfile=bd_path)
-            bd_name = _STMT_JASPER_BD
-        except Exception:
-            try:
-                bd_name = "my_bold"
-                page.insert_font(fontname=bd_name, fontfile=bd_path)
-            except Exception:
-                bd_name = reg_name
-    return reg_name, bd_name
+    """Как раньше: TinkoffSans-Regular / Medium (обёртка над _register_template_fonts)."""
+    return _register_template_fonts(page)
 
 
 def _ensure_cyrillic_font(page: fitz.Page) -> str:

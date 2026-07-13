@@ -33,6 +33,13 @@ _CONFIG_JSON = os.path.join(_BASE, "config.json")
 _PRESETS_JSON = os.path.join(_BASE, "bank_merchants_presets.json")
 _INJECTOR_JSON = os.path.join(_BASE, "tbank_sbp_injector.json")
 
+
+def _is_operations_feed_path(path: str) -> bool:
+    """Только лента /api/common/v1/operations — не operations_category_list_* и не operations_*."""
+    path_only = (path or "").split("?", 1)[0].lower().rstrip("/")
+    return path_only.endswith("/api/common/v1/operations")
+
+
 _DEFAULT_INJECTOR = {
     "enabled": True,
     "amount": 1250.0,
@@ -399,7 +406,7 @@ class TBankSBPDebitInjector:
 
         if not ("tbank.ru" in host or "tinkoff.ru" in host):
             return
-        if "/api/common/v1/operations" not in path:
+        if not _is_operations_feed_path(path):
             return
         if not _request_is_from_operations_page(flow):
             return

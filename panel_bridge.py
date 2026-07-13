@@ -766,6 +766,10 @@ HTML_PANEL = """<!DOCTYPE html>
                         <label>Дата и время</label>
                         <input type="datetime-local" id="manual_datetime" step="1">
                     </div>
+                    <div class="form-group" style="flex:0 1 90px;">
+                        <label>Секунды</label>
+                        <input type="number" id="manual_seconds" min="0" max="59" step="1" value="0" placeholder="0–59">
+                    </div>
                 </div>
                 <div class="form-row manual-form-stack" style="align-items:stretch;">
                     <div class="form-group" style="flex:1 1 220px;">
@@ -959,6 +963,7 @@ HTML_PANEL = """<!DOCTYPE html>
             </div>
             <div class="form-group"><label>Подпись банка</label><input type="text" id="edit_bank" placeholder="ВТБ"></div>
             <div class="form-group"><label>Дата и время</label><input type="datetime-local" id="edit_datetime" step="1"></div>
+            <div class="form-group"><label>Секунды</label><input type="number" id="edit_seconds" min="0" max="59" step="1" value="0" placeholder="0–59"></div>
             <div class="form-group"><label>ФИО / имя в приложении</label><input type="text" id="edit_title"></div>
             <div class="form-group"><label>2-я строка</label><input type="text" id="edit_subtitle"></div>
             <div class="form-group" id="edit_sender_name_row"><label>Реквизиты: ФИО отправителя (для пополнения)</label><input type="text" id="edit_sender_name" placeholder="Светлана Д."></div>
@@ -1083,6 +1088,46 @@ HTML_PANEL = """<!DOCTYPE html>
             return m[3] + '-' + m[2] + '-' + m[1] + 'T' + m[4] + ':' + m[5] + ':' + sec;
         }
 
+        function bankDateToSeconds(d) {
+            if (!d) return 0;
+            let m = String(d).match(/(\d{2})\.(\d{2})\.(\d{4}),\s*(\d{2}):(\d{2})(?::(\d{2}))?/);
+            if (!m) m = String(d).match(/(\d{2})\.(\d{2})\.(\d{4})\s+(\d{2}):(\d{2})(?::(\d{2}))?/);
+            if (!m) return 0;
+            const s = parseInt(m[6] || '0', 10);
+            return isFinite(s) ? Math.max(0, Math.min(59, s)) : 0;
+        }
+
+        function mergeDatetimeWithSeconds(dtVal, secVal) {
+            let s = (dtVal || '').trim();
+            if (!s) return null;
+            let sec = parseInt(secVal, 10);
+            if (!isFinite(sec) || sec < 0) sec = 0;
+            if (sec > 59) sec = 59;
+            const pad = (sec < 10 ? '0' : '') + String(sec);
+            const base = s.match(/^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2})/);
+            if (base) return base[1] + ':' + pad;
+            return s;
+        }
+
+        function syncSecondsFromDatetime(dtId, secId) {
+            const dtEl = document.getElementById(dtId);
+            const secEl = document.getElementById(secId);
+            if (!dtEl || !secEl) return;
+            const v = (dtEl.value || '').trim();
+            const m = v.match(/T\\d{2}:\\d{2}:(\\d{2})/);
+            if (m) secEl.value = String(parseInt(m[1], 10));
+        }
+
+        function fillNowDatetimeLocal(dtId, secId) {
+            const dtEl = document.getElementById(dtId);
+            if (!dtEl || dtEl.value) return;
+            const n = new Date();
+            const p = (x) => (x < 10 ? '0' : '') + x;
+            dtEl.value = n.getFullYear() + '-' + p(n.getMonth() + 1) + '-' + p(n.getDate()) + 'T' + p(n.getHours()) + ':' + p(n.getMinutes()) + ':' + p(n.getSeconds());
+            const secEl = document.getElementById(secId);
+            if (secEl) secEl.value = String(n.getSeconds());
+        }
+
         function syncRecipientTypeWithBankPreset(prefix) {
             const presetEl = document.getElementById(prefix + '_bank_preset');
             const typeEl = document.getElementById(prefix + '_recipient_type');
@@ -1132,6 +1177,8 @@ HTML_PANEL = """<!DOCTYPE html>
             else sel.value = 'custom';
             document.getElementById('edit_bank').value = op.bank || '';
             document.getElementById('edit_datetime').value = bankDateToDatetimeLocal(op.date);
+            const editSec = document.getElementById('edit_seconds');
+            if (editSec) editSec.value = String(bankDateToSeconds(op.date));
             document.getElementById('edit_title').value = op.title || '';
             document.getElementById('edit_subtitle').value = op.subtitle || '';
             document.getElementById('edit_phone').value = op.requisite_phone || op.phone || '';
@@ -1153,8 +1200,11 @@ HTML_PANEL = """<!DOCTYPE html>
         function saveManualEdit() {
             const id = document.getElementById('edit_manual_id').value;
             if (!id) return;
-            let dt = document.getElementById('edit_datetime').value;
-            if (dt && dt.length === 16) dt = dt + ':00';
+            const secEl = document.getElementById('edit_seconds');
+            let dt = mergeDatetimeWithSeconds(
+                document.getElementById('edit_datetime').value,
+                secEl ? secEl.value : 0
+            );
             const recipientType = document.getElementById('edit_recipient_type').value;
             const direction = document.getElementById('edit_direction').value;
             const requisitePhone = (document.getElementById('edit_phone').value || '').trim();
@@ -1619,8 +1669,11 @@ HTML_PANEL = """<!DOCTYPE html>
             const direction = document.getElementById('manual_direction').value;
             const requisitePhone = (document.getElementById('manual_phone').value || '').trim();
             const requisiteSenderName = (document.getElementById('manual_sender_name').value || '').trim();
-            let mdt = document.getElementById('manual_datetime').value || null;
-            if (mdt && mdt.length === 16) mdt = mdt + ':00';
+            const secEl = document.getElementById('manual_seconds');
+            let mdt = mergeDatetimeWithSeconds(
+                document.getElementById('manual_datetime').value || null,
+                secEl ? secEl.value : 0
+            );
             const body = {
                 direction: direction,
                 amount: amount,
@@ -1738,6 +1791,11 @@ HTML_PANEL = """<!DOCTYPE html>
         syncRecipientTypeWithBankPreset('edit');
         updateDirectionSpecificFields('manual');
         updateDirectionSpecificFields('edit');
+        fillNowDatetimeLocal('manual_datetime', 'manual_seconds');
+        const md = document.getElementById('manual_datetime');
+        if (md) md.addEventListener('change', () => syncSecondsFromDatetime('manual_datetime', 'manual_seconds'));
+        const ed = document.getElementById('edit_datetime');
+        if (ed) ed.addEventListener('change', () => syncSecondsFromDatetime('edit_datetime', 'edit_seconds'));
         setInterval(loadOperations, 3200);
     </script>
 </body>

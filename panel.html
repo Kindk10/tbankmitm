@@ -553,6 +553,10 @@
                         <label>Дата и время</label>
                         <input type="datetime-local" id="manual_datetime" step="1">
                     </div>
+                    <div class="form-group" style="flex:0 1 90px;">
+                        <label>Секунды</label>
+                        <input type="number" id="manual_seconds" min="0" max="59" step="1" value="0" placeholder="0–59">
+                    </div>
                 </div>
                 <div class="form-row manual-form-stack" style="align-items:stretch;">
                     <div class="form-group" style="flex:1 1 220px;">
@@ -710,6 +714,7 @@
             </div>
             <div class="form-group"><label>Подпись банка</label><input type="text" id="edit_bank" placeholder="ВТБ"></div>
             <div class="form-group"><label>Дата и время</label><input type="datetime-local" id="edit_datetime" step="1"></div>
+            <div class="form-group"><label>Секунды</label><input type="number" id="edit_seconds" min="0" max="59" step="1" value="0" placeholder="0–59"></div>
             <div class="form-group"><label>ФИО / имя в приложении</label><input type="text" id="edit_title"></div>
             <div class="form-group"><label>2-я строка</label><input type="text" id="edit_subtitle"></div>
             <div class="form-group"><label>Номер телефона для реквизитов</label><input type="tel" id="edit_phone" placeholder="+79991234567"></div>
@@ -796,6 +801,46 @@
             return m[3] + '-' + m[2] + '-' + m[1] + 'T' + m[4] + ':' + m[5] + ':' + sec;
         }
 
+        function bankDateToSeconds(d) {
+            if (!d) return 0;
+            let m = String(d).match(/(\d{2})\.(\d{2})\.(\d{4}),\s*(\d{2}):(\d{2})(?::(\d{2}))?/);
+            if (!m) m = String(d).match(/(\d{2})\.(\d{2})\.(\d{4})\s+(\d{2}):(\d{2})(?::(\d{2}))?/);
+            if (!m) return 0;
+            const s = parseInt(m[6] || '0', 10);
+            return isFinite(s) ? Math.max(0, Math.min(59, s)) : 0;
+        }
+
+        function mergeDatetimeWithSeconds(dtVal, secVal) {
+            let s = (dtVal || '').trim();
+            if (!s) return null;
+            let sec = parseInt(secVal, 10);
+            if (!isFinite(sec) || sec < 0) sec = 0;
+            if (sec > 59) sec = 59;
+            const pad = (sec < 10 ? '0' : '') + String(sec);
+            const base = s.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})/);
+            if (base) return base[1] + ':' + pad;
+            return s;
+        }
+
+        function syncSecondsFromDatetime(dtId, secId) {
+            const dtEl = document.getElementById(dtId);
+            const secEl = document.getElementById(secId);
+            if (!dtEl || !secEl) return;
+            const v = (dtEl.value || '').trim();
+            const m = v.match(/T\d{2}:\d{2}:(\d{2})/);
+            if (m) secEl.value = String(parseInt(m[1], 10));
+        }
+
+        function fillNowDatetimeLocal(dtId, secId) {
+            const dtEl = document.getElementById(dtId);
+            if (!dtEl || dtEl.value) return;
+            const n = new Date();
+            const p = (x) => (x < 10 ? '0' : '') + x;
+            dtEl.value = n.getFullYear() + '-' + p(n.getMonth() + 1) + '-' + p(n.getDate()) + 'T' + p(n.getHours()) + ':' + p(n.getMinutes()) + ':' + p(n.getSeconds());
+            const secEl = document.getElementById(secId);
+            if (secEl) secEl.value = String(n.getSeconds());
+        }
+
         function openEditManualModal(op) {
             if (!op || !op.manual || !op.id) return;
             document.getElementById('edit_manual_id').value = op.id;
@@ -807,6 +852,8 @@
             else sel.value = 'custom';
             document.getElementById('edit_bank').value = op.bank || '';
             document.getElementById('edit_datetime').value = bankDateToDatetimeLocal(op.date);
+            const editSec = document.getElementById('edit_seconds');
+            if (editSec) editSec.value = String(bankDateToSeconds(op.date));
             document.getElementById('edit_title').value = op.title || '';
             document.getElementById('edit_subtitle').value = op.subtitle || '';
             document.getElementById('edit_phone').value = op.phone || '';
@@ -823,8 +870,11 @@
         function saveManualEdit() {
             const id = document.getElementById('edit_manual_id').value;
             if (!id) return;
-            let dt = document.getElementById('edit_datetime').value;
-            if (dt && dt.length === 16) dt = dt + ':00';
+            const secEl = document.getElementById('edit_seconds');
+            let dt = mergeDatetimeWithSeconds(
+                document.getElementById('edit_datetime').value,
+                secEl ? secEl.value : 0
+            );
             fetch('/api/operations/update', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -1273,8 +1323,11 @@
             const title = document.getElementById('manual_title').value;
             const subtitle = document.getElementById('manual_subtitle').value || 'Переводы';
             const bank_preset = document.getElementById('manual_bank_preset').value;
-            let datetime = document.getElementById('manual_datetime').value || null;
-            if (datetime && datetime.length === 16) datetime = datetime + ':00';
+            const secEl = document.getElementById('manual_seconds');
+            let datetime = mergeDatetimeWithSeconds(
+                document.getElementById('manual_datetime').value || null,
+                secEl ? secEl.value : 0
+            );
             const phone = document.getElementById('manual_phone').value || '';
             const comment = document.getElementById('manual_comment').value || '';
             
@@ -1395,6 +1448,11 @@
         document.getElementById('manual_bank_preset').addEventListener('change', renderPresetLogos);
 
         loadAllData();
+        fillNowDatetimeLocal('manual_datetime', 'manual_seconds');
+        const md = document.getElementById('manual_datetime');
+        if (md) md.addEventListener('change', () => syncSecondsFromDatetime('manual_datetime', 'manual_seconds'));
+        const ed = document.getElementById('edit_datetime');
+        if (ed) ed.addEventListener('change', () => syncSecondsFromDatetime('edit_datetime', 'edit_seconds'));
         setInterval(loadOperations, 3200);
     </script>
 </body>
