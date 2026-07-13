@@ -877,16 +877,33 @@ def _propagate_merchant_logo(out):
         cp[alias] = logo
 
 
+def _rub_currency_obj():
+    return {"code": 643, "name": "RUB", "strCode": "643"}
+
+
+def _normalize_money_dict(cur, value):
+    """Всегда объект валюты банка — иначе в деталях нет символа ₽."""
+    if not isinstance(cur, dict):
+        return {"value": value, "currency": _rub_currency_obj()}
+    cur["value"] = value
+    c = cur.get("currency")
+    if not isinstance(c, dict) or not c.get("code"):
+        cur["currency"] = _rub_currency_obj()
+    else:
+        c.setdefault("code", 643)
+        c.setdefault("name", "RUB")
+        c.setdefault("strCode", "643")
+    return cur
+
+
 def _set_amount_field(container, key, value):
     if key not in container:
         return
     cur = container.get(key)
     if isinstance(cur, dict):
-        cur["value"] = value
-        if "currency" in cur and not cur.get("currency"):
-            cur["currency"] = "RUB"
+        container[key] = _normalize_money_dict(cur, value)
     else:
-        container[key] = value
+        container[key] = {"value": value, "currency": _rub_currency_obj()}
 
 
 def _propagate_amount_fields(out, amt, typ):
@@ -1018,6 +1035,9 @@ _INJECT_HARD_SKIP_PATH_FRAGMENTS = (
     ".deposits.",
     ".loans.",
     ".offers.",
+    ".previewcards.",
+    ".mainscreen.",
+    ".instruments.",
 )
 
 _INJECT_WIDGET_CONTAINER_FRAGMENTS = (
@@ -1423,11 +1443,9 @@ def overlay_manual_on_template(
             ms = max(ms, wall_ms)
 
     if isinstance(out.get("amount"), dict):
-        out["amount"]["value"] = amt
-        if "currency" in out["amount"] and not out["amount"].get("currency"):
-            out["amount"]["currency"] = "RUB"
+        out["amount"] = _normalize_money_dict(out["amount"], amt)
     else:
-        out["amount"] = {"value": amt, "currency": "RUB"}
+        out["amount"] = {"value": amt, "currency": _rub_currency_obj()}
     _propagate_amount_fields(out, amt, typ)
 
     if "name" in out:
@@ -1768,8 +1786,11 @@ def inject_manual_into_response(
     page_kind = _mybank_page_kind(referer)
     request_feed_like = _request_looks_like_operations_feed(request_text)
     product_surface = _response_looks_like_product_surface(data)
+    # Не повышать page_kind до operations только по телу — иначе inject на главной плодит карточки.
     if page_kind == "" and request_feed_like and not product_surface:
-        page_kind = "operations"
+        ref_l = (referer or "").lower()
+        if "tbank.ru/mybank/operations" in ref_l or "tinkoff.ru/mybank/operations" in ref_l:
+            page_kind = "operations"
     candidates = _candidate_operation_lists_from_data(
         data,
         allow_graphql_edges=(page_kind != "mybank"),
@@ -1778,10 +1799,14 @@ def inject_manual_into_response(
     has_operation_candidates = bool(candidates)
     url_u = (url or "").lower()
     is_strict_ops_feed = "/api/common/v1/operations" in url_u and "operations_category_list" not in url_u
-    # WebView/браузер (Mozilla/Chrome UA) — не отключать inject целиком: иначе в приложении
-    # ручные/мок-операции не попадают в ленту (tbank_sbp тоже режет по Referer).
+    # Главная /mybank/: только баланс через balance.py; inject — только strict ops feed.
+    if page_kind == "mybank" and _ua_looks_like_desktop_browser(user_agent) and not is_strict_ops_feed:
+        if bank_debug_enabled():
+            print(f"[history] ручные операции: пропуск inject на главной mybank: {url[:140]}")
+        return False
+    # WebView/браузер (Mozilla/Chrome UA) — inject на ленте операций не отключаем.
     if _ua_looks_like_desktop_browser(user_agent) and not (
-        is_strict_ops_feed or has_operation_candidates or page_kind == "operations"
+        is_strict_ops_feed or page_kind == "operations"
     ):
         return False
     if product_surface and page_kind != "operations":
@@ -1792,7 +1817,12 @@ def inject_manual_into_response(
         if bank_debug_enabled():
             print(f"[history] ручные операции: URL пропущен (не лента операций): {url[:140]}")
         return False
-    if page_kind != "operations" and _block_manual_inject_browser_tbank(url, user_agent) and not has_operation_candidates:
+    # На mybank не обходить browser-block через has_operation_candidates.
+    if page_kind == "mybank" and _block_manual_inject_browser_tbank(url, user_agent):
+        if bank_debug_enabled():
+            print(f"[history] ручные операции: mybank + browser block: {url[:140]}")
+        return False
+    if page_kind != "operations" and page_kind != "mybank" and _block_manual_inject_browser_tbank(url, user_agent) and not has_operation_candidates:
         if bank_debug_enabled():
             print(f"[history] ручные операции: браузер + веб-API, путь не похож на ленту — пропуск: {url[:140]}")
         return False
@@ -1996,7 +2026,7 @@ def inject_manual_into_response(
         primary = pick_primary_operation_list(candidates)
         if primary is not None:
             merge_into_list(primary, share_injected_ids=True)
-        else:
+        elif page_kind != "mybank":
             for field in ("payload", "items", "operations"):
                 if field in data and isinstance(data[field], list):
                     merge_into_list(data[field], share_injected_ids=True)

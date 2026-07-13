@@ -234,17 +234,33 @@ def _patch_receipt_like_node(obj: dict, man: dict) -> bool:
     formatted_phone = _format_phone_ru(phone)
 
     if isinstance(obj.get("amount"), dict):
-        obj["amount"]["value"] = amt
-        if "currency" in obj["amount"] and not obj["amount"].get("currency"):
-            obj["amount"]["currency"] = "RUB"
+        try:
+            from history import _normalize_money_dict
+            obj["amount"] = _normalize_money_dict(obj["amount"], amt)
+        except Exception:
+            obj["amount"]["value"] = amt
+            obj["amount"]["currency"] = {"code": 643, "name": "RUB", "strCode": "643"}
         changed = True
     elif "amount" in obj and not isinstance(obj.get("amount"), dict):
-        obj["amount"] = {"value": amt, "currency": "RUB"}
+        obj["amount"] = {"value": amt, "currency": {"code": 643, "name": "RUB", "strCode": "643"}}
         changed = True
 
     if "operationAmount" in obj and isinstance(obj["operationAmount"], dict):
-        obj["operationAmount"]["value"] = amt
+        try:
+            from history import _normalize_money_dict
+            obj["operationAmount"] = _normalize_money_dict(obj["operationAmount"], amt)
+        except Exception:
+            obj["operationAmount"]["value"] = amt
         changed = True
+    for _ak in ("signedAmount", "accountAmount", "moneyAmount"):
+        if _ak in obj and isinstance(obj.get(_ak), dict):
+            try:
+                from history import _normalize_money_dict
+                _sv = -amt if typ == "Debit" and _ak == "signedAmount" else amt
+                obj[_ak] = _normalize_money_dict(obj[_ak], _sv)
+                changed = True
+            except Exception:
+                pass
 
     for key in ("description", "title", "name", "purpose", "merchantName", "comment", "subtitle"):
         if key in obj:
