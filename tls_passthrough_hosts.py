@@ -33,6 +33,8 @@ _DEFAULT_SNIS = (
     "s3-msk.tbank.ru",
     "s3.tinkoff.ru",
     "s3.tbank.ru",
+    "tmsg.tbank.ru",
+    "tmsg.tinkoff.ru",
 )
 
 

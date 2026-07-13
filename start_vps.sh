@@ -31,6 +31,7 @@ export TBANKMITM_PUBLIC_IP
 
 export TBANKMITM_PROXY_LISTEN_HOST=0.0.0.0
 export TBANKMITM_PROXY_PORT=8082
+export TBANKMITM_BLOCK_NONBANK=1
 
 # С телефона WebView ходит не на 127.0.0.1 VPS — подставить origin API панели (если не задан в config.json panel_fetch_origin).
 if [[ -z "${TBANK_PANEL_FETCH_ORIGIN:-}" ]]; then

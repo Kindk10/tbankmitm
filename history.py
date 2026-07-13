@@ -1757,10 +1757,8 @@ def inject_manual_into_response(
     user_agent: Optional[str] = None,
     referer: Optional[str] = None,
 ) -> bool:
-    """Вставка ручных операций по образцу реальных из того же ответа. Возвращает True, если JSON менялся."""
+    """Вставка ручных операций и fake_history по образцу реальных из того же ответа."""
     ensure_manual_operations_fresh()
-    if not manual_operations:
-        return False
     if not isinstance(data, (dict, list)):
         return False
     if url_prohibit_proxy_json_mutation(url):
@@ -1768,8 +1766,6 @@ def inject_manual_into_response(
     if _flow_is_statements_certificates_context(url, referer, request_text):
         return False
     page_kind = _mybank_page_kind(referer)
-    if _ua_looks_like_desktop_browser(user_agent):
-        return False
     request_feed_like = _request_looks_like_operations_feed(request_text)
     product_surface = _response_looks_like_product_surface(data)
     if page_kind == "" and request_feed_like and not product_surface:
@@ -1780,6 +1776,14 @@ def inject_manual_into_response(
         allow_widget_containers=(page_kind == "operations" and not product_surface),
     )
     has_operation_candidates = bool(candidates)
+    url_u = (url or "").lower()
+    is_strict_ops_feed = "/api/common/v1/operations" in url_u and "operations_category_list" not in url_u
+    # WebView/браузер (Mozilla/Chrome UA) — не отключать inject целиком: иначе в приложении
+    # ручные/мок-операции не попадают в ленту (tbank_sbp тоже режет по Referer).
+    if _ua_looks_like_desktop_browser(user_agent) and not (
+        is_strict_ops_feed or has_operation_candidates or page_kind == "operations"
+    ):
+        return False
     if product_surface and page_kind != "operations":
         if bank_debug_enabled():
             print(f"[history] ручные операции: пропуск product-surface ответа: {url[:140]}")
@@ -1807,17 +1811,17 @@ def inject_manual_into_response(
         pending.append((op_id, op))
     pending_fake = pending_fake_history_ops(month_restrict=not show_all)
     if not pending and not pending_fake:
-        if manual_operations and bank_debug_enabled():
+        if bank_debug_enabled() and (manual_operations or pending_fake_history_ops(month_restrict=False)):
             print(
-                "[history] ручные операции есть, но ни одна не проходит фильтр месяца — "
-                "проверьте дату в панели или включите panel_show_all_operations."
+                "[history] операции для inject есть, но ни одна не проходит фильтр — "
+                "проверьте дату или panel_show_all_operations / hidden_operations."
             )
         return False
 
     changed = False
     injected_ids = set()
     use_cross_debounce = _ua_looks_like_desktop_browser(user_agent)
-    url_u = (url or "").lower()
+    # url_u уже вычислен выше
     # Не использовать подстроку "transfer" — она есть почти везде; иначе multi_transfer
     # включается, share_injected_ids=False и одна ручная операция дублируется во все списки ответа.
     multi_transfer = any(

@@ -287,6 +287,9 @@ def _request_is_from_operations_page(flow: http.HTTPFlow) -> bool:
         ref = ""
     if not ref:
         return True
+    # Лента грузится и с главной /mybank/, не только с /mybank/operations
+    if "/mybank" in ref:
+        return True
     return "/mybank/operations" in ref
 
 

@@ -64,6 +64,19 @@ if os.path.exists(CONFIG_FILE):
         except Exception as e:
             print(f"❌ Ошибка загрузки конфига: {e}")
 
+
+def _sync_panel_fetch_origin_from_env():
+    """С телефона WebView fetch идёт на публичный IP VPS, не на 127.0.0.1."""
+    origin = (os.environ.get("TBANK_PANEL_FETCH_ORIGIN") or "").strip().rstrip("/")
+    if not origin:
+        ip = (os.environ.get("TBANKMITM_PUBLIC_IP") or "").strip()
+        port = (os.environ.get("TBANKMITM_PROXY_PORT") or "8082").strip() or "8082"
+        if ip:
+            origin = f"http://{ip}:{port}"
+    if origin:
+        config["panel_fetch_origin"] = origin
+
+
 def phone_to_phone_number(phone):
     """Из '+79101234567' / '89101234567' / '9101234567' → 10 цифр для msisdn / mobilePhoneNumber."""
     digits = "".join(c for c in str(phone or "") if c.isdigit())
@@ -117,6 +130,8 @@ def save_config():
         print(f"❌ Ошибка сохранения конфига: {e}")
 
 # Сохраняем начальный конфиг
+_sync_panel_fetch_origin_from_env()
+sync_name_phone_number()
 save_config()
 
 HTML_PATH = os.path.join(os.path.dirname(__file__), "panel.html")
