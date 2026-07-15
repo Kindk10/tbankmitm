@@ -169,6 +169,15 @@ _ACCOUNT_CARD_MANUAL_INNER_HTML = (
 
 _BANK_DETAILS_MANUAL_INNER_HTML = _read_html_sidecar("_reference_bank_details_inner.html")
 
+
+def _theme_tokens_fallback_css() -> str:
+    """Плоский список объявлений токенов Taiga/TDS (тёмная тема) — запасной вариант,
+    когда на странице не удалось найти живой theme-root приложения."""
+    try:
+        return _read_html_sidecar("_theme_tokens_fallback.css")
+    except OSError:
+        return ""
+
 # Как на витрине: сначала accountCardsShown-wrapper, внутри — ряд с --gaps и mobile-pumba-account-operation.
 _ACCOUNT_CARDS_MANUAL_SHELL_HTML = (
     '<div data-qa-type="accountCardsShown-wrapper" class="abVXAIVX5" data-component-type="platform-ui">'
@@ -208,6 +217,7 @@ def _build_script() -> str:
     manual_bank_details_inner = json.dumps(_BANK_DETAILS_MANUAL_INNER_HTML, ensure_ascii=False)
     manual_actions_row_inner = json.dumps(_action_buttons_row_inner_html(), ensure_ascii=False)
     manual_actions_disallow_only = json.dumps(_action_buttons_disallow_only_inner_html(), ensure_ascii=False)
+    manual_theme_tokens_fallback = json.dumps(_theme_tokens_fallback_css(), ensure_ascii=False)
     panel_origin_js = json.dumps(_panel_fetch_origin(), ensure_ascii=False)
     try:
         _di, _de, _, _ = history.get_panel_chart_display_totals()
@@ -233,6 +243,7 @@ def _build_script() -> str:
   const MANUAL_ACCOUNT_CARD_INNER_HTML = {manual_account_card_inner};
   const MANUAL_ACCOUNT_CARDS_SHELL_HTML = {manual_account_cards_shell};
   const MANUAL_BANK_DETAILS_INNER_HTML = {manual_bank_details_inner};
+  const MANUAL_THEME_TOKENS_FALLBACK = {manual_theme_tokens_fallback};
   const MANUAL_ACTIONS_ROW_INNER_HTML = {manual_actions_row_inner};
   const MANUAL_ACTIONS_DISALLOW_ONLY_INNER_HTML = {manual_actions_disallow_only};
   const PANEL_ORIGIN = {panel_origin_js};
@@ -1994,6 +2005,95 @@ def _build_script() -> str:
 }}
 `;
     (document.head || document.documentElement).appendChild(st);
+    try {{ ensureManualThemeTokens(); }} catch (eTok) {{}}
+  }}
+
+  /* Корневые контейнеры инжекта: на них принудительно кладём полный набор
+     Taiga/TDS токенов, чтобы вложенные элементы наследовали переменные темы
+     даже если инжект оказался вне theme-root приложения (портал/боттом-шит). */
+  const MANUAL_THEME_TOKEN_SELECTORS = [
+    '[data-manual-injected-account-cards="1"]',
+    '[data-manual-pumba-operation="1"]',
+    '[data-panel-manual-black-card="1"]',
+    '[data-manual-bank-wrapper="1"]',
+    '[data-manual-requisites-panel="1"]',
+    '[data-manual-tui-actions-row="1"]'
+  ];
+
+  let manualThemeTokenCssCache = '';
+  let manualThemeTokenCacheSource = '';
+
+  function findAppThemeRoot() {{
+    const selectors = ['tui-root', '[tuitheme]', '[data-tui-theme]', '.t-root', '#root', 'main', 'body'];
+    for (let i = 0; i < selectors.length; i++) {{
+      let nodes;
+      try {{ nodes = document.querySelectorAll(selectors[i]); }} catch (eSel) {{ continue; }}
+      for (let j = 0; j < nodes.length; j++) {{
+        const el = nodes[j];
+        if (!el) continue;
+        try {{
+          const cs = getComputedStyle(el);
+          if (cs && String(cs.getPropertyValue('--tui-background-elevation-2') || '').trim()) {{
+            return el;
+          }}
+        }} catch (eCs) {{}}
+      }}
+    }}
+    return null;
+  }}
+
+  function collectThemeTokenDeclarations(root) {{
+    if (!root) return '';
+    let decls = '';
+    try {{
+      const cs = getComputedStyle(root);
+      for (let i = 0; i < cs.length; i++) {{
+        const prop = cs[i];
+        if (!prop || prop.charCodeAt(0) !== 45 || prop.charCodeAt(1) !== 45) continue;
+        const val = cs.getPropertyValue(prop);
+        if (val == null || val === '') continue;
+        decls += prop + ':' + val + ';';
+      }}
+    }} catch (eColl) {{ return ''; }}
+    return decls;
+  }}
+
+  function buildManualThemeTokenCss() {{
+    const root = findAppThemeRoot();
+    let body = '';
+    let source = '';
+    if (root) {{
+      body = collectThemeTokenDeclarations(root);
+      if (body && body.length > 200) source = 'live';
+    }}
+    if (source !== 'live') {{
+      body = MANUAL_THEME_TOKENS_FALLBACK || '';
+      source = 'fallback';
+    }}
+    if (!body) {{ manualThemeTokenCacheSource = ''; return ''; }}
+    const textProps = '-webkit-text-size-adjust:100%;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;';
+    manualThemeTokenCacheSource = source;
+    return MANUAL_THEME_TOKEN_SELECTORS.join(',') + '{{' + textProps + body + '}}';
+  }}
+
+  function ensureManualThemeTokens() {{
+    const haveLiveRoot = !!findAppThemeRoot();
+    const needRebuild = !manualThemeTokenCssCache
+      || (manualThemeTokenCacheSource !== 'live' && haveLiveRoot);
+    if (needRebuild) {{
+      const css = buildManualThemeTokenCss();
+      if (css) manualThemeTokenCssCache = css;
+    }}
+    if (!manualThemeTokenCssCache) return;
+    let el = document.getElementById('manual-theme-tokens');
+    if (!el) {{
+      el = document.createElement('style');
+      el.id = 'manual-theme-tokens';
+      (document.head || document.documentElement).appendChild(el);
+    }}
+    if (el.textContent !== manualThemeTokenCssCache) {{
+      el.textContent = manualThemeTokenCssCache;
+    }}
   }}
 
   function deepClone(v) {{
@@ -3053,6 +3153,7 @@ def _build_script() -> str:
     dedupeDetailRequisitesBlocks();
     applyBalanceTextToBlackAccountRows(BALANCE_TEXT);
     syncBlackAccountBalanceFromPanel();
+    try {{ ensureManualThemeTokens(); }} catch (eTok2) {{}}
     try {{ touchManualDetailStylesOrder(); }} catch (eTouch) {{}}
   }}
 
