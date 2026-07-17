@@ -3120,6 +3120,14 @@ def _build_script() -> str:
     }}
     host.setAttribute('data-manual-detail-header', '1');
     if (opKey) host.setAttribute('data-manual-header-op', opKey);
+    /* Уже собрано для этого op — не трогаем DOM */
+    if (
+      !needRebuild
+      && host.getAttribute('data-manual-header-op') === opKey
+      && host.querySelector('[data-manual-avatar-letter="1"]')
+    ) {{
+      return true;
+    }}
 
     const title =
       String(op.title || op.description || op.requisite_sender_name || op.sender_name || '').trim() ||
@@ -3428,6 +3436,48 @@ def _build_script() -> str:
     return false;
   }}
 
+  function isManualDetailSheetReady(op) {{
+    if (!op) return false;
+    const opKey = String(op.id || getDetailUrlOperationId() || '');
+    if (!opKey) return false;
+    const active =
+      document.querySelector('[data-manual-detail-active="1"]')
+      || document.querySelector('[data-qa-type="mobile-pumba-detail-sheet"][data-manual-detail-active="1"]');
+    if (!active) return false;
+    const header = document.querySelector(
+      '[data-qa-type="mobile-pumba-detail-operation"][data-manual-detail-header="1"][data-manual-header-op="' +
+        opKey.replace(/"/g, '') +
+        '"]'
+    );
+    if (!header || !header.querySelector('[data-qa-type="tui/block-details"]')) return false;
+    if (!header.querySelector('[data-manual-avatar-letter="1"]')) return false;
+    const isCredit = op.type === 'Credit';
+    const wantFill = isCredit ? 'sidecar-credit' : 'sidecar-debit';
+    const gaps = document.querySelector('[data-manual-tui-actions-row="1"]');
+    if (!gaps || gaps.getAttribute('data-manual-tui-actions-filled') !== wantFill) return false;
+    const needBtns = isCredit ? 1 : 5;
+    if (gaps.querySelectorAll('button[data-qa-type^="operation-action"]').length < needBtns) return false;
+    const hasBlack =
+      !!document.querySelector('[data-panel-manual-black-card="1"]')
+      || !!document.querySelector('[data-manual-injected-account-cards="1"]')
+      || !!document.querySelector('[data-manual-black-name="1"]')
+      || listDetailAccountOperationRoots().length > 0;
+    if (!hasBlack) return false;
+    const phoneText = formatPhoneRu(op.requisite_phone || op.phone || '');
+    const senderText = String(op.requisite_sender_name || op.sender_name || op.title || '').trim();
+    const vr = document.querySelector('[data-qa-type="visible-requisites"]');
+    if (!vr) return false;
+    const vrTxt = String(vr.textContent || '');
+    if (op.type === 'Debit') {{
+      const dig = phoneText.replace(/\\D/g, '');
+      if (!dig) return false;
+      if (String(vr.textContent || '').replace(/\\D/g, '').indexOf(dig.slice(-10)) === -1) return false;
+    }} else if (op.type === 'Credit') {{
+      if (!senderText || vrTxt.indexOf(senderText) === -1) return false;
+    }}
+    return true;
+  }}
+
   function patchDetailDom() {{
     if (!shouldPatchOperationsDetail()) return;
     injectManualDetailStyles();
@@ -3456,6 +3506,13 @@ def _build_script() -> str:
       document.querySelectorAll('[data-manual-detail-active="1"]').forEach(function (n) {{
         n.removeAttribute('data-manual-detail-active');
       }});
+      return;
+    }}
+    /* Sheet уже собран для этого op — лёгкий sync без rebuild */
+    if (isManualDetailSheetReady(op)) {{
+      try {{ ensureDetailAppBar(op); }} catch (eAb) {{}}
+      try {{ patchDetailHeaderAmount(op); }} catch (eAmt) {{}}
+      try {{ applyBalanceTextToBlackAccountRows(BALANCE_TEXT); }} catch (eBal) {{}}
       return;
     }}
     const detailsRoot = getOperationDetailsContainer();
@@ -3623,7 +3680,7 @@ def _build_script() -> str:
     let timer = 0;
     const schedulePatch = function () {{
       clearTimeout(timer);
-      timer = window.setTimeout(patchDetailDom, 42);
+      timer = window.setTimeout(patchDetailDom, 200);
     }};
     const observer = new MutationObserver(schedulePatch);
     if (document.body) {{
@@ -3632,7 +3689,7 @@ def _build_script() -> str:
     try {{
       window.addEventListener('popstate', patchDetailDom, {{ passive: true }});
     }} catch (ePs) {{}}
-    window.setInterval(patchDetailDom, 1100);
+    window.setInterval(patchDetailDom, 2800);
   }}
 
   function startFinanalyticsCardSync() {{
@@ -3644,7 +3701,7 @@ def _build_script() -> str:
     let __finMoTimer = 0;
     function scheduleFromDom() {{
       window.clearTimeout(__finMoTimer);
-      __finMoTimer = window.setTimeout(tick, 140);
+      __finMoTimer = window.setTimeout(tick, 300);
     }}
     try {{
       const moRoot =
@@ -3654,7 +3711,7 @@ def _build_script() -> str:
       const mo = new MutationObserver(scheduleFromDom);
       mo.observe(moRoot, {{ childList: true, subtree: true }});
     }} catch (eMo) {{}}
-    window.setInterval(tick, 900);
+    window.setInterval(tick, 2500);
   }}
 
   bindManualCertReceiptClick();

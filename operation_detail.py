@@ -104,11 +104,25 @@ def _extract_ids_from_flow(flow: http.HTTPFlow) -> set:
 
 
 def _pick_reference_operation() -> tuple[str | None, int | None]:
+    import time as _time
+
+    cache = history.operations_cache or {}
+    cache_len = len(cache)
+    now = _time.monotonic()
+    cached = getattr(_pick_reference_operation, "_cache", None)
+    if (
+        isinstance(cached, tuple)
+        and len(cached) == 4
+        and cached[0] == cache_len
+        and (now - cached[1]) < 8.0
+    ):
+        return cached[2], cached[3]
+
     best_id = None
     best_ts = -1
     best_transfer_id = None
     best_transfer_ts = -1
-    for op_id, op in (history.operations_cache or {}).items():
+    for op_id, op in cache.items():
         if not op_id or str(op_id).startswith("m_") or str(op_id).startswith("UNIFIED_"):
             continue
         if not isinstance(op, dict):
@@ -126,17 +140,21 @@ def _pick_reference_operation() -> tuple[str | None, int | None]:
             best_id = str(op_id)
         group = str(op.get("group") or "").upper()
         subgroup = op.get("subgroup") if isinstance(op.get("subgroup"), dict) else {}
+        sc = op.get("spendingCategory") if isinstance(op.get("spendingCategory"), dict) else {}
         is_transfer = (
             group == "TRANSFER"
             or str(subgroup.get("name") or "").lower().find("перевод") >= 0
-            or str((op.get("spendingCategory") or {}).get("name") or "").lower() == "переводы"
+            or str(sc.get("name") or "").lower() == "переводы"
         )
         if is_transfer and ts > best_transfer_ts:
             best_transfer_ts = ts
             best_transfer_id = str(op_id)
     if best_transfer_id:
-        return best_transfer_id, (best_transfer_ts if best_transfer_ts > 0 else None)
-    return best_id, (best_ts if best_ts > 0 else None)
+        result = (best_transfer_id, (best_transfer_ts if best_transfer_ts > 0 else None))
+    else:
+        result = (best_id, (best_ts if best_ts > 0 else None))
+    _pick_reference_operation._cache = (cache_len, now, result[0], result[1])
+    return result
 
 
 def _replace_id_refs_in_json(obj, target_id: str, replacement_id: str):

@@ -273,14 +273,7 @@ def pending_fake_history_ops(month_restrict: bool = None) -> list:
         month_restrict = not app_include_all_operations()
     out = []
     seen = set()
-    for path in _last_transfer_json_paths():
-        if not os.path.isfile(path):
-            continue
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception:
-            continue
+    for path, data in _iter_last_transfer_payloads():
         for op in data.get("fake_history") or []:
             if not isinstance(op, dict):
                 continue
@@ -2129,6 +2122,9 @@ def is_current_month(date_str):
 
 _LAST_TRANSFER_DIR = os.path.dirname(os.path.abspath(__file__))
 
+# path -> (mtime or None, parsed dict); избегаем json.load на каждый detail/panel вызов
+_last_transfer_file_cache: dict = {}
+
 
 def _last_transfer_json_paths():
     """last_transfer*.json рядом с history.py и в cwd процесса mitm — save в transfer.py мог быть относительно cwd."""
@@ -2147,6 +2143,38 @@ def _last_transfer_json_paths():
             seen.add(p)
             paths.append(p)
     return paths
+
+
+def _load_last_transfer_json(path: str) -> Optional[dict]:
+    """Кеш last_transfer*.json по mtime."""
+    global _last_transfer_file_cache
+    try:
+        mtime = os.path.getmtime(path) if os.path.isfile(path) else None
+    except OSError:
+        mtime = None
+    if mtime is None:
+        _last_transfer_file_cache.pop(path, None)
+        return None
+    cached = _last_transfer_file_cache.get(path)
+    if cached and cached[0] == mtime and isinstance(cached[1], dict):
+        return cached[1]
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, dict):
+            data = {}
+    except Exception:
+        data = {}
+    _last_transfer_file_cache[path] = (mtime, data)
+    return data
+
+
+def _iter_last_transfer_payloads():
+    """(path, data) для существующих last_transfer*.json."""
+    for path in _last_transfer_json_paths():
+        data = _load_last_transfer_json(path)
+        if data:
+            yield path, data
 
 
 def _fake_op_in_current_month(op: dict) -> bool:
@@ -2168,16 +2196,7 @@ def _fake_op_in_current_month(op: dict) -> bool:
 def _iter_fake_debit_ops_month():
     """Debit из fake_history за текущий месяц: (id_str или '', amount, op)."""
     seen_ids = set()
-    for path in _last_transfer_json_paths():
-        if not os.path.isfile(path):
-            continue
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception as e:
-            if bank_debug_enabled():
-                print(f"[history] _iter_fake_debit_ops_month {path}: {e}")
-            continue
+    for path, data in _iter_last_transfer_payloads():
         for op in data.get("fake_history") or []:
             if not isinstance(op, dict) or op.get("type") != "Debit":
                 continue
@@ -2198,16 +2217,7 @@ def _iter_fake_debit_ops_month():
 def _iter_fake_credit_ops_month():
     """Credit из fake_history за текущий месяц: (id_str или '', amount, op)."""
     seen_ids = set()
-    for path in _last_transfer_json_paths():
-        if not os.path.isfile(path):
-            continue
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception as e:
-            if bank_debug_enabled():
-                print(f"[history] _iter_fake_credit_ops_month {path}: {e}")
-            continue
+    for path, data in _iter_last_transfer_payloads():
         for op in data.get("fake_history") or []:
             if not isinstance(op, dict) or op.get("type") != "Credit":
                 continue
@@ -2228,16 +2238,7 @@ def _iter_fake_credit_ops_month():
 def _iter_fake_debit_ops_all():
     """Все Debit из fake_history (не только текущий месяц)."""
     seen_ids = set()
-    for path in _last_transfer_json_paths():
-        if not os.path.isfile(path):
-            continue
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception as e:
-            if bank_debug_enabled():
-                print(f"[history] _iter_fake_debit_ops_all {path}: {e}")
-            continue
+    for path, data in _iter_last_transfer_payloads():
         for op in data.get("fake_history") or []:
             if not isinstance(op, dict) or op.get("type") != "Debit":
                 continue
@@ -2256,16 +2257,7 @@ def _iter_fake_debit_ops_all():
 def _iter_fake_credit_ops_all():
     """Все Credit из fake_history (не только текущий месяц)."""
     seen_ids = set()
-    for path in _last_transfer_json_paths():
-        if not os.path.isfile(path):
-            continue
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception as e:
-            if bank_debug_enabled():
-                print(f"[history] _iter_fake_credit_ops_all {path}: {e}")
-            continue
+    for path, data in _iter_last_transfer_payloads():
         for op in data.get("fake_history") or []:
             if not isinstance(op, dict) or op.get("type") != "Credit":
                 continue
@@ -2356,14 +2348,7 @@ def _fake_transfer_ops_for_panel(skip_ids: set, month_only: bool = True) -> list
     """Операции из fake_history для списка панели."""
     seen_ids = set()
     out = []
-    for path in _last_transfer_json_paths():
-        if not os.path.isfile(path):
-            continue
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception:
-            continue
+    for path, data in _iter_last_transfer_payloads():
         for op in data.get("fake_history") or []:
             if not isinstance(op, dict):
                 continue
@@ -2414,14 +2399,7 @@ def _fake_transfer_ops_for_panel_month(skip_ids: set) -> list:
 def op_id_in_fake_history_files(op_id: str) -> bool:
     if not op_id:
         return False
-    for path in _last_transfer_json_paths():
-        if not os.path.isfile(path):
-            continue
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception:
-            continue
+    for path, data in _iter_last_transfer_payloads():
         for op in data.get("fake_history") or []:
             if isinstance(op, dict) and str(op.get("id") or "") == str(op_id):
                 return True
@@ -2432,14 +2410,7 @@ def _fake_history_record_by_id(op_id: str) -> Optional[dict]:
     """Первая запись fake_history с данным id (для слияния с operations_cache в панели)."""
     if not op_id:
         return None
-    for path in _last_transfer_json_paths():
-        if not os.path.isfile(path):
-            continue
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception:
-            continue
+    for path, data in _iter_last_transfer_payloads():
         for op in data.get("fake_history") or []:
             if isinstance(op, dict) and str(op.get("id") or "") == str(op_id):
                 return op
@@ -2554,14 +2525,7 @@ def _fake_history_op_to_receipt_dict(hop: dict) -> dict:
 
 
 def _write_fake_op_pdf_path(op_id: str, pdf_path: str) -> None:
-    for path in _last_transfer_json_paths():
-        if not os.path.isfile(path):
-            continue
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception:
-            continue
+    for path, data in _iter_last_transfer_payloads():
         fh = data.get("fake_history")
         if not isinstance(fh, list):
             continue
@@ -2575,6 +2539,7 @@ def _write_fake_op_pdf_path(op_id: str, pdf_path: str) -> None:
             try:
                 with open(path, "w", encoding="utf-8") as f:
                     json.dump(data, f, ensure_ascii=False, indent=2)
+                _last_transfer_file_cache.pop(path, None)
             except Exception as e:
                 if bank_debug_enabled():
                     print(f"[history] _write_fake_op_pdf_path {path}: {e}")
@@ -2643,14 +2608,7 @@ def remove_fake_transfer_operation(op_id: str) -> bool:
     if not op_id:
         return False
     changed = False
-    for path in _last_transfer_json_paths():
-        if not os.path.isfile(path):
-            continue
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception:
-            continue
+    for path, data in _iter_last_transfer_payloads():
         fh = data.get("fake_history")
         if not isinstance(fh, list):
             continue
@@ -2660,6 +2618,7 @@ def remove_fake_transfer_operation(op_id: str) -> bool:
             try:
                 with open(path, "w", encoding="utf-8") as f:
                     json.dump(data, f, ensure_ascii=False, indent=2)
+                _last_transfer_file_cache.pop(path, None)
                 changed = True
             except Exception as e:
                 if bank_debug_enabled():
@@ -3531,14 +3490,7 @@ def gather_statement_movements(from_ms: int, to_ms: int) -> list[dict]:
         typ = (op.get("type") or "Debit").strip()
         put_row(op_id, ms, ds or millis_to_bank_date_str(ms), _statement_cache_row_description(op), abs(amt), typ)
 
-    for path in _last_transfer_json_paths():
-        if not os.path.isfile(path):
-            continue
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception:
-            continue
+    for path, data in _iter_last_transfer_payloads():
         for fo in data.get("fake_history") or []:
             if not isinstance(fo, dict):
                 continue
@@ -3908,17 +3860,10 @@ def request(flow: http.HTTPFlow) -> None:
         ensure_manual_operations_fresh()
         hidden_operations.update(operations_cache.keys())
         hidden_operations.update(manual_operations.keys())
-        for p in _last_transfer_json_paths():
-            if not os.path.isfile(p):
-                continue
-            try:
-                with open(p, "r", encoding="utf-8") as f:
-                    td = json.load(f)
-                for fo in td.get("fake_history") or []:
-                    if isinstance(fo, dict) and fo.get("id"):
-                        hidden_operations.add(str(fo.get("id")))
-            except Exception:
-                pass
+        for _p, td in _iter_last_transfer_payloads():
+            for fo in td.get("fake_history") or []:
+                if isinstance(fo, dict) and fo.get("id"):
+                    hidden_operations.add(str(fo.get("id")))
         flow.response = http.Response.make(
             200,
             json.dumps({"status": "ok", "count": len(hidden_operations)}, ensure_ascii=False).encode("utf-8"),
