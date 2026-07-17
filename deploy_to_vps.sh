@@ -24,6 +24,9 @@ FILES=(
   _action_buttons_row_inner.html
   _action_buttons_disallow_only_inner.html
   _reference_account_molecule.html
+  _reference_bank_details_inner.html
+  _reference_detail_header_inner.html
+  _theme_tokens_fallback.css
 )
 
 LOCAL=()

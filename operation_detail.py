@@ -26,6 +26,29 @@ _UUID_RE = re.compile(
     r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}"
 )
 _MANUAL_RE = re.compile(r"\bm_[a-zA-Z0-9_]+\b")
+_UNIFIED_RE = re.compile(r"\bUNIFIED_\d+\b")
+
+
+def _is_rewritable_detail_id(oid: str) -> bool:
+    if not oid or not isinstance(oid, str):
+        return False
+    if oid in history.manual_operations:
+        return True
+    if oid.startswith("UNIFIED_"):
+        return True
+    try:
+        if history.op_id_in_fake_history_files(oid):
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def _resolve_detail_overlay(oid: str) -> dict | None:
+    try:
+        return history.resolve_overlay_record_by_id(oid)
+    except Exception:
+        return None
 
 def _format_phone_ru(phone: str) -> str:
     digits = "".join(ch for ch in str(phone or "") if ch.isdigit())
@@ -42,11 +65,12 @@ def _extract_ids_from_url(url: str) -> list:
     out = []
     out.extend(m.group(0).lower() for m in _UUID_RE.finditer(url or ""))
     out.extend(m.group(0) for m in _MANUAL_RE.finditer(url or ""))
+    out.extend(m.group(0) for m in _UNIFIED_RE.finditer(url or ""))
     try:
         q = parse_qs(urlparse(url).query)
         for key in ("operationId", "operation_id", "id", "operationID", "parentOperationId", "rootOperationId"):
             for val in q.get(key, []):
-                if val and (val.startswith("m_") or len(val) > 10):
+                if val and (val.startswith("m_") or val.startswith("UNIFIED_") or len(val) > 10):
                     out.append(val.strip())
     except Exception:
         pass
@@ -57,7 +81,9 @@ def _collect_ids_from_json(obj, out: set) -> None:
     if isinstance(obj, dict):
         for k in ("id", "operationId", "parentOperationId", "rootOperationId"):
             v = obj.get(k)
-            if isinstance(v, str) and (v.startswith("m_") or _UUID_RE.fullmatch(v)):
+            if isinstance(v, str) and (
+                v.startswith("m_") or v.startswith("UNIFIED_") or _UUID_RE.fullmatch(v)
+            ):
                 out.add(v)
         for v in obj.values():
             _collect_ids_from_json(v, out)
@@ -159,8 +185,6 @@ def _url_suggests_detail_or_receipt(u: str) -> bool:
 
 def request(flow: http.HTTPFlow) -> None:
     history.ensure_manual_operations_fresh()
-    if not history.manual_operations:
-        return
     if not is_bank_flow(flow):
         return
     _url0 = flow.request.pretty_url or ""
@@ -168,9 +192,8 @@ def request(flow: http.HTTPFlow) -> None:
         return
     if flow_statements_spravki_context(flow):
         return
-    manual_ids = set(history.manual_operations.keys())
     ids_in_flow = _extract_ids_from_flow(flow)
-    target_ids = [mid for mid in ids_in_flow if mid in manual_ids]
+    target_ids = [mid for mid in ids_in_flow if _is_rewritable_detail_id(mid) and _resolve_detail_overlay(mid)]
     if not target_ids:
         return
     replacement_id, replacement_time = _pick_reference_operation()
@@ -367,33 +390,35 @@ def _patch_receipt_like_node(obj: dict, man: dict) -> bool:
     return changed
 
 
-def _patch_tree(obj, manual_ids: set) -> bool:
+def _patch_tree(obj, overlay_ids: set) -> bool:
     changed = False
 
     def visit(node):
         nonlocal changed
         if isinstance(node, dict):
             oid = node.get("id")
-            if isinstance(oid, str) and oid in manual_ids:
-                man = history.manual_operations[oid]
-                merged = history.overlay_manual_on_template(
-                    copy.deepcopy(node),
-                    oid,
-                    man,
-                    min_time_ms=None,
-                    clamp_to_wall_ms=False,
-                )
-                node.clear()
-                node.update(merged)
-                changed = True
-                return
+            if isinstance(oid, str) and oid in overlay_ids:
+                man = _resolve_detail_overlay(oid)
+                if man:
+                    merged = history.overlay_manual_on_template(
+                        copy.deepcopy(node),
+                        oid,
+                        man,
+                        min_time_ms=None,
+                        clamp_to_wall_ms=False,
+                    )
+                    node.clear()
+                    node.update(merged)
+                    changed = True
+                    return
             op_ref = node.get("operationId")
             if (
                 isinstance(op_ref, str)
-                and op_ref in manual_ids
+                and op_ref in overlay_ids
                 and node.get("id") != op_ref
             ):
-                if _patch_receipt_like_node(node, history.manual_operations[op_ref]):
+                man = _resolve_detail_overlay(op_ref)
+                if man and _patch_receipt_like_node(node, man):
                     changed = True
             for v in node.values():
                 visit(v)
@@ -612,8 +637,6 @@ def _patch_manual_detail_semantics(obj, man: dict) -> bool:
 
 def response(flow: http.HTTPFlow) -> None:
     history.ensure_manual_operations_fresh()
-    if not history.manual_operations:
-        return
     if not is_bank_flow(flow):
         return
     if not flow.response:
@@ -625,14 +648,32 @@ def response(flow: http.HTTPFlow) -> None:
     if not is_jsonish_response(flow):
         return
 
-    manual_ids = set(history.manual_operations.keys())
     url = flow.request.pretty_url or ""
     if url_prohibit_proxy_json_mutation(url):
         return
     if flow_statements_spravki_context(flow):
         return
+
+    try:
+        metadata_manual_id = flow.metadata.get("manual_detail_id")
+    except Exception:
+        metadata_manual_id = None
+
     ids_in_flow = _extract_ids_from_flow(flow)
-    if not (manual_ids & ids_in_flow) and not _url_suggests_detail_or_receipt(url):
+    overlay_candidates = set()
+    if isinstance(metadata_manual_id, str) and _resolve_detail_overlay(metadata_manual_id):
+        overlay_candidates.add(metadata_manual_id)
+    for mid in ids_in_flow:
+        if _is_rewritable_detail_id(mid) and _resolve_detail_overlay(mid):
+            overlay_candidates.add(mid)
+
+    if not overlay_candidates:
+        # Без известного overlay id — только если URL похож на detail/receipt и есть metadata
+        if not (isinstance(metadata_manual_id, str) and metadata_manual_id):
+            if not _url_suggests_detail_or_receipt(url):
+                return
+            return
+        # metadata есть, но запись пока не резолвится — всё равно выходим
         return
 
     try:
@@ -640,30 +681,29 @@ def response(flow: http.HTTPFlow) -> None:
     except Exception:
         return
 
-    # Ключевой момент: мы подменяем id/time в запросе на reference-операцию,
-    # поэтому в ответе detail-экрана backend часто возвращает id/references
-    # уже от reference. Тогда `_patch_tree` не находит узлы с `m_...` id.
-    # Возвращаем id назад: replacement_id -> manual_detail_id.
+    # Подмена id в запросе на reference → в ответе вернуть fake/manual id.
     try:
         manual_id = flow.metadata.get("manual_detail_id")
         replacement_id = flow.metadata.get("replacement_operation_id")
-        if isinstance(manual_id, str) and manual_id in history.manual_operations and isinstance(replacement_id, str) and replacement_id:
+        if (
+            isinstance(manual_id, str)
+            and manual_id in overlay_candidates
+            and isinstance(replacement_id, str)
+            and replacement_id
+        ):
             data = _replace_id_refs_in_json(data, replacement_id, manual_id)
     except Exception:
         pass
 
     target_manual = None
-    try:
-        metadata_manual_id = flow.metadata.get("manual_detail_id")
-    except Exception:
-        metadata_manual_id = None
-    if metadata_manual_id in history.manual_operations:
-        target_manual = history.manual_operations[metadata_manual_id]
-    for mid in ids_in_flow:
-        if mid in history.manual_operations:
-            target_manual = history.manual_operations[mid]
-            break
-    changed = _patch_tree(data, manual_ids)
+    if isinstance(metadata_manual_id, str):
+        target_manual = _resolve_detail_overlay(metadata_manual_id)
+    if not target_manual:
+        for mid in overlay_candidates:
+            target_manual = _resolve_detail_overlay(mid)
+            if target_manual:
+                break
+    changed = _patch_tree(data, overlay_candidates)
     if target_manual:
         changed = _patch_manual_detail_semantics(data, target_manual) or changed
     if changed:

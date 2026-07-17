@@ -1415,7 +1415,14 @@ def overlay_manual_on_template(
     out["type"] = typ
     if "operationType" in out:
         out["operationType"] = typ
-    amt = abs(float(op.get("amount") or 0))
+    raw_amt = op.get("amount")
+    try:
+        if isinstance(raw_amt, dict):
+            amt = abs(float(raw_amt.get("value") or 0))
+        else:
+            amt = abs(float(raw_amt or 0))
+    except Exception:
+        amt = 0.0
     user_desc = (op.get("description") or "").strip()
     phone = (op.get("requisite_phone") or op.get("phone") or "").strip()
     manual_card_mask = (op.get("card_number") or "").strip()
@@ -1554,7 +1561,13 @@ def overlay_manual_on_template(
         out["isOffline"] = False
     if "analyticsStatus" not in out:
         out["analyticsStatus"] = "NotSpecified"
-    if "isTemplatable" not in out:
+    # Debit-переводы: оставляем native Избранное/Повторить (эталон isTemplatable=true).
+    # Credit: кнопки шаблона не нужны — только «Не учитывать» в DOM.
+    if typ == "Debit":
+        out["isTemplatable"] = True
+        if "isRepeatable" in out:
+            out["isRepeatable"] = True
+    elif "isTemplatable" not in out:
         out["isTemplatable"] = False
     if "trancheCreationAllowed" not in out:
         out["trancheCreationAllowed"] = False
@@ -2431,6 +2444,52 @@ def _fake_history_record_by_id(op_id: str) -> Optional[dict]:
             if isinstance(op, dict) and str(op.get("id") or "") == str(op_id):
                 return op
     return None
+
+
+def resolve_overlay_record_by_id(op_id: str) -> Optional[dict]:
+    """Запись для overlay detail/receipt: manual_operations или fake_history / last_transfer."""
+    if not op_id:
+        return None
+    ensure_manual_operations_fresh()
+    oid = str(op_id).strip()
+    man = manual_operations.get(oid)
+    if isinstance(man, dict):
+        return man
+    for row in _fake_transfer_ops_for_panel(set(), month_only=False):
+        if str(row.get("id") or "") == oid:
+            return row
+    rec = _fake_history_record_by_id(oid)
+    if not isinstance(rec, dict):
+        return None
+    amt = get_op_amount(rec)
+    line1 = get_op_description(rec) or _fake_bank_display_name(rec) or "Перевод"
+    date_s = (rec.get("date_full") or "").strip() or get_op_date(rec)
+    rp = str(rec.get("receiver_phone") or rec.get("requisite_phone") or "").strip()
+    rn = str(rec.get("receiver_name") or rec.get("requisite_sender_name") or "").strip()
+    brx = str(rec.get("bank_receiver") or "").strip()
+    ot = rec.get("operationTime") if isinstance(rec.get("operationTime"), dict) else None
+    brand = rec.get("brand") if isinstance(rec.get("brand"), dict) else {}
+    logo = str(rec.get("icon") or brand.get("logo") or "").strip()
+    return {
+        "id": oid,
+        "date": date_s,
+        "amount": amt,
+        "type": rec.get("type") or "Debit",
+        "title": rec.get("title") or line1,
+        "subtitle": rec.get("subcategory") or "",
+        "description": rec.get("description") or "",
+        "bank": _fake_bank_display_name(rec) or brx,
+        "bank_preset": "sbp",
+        "phone": rp,
+        "requisite_phone": rp,
+        "sender_name": rn,
+        "requisite_sender_name": rn,
+        "card_number": str(rec.get("receiver_card") or rec.get("card_number") or "").strip(),
+        "logo": logo,
+        "operationTime": ot,
+        "manual": False,
+        "fake_transfer": True,
+    }
 
 
 def _resolve_stored_receipt_pdf(stored: str) -> Optional[str]:
