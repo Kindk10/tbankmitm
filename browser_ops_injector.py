@@ -377,7 +377,9 @@ def _build_script() -> str:
       return el && el.closest && el.closest('[data-qa-type="molecule-account-operation-cert-btn"]');
     }}
     const leg =
-      accountCell.querySelector('.gbYDLs9QJ .ebYDLs9QJ span')
+      accountCell.querySelector('.gbwED1L6n .ebwED1L6n span')
+      || accountCell.querySelector('.gbwED1L6n .ebwED1L6n')
+      || accountCell.querySelector('.gbYDLs9QJ .ebYDLs9QJ span')
       || accountCell.querySelector('.gbYDLs9QJ .ebYDLs9QJ')
       || accountCell.querySelector('.gbvaqWFmO .ebvaqWFmO span')
       || accountCell.querySelector('.gbvaqWFmO .ebvaqWFmO')
@@ -421,7 +423,16 @@ def _build_script() -> str:
     roots.forEach(function (root) {{
       const cell = root.querySelector('[data-qa-type="tui/cell"]');
       if (!cell) return;
-      const bal = cell.querySelector('[data-qa-type="molecule-account-operation-balance"] [data-qa-type="atom-sensitive"]');
+      const balText = cell.querySelector(
+        '[data-qa-type="molecule-account-operation-balance"] [data-qa-type="atom-sensitive__text"]'
+      );
+      if (balText) {{
+        balText.textContent = text;
+        return;
+      }}
+      const bal = cell.querySelector(
+        '[data-qa-type="molecule-account-operation-balance"] [data-qa-type="atom-sensitive"]'
+      );
       if (bal) bal.textContent = text;
     }});
   }}
@@ -1636,7 +1647,7 @@ def _build_script() -> str:
   }}
 
   const RUB_ICON_HTML = `
-<span data-component-type="platform-ui" iconpath="&lt;svg viewBox=&quot;0 0 24 24&quot; xmlns=&quot;http://www.w3.org/2000/svg&quot; focusable=&quot;false&quot;&gt;&lt;defs&gt;&lt;linearGradient id=&quot;paint0_linear_1524_1586&quot; x1=&quot;3.8&quot; y1=&quot;3.8&quot; x2=&quot;19.2&quot; y2=&quot;19.2&quot; gradientUnits=&quot;userSpaceOnUse&quot;&gt;&lt;stop stop-color=&quot;currentColor&quot;/&gt;&lt;stop offset=&quot;1&quot; stop-opacity=&quot;.7&quot; stop-color=&quot;currentColor&quot;/&gt;&lt;/linearGradient&gt;&lt;/defs&gt;&lt;path fill-rule=&quot;evenodd&quot; clip-rule=&quot;evenodd&quot; d=&quot;M12 .5C5.649.5.5 5.649.5 12S5.649 23.5 12 23.5 23.5 18.351 23.5 12 18.351.5 12 .5ZM9 11V6h3.96c1.017 0 2.072.154 2.821.841C16.396 7.405 17 8.271 17 9.5c0 1.229-.604 2.095-1.218 2.659-.75.688-1.805.841-2.823.841H11.5v1.041H15A1.959 1.959 0 0 1 13.041 16H11.5v.063a2 2 0 0 1-2 2H9V16l-1.5-.041V15.5A1.46 1.46 0 0 1 9 14.041V13l-1.5-.041v-.5A1.46 1.46 0 0 1 9 11Zm4-3h-1.5v3H13s1.5.106 1.5-1.447C14.5 8 13 8 13 8Z&quot; fill=&quot;url(#paint0_linear_1524_1586)&quot;/&gt;&lt;/svg&gt;" data-qa-type="uikit/icon" class="abH-Kb5MJ" style="width: 40px; height: 40px; color: var(--tui-text-primary-on-dark);"><span class="bbH-Kb5MJ" style="background: var(--tui-background-accent-2);"></span><span data-qa-type="uikit/icon.content" class="cbH-Kb5MJ" role="presentation" style="width: 24px; height: 24px;"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" focusable="false"><defs><linearGradient id="dsId_manualAcct_linear_1524_1586" x1="3.8" y1="3.8" x2="19.2" y2="19.2" gradientUnits="userSpaceOnUse"><stop stop-color="currentColor"></stop><stop offset="1" stop-opacity=".7" stop-color="currentColor"></stop></linearGradient></defs><path fill-rule="evenodd" clip-rule="evenodd" d="M12 .5C5.649.5.5 5.649.5 12S5.649 23.5 12 23.5 23.5 18.351 23.5 12 18.351.5 12 .5ZM9 11V6h3.96c1.017 0 2.072.154 2.821.841C16.396 7.405 17 8.271 17 9.5c0 1.229-.604 2.095-1.218 2.659-.75.688-1.805.841-2.823.841H11.5v1.041H15A1.959 1.959 0 0 1 13.041 16H11.5v.063a2 2 0 0 1-2 2H9V16l-1.5-.041V15.5A1.46 1.46 0 0 1 9 14.041V13l-1.5-.041v-.5A1.46 1.46 0 0 1 9 11Zm4-3h-1.5v3H13s1.5.106 1.5-1.447C14.5 8 13 8 13 8Z" fill="url(#dsId_manualAcct_linear_1524_1586)"></path></svg></span></span>`;
+<span data-component-type="platform-ui" iconpath="&lt;svg viewBox=&quot;0 0 24 24&quot; xmlns=&quot;http://www.w3.org/2000/svg&quot; focusable=&quot;false&quot;&gt;&lt;defs&gt;&lt;linearGradient id=&quot;paint0_linear_1524_1586&quot; x1=&quot;3.8&quot; y1=&quot;3.8&quot; x2=&quot;19.2&quot; y2=&quot;19.2&quot; gradientUnits=&quot;userSpaceOnUse&quot;&gt;&lt;stop stop-color=&quot;currentColor&quot;/&gt;&lt;stop offset=&quot;1&quot; stop-opacity=&quot;.7&quot; stop-color=&quot;currentColor&quot;/&gt;&lt;/linearGradient&gt;&lt;/defs&gt;&lt;path fill-rule=&quot;evenodd&quot; clip-rule=&quot;evenodd&quot; d=&quot;M12 .5C5.649.5.5 5.649.5 12S5.649 23.5 12 23.5 23.5 18.351 23.5 12 18.351.5 12 .5ZM9 11V6h3.96c1.017 0 2.072.154 2.821.841C16.396 7.405 17 8.271 17 9.5c0 1.229-.604 2.095-1.218 2.659-.75.688-1.805.841-2.823.841H11.5v1.041H15A1.959 1.959 0 0 1 13.041 16H11.5v.063a2 2 0 0 1-2 2H9V16l-1.5-.041V15.5A1.46 1.46 0 0 1 9 14.041V13l-1.5-.041v-.5A1.46 1.46 0 0 1 9 11Zm4-3h-1.5v3H13s1.5.106 1.5-1.447C14.5 8 13 8 13 8Z&quot; fill=&quot;url(#paint0_linear_1524_1586)&quot;/&gt;&lt;/svg&gt;" data-qa-type="uikit/icon" class="abgcL5NA2" data-tui="icon" style="width: 40px; height: 40px; color: var(--tui-text-primary-on-dark);"><span class="bbgcL5NA2" style="background: var(--tui-background-accent-2);"></span><span data-qa-type="uikit/icon.content" class="cbgcL5NA2" role="presentation" style="width: 24px; height: 24px;"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" focusable="false"><defs><linearGradient id="dsId_manualAcct_linear_1524_1586" x1="3.8" y1="3.8" x2="19.2" y2="19.2" gradientUnits="userSpaceOnUse"><stop stop-color="currentColor"></stop><stop offset="1" stop-opacity=".7" stop-color="currentColor"></stop></linearGradient></defs><path fill-rule="evenodd" clip-rule="evenodd" d="M12 .5C5.649.5.5 5.649.5 12S5.649 23.5 12 23.5 23.5 18.351 23.5 12 18.351.5 12 .5ZM9 11V6h3.96c1.017 0 2.072.154 2.821.841C16.396 7.405 17 8.271 17 9.5c0 1.229-.604 2.095-1.218 2.659-.75.688-1.805.841-2.823.841H11.5v1.041H15A1.959 1.959 0 0 1 13.041 16H11.5v.063a2 2 0 0 1-2 2H9V16l-1.5-.041V15.5A1.46 1.46 0 0 1 9 14.041V13l-1.5-.041v-.5A1.46 1.46 0 0 1 9 11Zm4-3h-1.5v3H13s1.5.106 1.5-1.447C14.5 8 13 8 13 8Z" fill="url(#dsId_manualAcct_linear_1524_1586)"></path></svg></span></span>`;
 
   function isOperationsDetailPage() {{
     if (location.pathname.indexOf('/mybank') === -1) return false;
@@ -1682,7 +1693,8 @@ def _build_script() -> str:
 
   function touchManualDetailStylesOrder() {{
     const st =
-      document.getElementById('manual-detail-pumba-cards-v26')
+      document.getElementById('manual-detail-pumba-cards-v27')
+      || document.getElementById('manual-detail-pumba-cards-v26')
       || document.getElementById('manual-detail-pumba-cards-v25')
       || document.getElementById('manual-detail-pumba-cards-v24')
       || document.getElementById('manual-detail-pumba-cards-v23')
@@ -1709,15 +1721,15 @@ def _build_script() -> str:
   }}
 
   function injectManualDetailStyles() {{
-    if (document.getElementById('manual-detail-pumba-cards-v26')) return;
-    ['manual-detail-pumba-cards-v3', 'manual-detail-pumba-cards-v4', 'manual-detail-pumba-cards-v5', 'manual-detail-pumba-cards-v6', 'manual-detail-pumba-cards-v7', 'manual-detail-pumba-cards-v8', 'manual-detail-pumba-cards-v9', 'manual-detail-pumba-cards-v10', 'manual-detail-pumba-cards-v11', 'manual-detail-pumba-cards-v12', 'manual-detail-pumba-cards-v13', 'manual-detail-pumba-cards-v14', 'manual-detail-pumba-cards-v15', 'manual-detail-pumba-cards-v16', 'manual-detail-pumba-cards-v17', 'manual-detail-pumba-cards-v18', 'manual-detail-pumba-cards-v19', 'manual-detail-pumba-cards-v20', 'manual-detail-pumba-cards-v21', 'manual-detail-pumba-cards-v22', 'manual-detail-pumba-cards-v23', 'manual-detail-pumba-cards-v24', 'manual-detail-pumba-cards-v25'].forEach(function (lid) {{
+    if (document.getElementById('manual-detail-pumba-cards-v27')) return;
+    ['manual-detail-pumba-cards-v3', 'manual-detail-pumba-cards-v4', 'manual-detail-pumba-cards-v5', 'manual-detail-pumba-cards-v6', 'manual-detail-pumba-cards-v7', 'manual-detail-pumba-cards-v8', 'manual-detail-pumba-cards-v9', 'manual-detail-pumba-cards-v10', 'manual-detail-pumba-cards-v11', 'manual-detail-pumba-cards-v12', 'manual-detail-pumba-cards-v13', 'manual-detail-pumba-cards-v14', 'manual-detail-pumba-cards-v15', 'manual-detail-pumba-cards-v16', 'manual-detail-pumba-cards-v17', 'manual-detail-pumba-cards-v18', 'manual-detail-pumba-cards-v19', 'manual-detail-pumba-cards-v20', 'manual-detail-pumba-cards-v21', 'manual-detail-pumba-cards-v22', 'manual-detail-pumba-cards-v23', 'manual-detail-pumba-cards-v24', 'manual-detail-pumba-cards-v25', 'manual-detail-pumba-cards-v26'].forEach(function (lid) {{
       const legacy = document.getElementById(lid);
       if (legacy) {{
         try {{ legacy.remove(); }} catch (eL) {{}}
       }}
     }});
     const st = document.createElement('style');
-    st.id = 'manual-detail-pumba-cards-v26';
+    st.id = 'manual-detail-pumba-cards-v27';
     st.textContent = `
 /* Инжект: ширина; горизонтальный padding даёт independent-pumba-operation-details-container — не дублировать */
 [data-manual-injected-account-cards="1"][data-qa-type="accountCardsShown-wrapper"],
@@ -1741,9 +1753,13 @@ def _build_script() -> str:
 [data-manual-injected-account-cards="1"] .abeiuVKPb {{
   display: none !important;
 }}
-/* Карточка elevated — как в bottom sheet Т‑Банка (24px, elevation-2, --tui-shadow-medium) */
+/* Elevated-карточки по data-qa-type — без зависимости от CSS-module хешей */
+[data-manual-detail-active="1"] [data-qa-type="molecule-account-operation"][data-surface="true"],
 [data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"][data-surface="true"],
-[data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"][data-surface="true"] {{
+[data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"][data-surface="true"],
+[data-manual-detail-active="1"] [data-qa-type="atom-panel"][data-surface="true"],
+[data-manual-bank-wrapper="1"] [data-qa-type="atom-panel"][data-surface="true"],
+[data-manual-requisites-panel="1"] [data-qa-type="atom-panel"][data-surface="true"] {{
   position: relative !important;
   display: flex !important;
   flex-direction: column !important;
@@ -1770,12 +1786,16 @@ def _build_script() -> str:
 [data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"] .eb82ltuCV,
 [data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"] .bbyhDFZ1P,
 [data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"] .ebyhDFZ1P,
+[data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"] .bbZ2t9ohg,
+[data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"] .ebZ2t9ohg,
 [data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] .bbIfdcMse,
 [data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] .ebIfdcMse,
 [data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] .bb82ltuCV,
 [data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] .eb82ltuCV,
 [data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] .bbyhDFZ1P,
-[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] .ebyhDFZ1P {{
+[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] .ebyhDFZ1P,
+[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] .bbZ2t9ohg,
+[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] .ebZ2t9ohg {{
   display: block !important;
   width: 100% !important;
   box-sizing: border-box !important;
@@ -1841,7 +1861,9 @@ def _build_script() -> str:
   box-sizing: border-box !important;
 }}
 [data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .gbYDLs9QJ,
-[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .gbYDLs9QJ {{
+[data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .gbwED1L6n,
+[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .gbYDLs9QJ,
+[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .gbwED1L6n {{
   margin-left: 0 !important;
   padding-left: 4px !important;
 }}
@@ -1853,10 +1875,12 @@ def _build_script() -> str:
 [data-panel-manual-black-card="1"] button[data-qa-type="tui/cell"] .gbDhaGPUV,
 [data-panel-manual-black-card="1"] button[data-qa-type="tui/cell"] .gbvaqWFmO,
 [data-panel-manual-black-card="1"] button[data-qa-type="tui/cell"] .gbYDLs9QJ,
+[data-panel-manual-black-card="1"] button[data-qa-type="tui/cell"] .gbwED1L6n,
 [data-manual-injected-account-cards="1"] button[data-qa-type="tui/cell"] > div:nth-child(2),
 [data-manual-injected-account-cards="1"] button[data-qa-type="tui/cell"] .gbDhaGPUV,
 [data-manual-injected-account-cards="1"] button[data-qa-type="tui/cell"] .gbvaqWFmO,
-[data-manual-injected-account-cards="1"] button[data-qa-type="tui/cell"] .gbYDLs9QJ {{
+[data-manual-injected-account-cards="1"] button[data-qa-type="tui/cell"] .gbYDLs9QJ,
+[data-manual-injected-account-cards="1"] button[data-qa-type="tui/cell"] .gbwED1L6n {{
   flex: 1 1 auto !important;
   min-width: 0 !important;
   display: flex !important;
@@ -1910,12 +1934,18 @@ def _build_script() -> str:
 [data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .ebYDLs9QJ,
 [data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .gbYDLs9QJ > .ebYDLs9QJ,
 [data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .gbYDLs9QJ > .ebYDLs9QJ span,
+[data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .ebwED1L6n,
+[data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .gbwED1L6n > .ebwED1L6n,
+[data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .gbwED1L6n > .ebwED1L6n span,
 [data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .ebvaqWFmO,
 [data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .gbvaqWFmO > .ebvaqWFmO,
 [data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .gbvaqWFmO > .ebvaqWFmO span,
 [data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .ebYDLs9QJ,
 [data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .gbYDLs9QJ > .ebYDLs9QJ,
-[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .gbYDLs9QJ > .ebYDLs9QJ span {{
+[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .gbYDLs9QJ > .ebYDLs9QJ span,
+[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .ebwED1L6n,
+[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .gbwED1L6n > .ebwED1L6n,
+[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .gbwED1L6n > .ebwED1L6n span {{
   font: var(--tui-typography-body-l, 400 16px/1.4375 Roboto, system-ui, sans-serif) !important;
   font-weight: 400 !important;
   color: var(--tui-text-primary, #ffffff) !important;
@@ -1925,12 +1955,16 @@ def _build_script() -> str:
 }}
 /* Синий круг иконки ₽ у Black (как в эталоне) */
 [data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation-account-icon"] .bbH-Kb5MJ,
-[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation-account-icon"] .bbH-Kb5MJ {{
+[data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation-account-icon"] .bbgcL5NA2,
+[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation-account-icon"] .bbH-Kb5MJ,
+[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation-account-icon"] .bbgcL5NA2 {{
   background: var(--tui-background-accent-2, #428bf9) !important;
   border-radius: 50% !important;
 }}
 [data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation-account-icon"] .abH-Kb5MJ,
-[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation-account-icon"] .abH-Kb5MJ {{
+[data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation-account-icon"] .abgcL5NA2,
+[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation-account-icon"] .abH-Kb5MJ,
+[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation-account-icon"] .abgcL5NA2 {{
   color: var(--tui-text-primary-on-dark, #fff) !important;
   width: 40px !important;
   height: 40px !important;
@@ -2136,7 +2170,7 @@ def _build_script() -> str:
   color: var(--tui-text-action, #428bf9) !important;
   -webkit-text-fill-color: var(--tui-text-action, #428bf9) !important;
 }}
-/* Реквизиты: ширина обёрток; типографика/тени/отступы — только из CSS Т‑Банка по классам atom-panel / hbQgksk7i */
+/* Реквизиты: ширина обёрток; elevated atom-panel — по data-qa-type */
 [data-qa-type="bankDetailsShown-wrapper"][data-manual-bank-wrapper="1"],
 [data-qa-type="bankDetailsShown-wrapper"]:has([data-manual-requisites-panel="1"]) {{
   width: 100% !important;
@@ -2151,6 +2185,25 @@ def _build_script() -> str:
   width: 100% !important;
   max-width: 100% !important;
   box-sizing: border-box !important;
+}}
+[data-manual-detail-active="1"] [data-qa-type="atom-panel"] [data-qa-type="tui/header.title"],
+[data-manual-bank-wrapper="1"] [data-qa-type="atom-panel"] [data-qa-type="tui/header.title"],
+[data-manual-requisites-panel="1"] [data-qa-type="atom-panel"] [data-qa-type="tui/header.title"] {{
+  margin: 0 !important;
+  color: var(--tui-text-primary, #F6F7F8) !important;
+}}
+[data-manual-detail-active="1"] [data-qa-type="visible-requisites"] [data-qa-type="requisite"] p,
+[data-manual-bank-wrapper="1"] [data-qa-type="visible-requisites"] [data-qa-type="requisite"] p,
+[data-manual-requisites-panel="1"] [data-qa-type="visible-requisites"] [data-qa-type="requisite"] p {{
+  margin: 0 0 2px 0 !important;
+  color: var(--tui-text-secondary, #9299a2) !important;
+  font: var(--tui-typography-body-s, 400 13px/1.3846 Roboto, system-ui, sans-serif) !important;
+}}
+[data-manual-detail-active="1"] [data-qa-type="visible-requisites"] [data-qa-type="requisite"] > div > div,
+[data-manual-bank-wrapper="1"] [data-qa-type="visible-requisites"] [data-qa-type="requisite"] > div > div,
+[data-manual-requisites-panel="1"] [data-qa-type="visible-requisites"] [data-qa-type="requisite"] > div > div {{
+  color: var(--tui-text-primary, #F6F7F8) !important;
+  font: var(--tui-typography-body-l, 400 16px/1.4375 Roboto, system-ui, sans-serif) !important;
 }}
 /* Строки реквизитов — чуть правее, вровень с началом заголовка «Реквизиты» */
 [data-manual-bank-wrapper="1"] [data-qa-type="mobile-pumba-requisites-operation"] [data-qa-type="visible-requisites"],
@@ -2838,6 +2891,12 @@ def _build_script() -> str:
     if (molecule) {{
       molecule.setAttribute('data-surface', 'true');
       molecule.setAttribute('data-appearance', 'elevated');
+      try {{
+        molecule.style.setProperty('background-color', 'var(--tui-background-elevation-2, #2C2C2E)', 'important');
+        molecule.style.setProperty('border-radius', '24px', 'important');
+        molecule.style.setProperty('box-shadow', 'var(--tui-shadow-medium, 0px 6px 34px 0px #0000001f)', 'important');
+        molecule.style.setProperty('overflow', 'hidden', 'important');
+      }} catch (eMolStyle) {{}}
       const layer = molecule.querySelector('[data-qa-type="tui/surface-layer"]');
       if (layer && layer.style) {{
         try {{
@@ -2881,7 +2940,7 @@ def _build_script() -> str:
       let iconHost = accountCell.querySelector('[data-qa-type="molecule-account-operation-account-icon"]');
       if (!iconHost) {{
         const wrap = document.createElement('div');
-        wrap.className = 'bbYDLs9QJ';
+        wrap.className = 'bbwED1L6n';
         wrap.style.cssText = 'flex:0 0 40px;width:40px;min-width:40px;max-width:40px;display:flex;align-items:center;justify-content:center;padding:0;margin:0;box-sizing:border-box;';
         iconHost = document.createElement('span');
         iconHost.setAttribute('data-qa-type', 'molecule-account-operation-account-icon');
@@ -2960,6 +3019,14 @@ def _build_script() -> str:
     }}
 
     let shell = details.querySelector('[data-manual-injected-account-cards="1"]');
+    if (shell) {{
+      const mol = shell.querySelector('[data-qa-type="molecule-account-operation"]');
+      const stale = !mol || String(mol.className || '').indexOf('abfBkeZRO') === -1;
+      if (stale) {{
+        try {{ shell.remove(); }} catch (eStale) {{}}
+        shell = null;
+      }}
+    }}
     if (!shell) {{
       details.querySelectorAll('[data-qa-type="accountCardsShown-wrapper"]').forEach(function (w) {{
         if (w.getAttribute('data-manual-injected-account-cards') === '1') return;
@@ -3241,14 +3308,14 @@ def _build_script() -> str:
     wrap.setAttribute('data-vertical-spacing', 'default');
     wrap.setAttribute('data-connected', 'false');
     wrap.setAttribute('data-component-type', 'tui-react');
-    wrap.className = 'hbQgksk7i';
+    wrap.className = 'hbZaqhBic';
     const inner = document.createElement('div');
-    inner.className = 'gbQgksk7i';
+    inner.className = 'gbZaqhBic';
     const p = document.createElement('p');
-    p.className = 'dbQgksk7i';
+    p.className = 'dbZaqhBic';
     p.textContent = label;
     const val = document.createElement('div');
-    val.className = 'ebQgksk7i abhFnGE_2';
+    val.className = 'ebZaqhBic abIR-_Vmt';
     val.textContent = value;
     inner.appendChild(p);
     inner.appendChild(val);
@@ -3355,6 +3422,17 @@ def _build_script() -> str:
 
     const nativeVr = findNativeVisibleRequisites();
     if (nativeVr) {{
+      const nativeAtom = nativeVr.closest('[data-qa-type="atom-panel"]');
+      if (nativeAtom) {{
+        nativeAtom.setAttribute('data-surface', 'true');
+        nativeAtom.setAttribute('data-appearance', 'elevated');
+        try {{
+          nativeAtom.style.setProperty('background-color', 'var(--tui-background-elevation-2, #2C2C2E)', 'important');
+          nativeAtom.style.setProperty('border-radius', '24px', 'important');
+          nativeAtom.style.setProperty('box-shadow', 'var(--tui-shadow-medium, 0px 6px 34px 0px #0000001f)', 'important');
+          nativeAtom.style.setProperty('overflow', 'hidden', 'important');
+        }} catch (eNatAtom) {{}}
+      }}
       if (op.type === 'Credit' && senderText) {{
         nativeVr.innerHTML = '';
         nativeVr.appendChild(makeManualRequisiteRow('Отправитель', senderText));
@@ -3381,6 +3459,14 @@ def _build_script() -> str:
     }}
 
     let panel = host.querySelector('[data-manual-requisites-panel="1"]');
+    if (panel) {{
+      const atom = panel.querySelector('[data-qa-type="atom-panel"]');
+      const stalePanel = !atom || String(atom.className || '').indexOf('abkwct6e6') === -1;
+      if (stalePanel && host.getAttribute('data-manual-bank-wrapper') === '1') {{
+        host.innerHTML = MANUAL_BANK_DETAILS_INNER_HTML;
+        panel = host.querySelector('[data-manual-requisites-panel="1"]');
+      }}
+    }}
     if (!panel) {{
       if (host.getAttribute('data-manual-bank-wrapper') === '1') {{
         host.className = 'abVXAIVX5';
@@ -3415,6 +3501,18 @@ def _build_script() -> str:
       panel = host.querySelector('[data-manual-requisites-panel="1"]');
     }}
     if (!panel) return false;
+
+    const atomPanel = panel.querySelector('[data-qa-type="atom-panel"]');
+    if (atomPanel) {{
+      atomPanel.setAttribute('data-surface', 'true');
+      atomPanel.setAttribute('data-appearance', 'elevated');
+      try {{
+        atomPanel.style.setProperty('background-color', 'var(--tui-background-elevation-2, #2C2C2E)', 'important');
+        atomPanel.style.setProperty('border-radius', '24px', 'important');
+        atomPanel.style.setProperty('box-shadow', 'var(--tui-shadow-medium, 0px 6px 34px 0px #0000001f)', 'important');
+        atomPanel.style.setProperty('overflow', 'hidden', 'important');
+      }} catch (eAtom) {{}}
+    }}
 
     const vr = panel.querySelector('[data-qa-type="visible-requisites"]');
     if (!vr) return false;
@@ -3456,17 +3554,22 @@ def _build_script() -> str:
     const gaps = document.querySelector('[data-manual-tui-actions-row="1"]');
     if (!gaps || gaps.getAttribute('data-manual-tui-actions-filled') !== wantFill) return false;
     const needBtns = isCredit ? 1 : 5;
-    if (gaps.querySelectorAll('button[data-qa-type^="operation-action"]').length < needBtns) return false;
-    const hasBlack =
-      !!document.querySelector('[data-panel-manual-black-card="1"]')
-      || !!document.querySelector('[data-manual-injected-account-cards="1"]')
-      || !!document.querySelector('[data-manual-black-name="1"]')
-      || listDetailAccountOperationRoots().length > 0;
-    if (!hasBlack) return false;
+    const actionBtns = gaps.querySelectorAll('button[data-qa-type^="operation-action"]');
+    if (actionBtns.length < needBtns) return false;
+    /* Black card: elevated molecule + имя Black */
+    const blackCard =
+      document.querySelector('[data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"]')
+      || document.querySelector('[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"]');
+    if (!blackCard) return false;
+    if (!document.querySelector('[data-manual-black-name="1"]')) return false;
+    /* Реквизиты: atom-panel + visible-requisites с телефоном/отправителем */
+    const vr =
+      document.querySelector('[data-manual-requisites-panel="1"] [data-qa-type="visible-requisites"]')
+      || document.querySelector('[data-qa-type="atom-panel"] [data-qa-type="visible-requisites"]')
+      || document.querySelector('[data-qa-type="visible-requisites"]');
+    if (!vr) return false;
     const phoneText = formatPhoneRu(op.requisite_phone || op.phone || '');
     const senderText = String(op.requisite_sender_name || op.sender_name || op.title || '').trim();
-    const vr = document.querySelector('[data-qa-type="visible-requisites"]');
-    if (!vr) return false;
     const vrTxt = String(vr.textContent || '');
     if (op.type === 'Debit') {{
       const dig = phoneText.replace(/\\D/g, '');
