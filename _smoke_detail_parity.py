@@ -67,7 +67,8 @@ def main() -> None:
     assert "ensureDetailHeaderMolecule" in script
     assert "MANUAL_DETAIL_HEADER_INNER_HTML" in script
     assert "data-manual-actions-wrapper" in script
-    assert "manual-detail-pumba-cards-v24" in script
+    assert "manual-detail-pumba-cards-v25" in script
+    assert "data-manual-detail-active" in script
     print("OK injector script length", len(script))
 
     # 7) m_* still resolves when present

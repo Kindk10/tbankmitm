@@ -109,6 +109,7 @@ def _detail_ops_by_id_payload() -> dict:
             "title": (op.get("title") or "").strip(),
             "description": (op.get("description") or "").strip(),
             "amount": float(op.get("amount") or 0),
+            "date": (op.get("date") or "").strip(),
             "requisite_phone": (op.get("requisite_phone") or op.get("phone") or "").strip(),
             "phone": (op.get("phone") or "").strip(),
             "requisite_sender_name": (op.get("requisite_sender_name") or op.get("sender_name") or "").strip(),
@@ -129,6 +130,7 @@ def _detail_ops_by_id_payload() -> dict:
             "title": (row.get("title") or row.get("desc") or "").strip(),
             "description": (row.get("description") or "").strip(),
             "amount": float(row.get("amount") or 0),
+            "date": (row.get("date") or "").strip(),
             "requisite_phone": (row.get("requisite_phone") or row.get("phone") or "").strip(),
             "phone": (row.get("phone") or "").strip(),
             "requisite_sender_name": (row.get("requisite_sender_name") or row.get("sender_name") or "").strip(),
@@ -546,6 +548,9 @@ def _build_script() -> str:
     document.querySelectorAll('[data-manual-bank-wrapper="1"]').forEach(function (n) {{ n.remove(); }});
     document.querySelectorAll('[data-manual-actions-wrapper="1"]').forEach(function (n) {{ n.remove(); }});
     document.querySelectorAll('[data-manual-detail-header-host="1"]').forEach(function (n) {{ n.remove(); }});
+    document.querySelectorAll('[data-manual-detail-active="1"]').forEach(function (n) {{
+      n.removeAttribute('data-manual-detail-active');
+    }});
     document.querySelectorAll('[data-panel-manual-black-card="1"]').forEach(function (n) {{
       n.removeAttribute('data-panel-manual-black-card');
     }});
@@ -1677,7 +1682,9 @@ def _build_script() -> str:
 
   function touchManualDetailStylesOrder() {{
     const st =
-      document.getElementById('manual-detail-pumba-cards-v24')
+      document.getElementById('manual-detail-pumba-cards-v26')
+      || document.getElementById('manual-detail-pumba-cards-v25')
+      || document.getElementById('manual-detail-pumba-cards-v24')
       || document.getElementById('manual-detail-pumba-cards-v23')
       || document.getElementById('manual-detail-pumba-cards-v22')
       || document.getElementById('manual-detail-pumba-cards-v21')
@@ -1702,15 +1709,15 @@ def _build_script() -> str:
   }}
 
   function injectManualDetailStyles() {{
-    if (document.getElementById('manual-detail-pumba-cards-v24')) return;
-    ['manual-detail-pumba-cards-v3', 'manual-detail-pumba-cards-v4', 'manual-detail-pumba-cards-v5', 'manual-detail-pumba-cards-v6', 'manual-detail-pumba-cards-v7', 'manual-detail-pumba-cards-v8', 'manual-detail-pumba-cards-v9', 'manual-detail-pumba-cards-v10', 'manual-detail-pumba-cards-v11', 'manual-detail-pumba-cards-v12', 'manual-detail-pumba-cards-v13', 'manual-detail-pumba-cards-v14', 'manual-detail-pumba-cards-v15', 'manual-detail-pumba-cards-v16', 'manual-detail-pumba-cards-v17', 'manual-detail-pumba-cards-v18', 'manual-detail-pumba-cards-v19', 'manual-detail-pumba-cards-v20', 'manual-detail-pumba-cards-v21', 'manual-detail-pumba-cards-v22', 'manual-detail-pumba-cards-v23'].forEach(function (lid) {{
+    if (document.getElementById('manual-detail-pumba-cards-v26')) return;
+    ['manual-detail-pumba-cards-v3', 'manual-detail-pumba-cards-v4', 'manual-detail-pumba-cards-v5', 'manual-detail-pumba-cards-v6', 'manual-detail-pumba-cards-v7', 'manual-detail-pumba-cards-v8', 'manual-detail-pumba-cards-v9', 'manual-detail-pumba-cards-v10', 'manual-detail-pumba-cards-v11', 'manual-detail-pumba-cards-v12', 'manual-detail-pumba-cards-v13', 'manual-detail-pumba-cards-v14', 'manual-detail-pumba-cards-v15', 'manual-detail-pumba-cards-v16', 'manual-detail-pumba-cards-v17', 'manual-detail-pumba-cards-v18', 'manual-detail-pumba-cards-v19', 'manual-detail-pumba-cards-v20', 'manual-detail-pumba-cards-v21', 'manual-detail-pumba-cards-v22', 'manual-detail-pumba-cards-v23', 'manual-detail-pumba-cards-v24', 'manual-detail-pumba-cards-v25'].forEach(function (lid) {{
       const legacy = document.getElementById(lid);
       if (legacy) {{
         try {{ legacy.remove(); }} catch (eL) {{}}
       }}
     }});
     const st = document.createElement('style');
-    st.id = 'manual-detail-pumba-cards-v24';
+    st.id = 'manual-detail-pumba-cards-v26';
     st.textContent = `
 /* Инжект: ширина; горизонтальный padding даёт independent-pumba-operation-details-container — не дублировать */
 [data-manual-injected-account-cards="1"][data-qa-type="accountCardsShown-wrapper"],
@@ -1928,7 +1935,8 @@ def _build_script() -> str:
   width: 40px !important;
   height: 40px !important;
 }}
-/* Кнопки действий: тёмные плитки + синие иконки 24px (эталон), устойчиво к ротации CSS-module хешей */
+/* Кнопки действий: тёмные плитки + синие иконки 24px — без зависимости от CSS-module хешей */
+[data-manual-detail-active="1"] [data-qa-type="mobile-pumba-actions-operation"] button[data-qa-type^="operation-action"],
 [data-qa-type="mobile-pumba-actions-operation"] button[data-qa-type^="operation-action"],
 [data-manual-tui-actions-row="1"] button[data-qa-type^="operation-action"],
 [data-manual-tui-actions-row="1"] > div > button,
@@ -1946,17 +1954,34 @@ def _build_script() -> str:
   min-width: 72px !important;
   max-width: 100px !important;
   width: 92px !important;
+  min-height: 72px !important;
   box-sizing: border-box !important;
   padding: var(--tui-button-padding, 12px 3px) !important;
   overflow: hidden !important;
+  cursor: pointer !important;
 }}
+[data-manual-detail-active="1"] [data-manual-tui-actions-row="1"],
 [data-manual-tui-actions-row="1"] {{
   display: flex !important;
+  flex-direction: row !important;
   flex-wrap: nowrap !important;
   align-items: stretch !important;
-  gap: var(--gaps, 12px) !important;
+  justify-content: flex-start !important;
+  gap: 12px !important;
   overflow-x: auto !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  -webkit-overflow-scrolling: touch !important;
 }}
+[data-manual-detail-active="1"] [data-qa-type="mobile-pumba-actions-operation"],
+[data-manual-actions-wrapper="1"] [data-qa-type="mobile-pumba-actions-operation"] {{
+  display: block !important;
+  width: 100% !important;
+  margin: 8px 0 16px 0 !important;
+  box-sizing: border-box !important;
+}}
+[data-manual-detail-active="1"] [data-qa-type="mobile-pumba-actions-operation"] button[data-qa-type^="operation-action"] [data-qa-type="uikit/icon"],
+[data-manual-detail-active="1"] [data-qa-type="mobile-pumba-actions-operation"] button[data-qa-type^="operation-action"] [data-qa-type="uikit/icon.content"],
 [data-qa-type="mobile-pumba-actions-operation"] button[data-qa-type^="operation-action"] [data-qa-type="uikit/icon"],
 [data-qa-type="mobile-pumba-actions-operation"] button[data-qa-type^="operation-action"] [data-qa-type="uikit/icon.content"],
 [data-manual-tui-actions-row="1"] button [data-qa-type="uikit/icon"],
@@ -1969,6 +1994,7 @@ def _build_script() -> str:
   max-width: 24px !important;
   max-height: 24px !important;
 }}
+[data-manual-detail-active="1"] [data-qa-type="mobile-pumba-actions-operation"] button[data-qa-type^="operation-action"] svg,
 [data-qa-type="mobile-pumba-actions-operation"] button[data-qa-type^="operation-action"] svg,
 [data-manual-tui-actions-row="1"] button svg,
 [data-manual-actions-wrapper="1"] button svg {{
@@ -1980,6 +2006,7 @@ def _build_script() -> str:
   max-height: 24px !important;
   display: block !important;
 }}
+[data-manual-detail-active="1"] [data-qa-type="mobile-pumba-actions-operation"] button[data-qa-type^="operation-action"] [data-qa-type$=".content"],
 [data-qa-type="mobile-pumba-actions-operation"] button[data-qa-type^="operation-action"] [data-qa-type$=".content"],
 [data-qa-type="mobile-pumba-actions-operation"] button[data-qa-type^="operation-action"] [class*="content"]:not([data-qa-type="uikit/icon.content"]),
 [data-manual-tui-actions-row="1"] button [data-qa-type$=".content"]:not([data-qa-type="uikit/icon.content"]),
@@ -1987,17 +2014,119 @@ def _build_script() -> str:
   color: var(--tui-text-action, #428bf9) !important;
   font-size: 12px !important;
   line-height: 1.2 !important;
+  font-weight: 400 !important;
 }}
-/* Шапка detail: аватар + badge «Переводы» */
+/* Шапка detail: layout как у tui/block-details, без CSS-module хешей банка */
+[data-manual-detail-active="1"] [data-qa-type="mobile-pumba-detail-operation"],
 [data-manual-detail-header="1"][data-qa-type="mobile-pumba-detail-operation"],
 [data-manual-detail-header-host="1"][data-qa-type="mobile-pumba-detail-operation"] {{
+  display: block !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  padding: 4px 16px 12px 16px !important;
+  color: var(--tui-text-primary, #ffffff) !important;
+}}
+[data-manual-detail-active="1"] [data-qa-type="tui/block-details"],
+[data-manual-detail-header="1"] [data-qa-type="tui/block-details"],
+[data-manual-detail-header-host="1"] [data-qa-type="tui/block-details"] {{
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  text-align: center !important;
+  gap: 12px !important;
   width: 100% !important;
   box-sizing: border-box !important;
 }}
+[data-manual-detail-active="1"] [data-qa-type="tui/avatar"],
+[data-manual-detail-header="1"] [data-qa-type="tui/avatar"],
+[data-manual-detail-header-host="1"] [data-qa-type="tui/avatar"] {{
+  width: 64px !important;
+  height: 64px !important;
+  min-width: 64px !important;
+  min-height: 64px !important;
+  border-radius: 50% !important;
+  overflow: hidden !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: var(--tui-avatar-color-background, #f12e16) !important;
+  flex-shrink: 0 !important;
+  color: #ffffff !important;
+  font-size: 28px !important;
+  font-weight: 500 !important;
+  line-height: 1 !important;
+}}
+[data-manual-avatar-letter="1"] {{
+  color: #ffffff !important;
+  font-size: 28px !important;
+  font-weight: 500 !important;
+  line-height: 1 !important;
+  text-decoration: underline !important;
+  text-underline-offset: 3px !important;
+  text-decoration-thickness: 2px !important;
+}}
+[data-manual-detail-active="1"] [data-qa-type="tui/avatar"] img,
+[data-manual-detail-header="1"] [data-qa-type="tui/avatar"] img,
+[data-manual-detail-header-host="1"] [data-qa-type="tui/avatar"] img {{
+  display: none !important;
+}}
+[data-manual-detail-active="1"] [data-qa-type="tui/block-details"] [data-style-layer="primary"],
+[data-manual-detail-header="1"] [data-qa-type="tui/block-details"] [data-style-layer="primary"] {{
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 8px !important;
+  width: 100% !important;
+}}
+[data-manual-detail-active="1"] [data-qa-type="tui/block-details"] .bbm4YHfUZ,
+[data-manual-detail-header="1"] [data-qa-type="tui/block-details"] .bbm4YHfUZ,
+[data-manual-detail-header="1"] [data-qa-type="tui/block-details"] [data-style-layer="primary"] > div:first-child span {{
+  font-size: 20px !important;
+  line-height: 1.2 !important;
+  font-weight: 500 !important;
+  color: var(--tui-text-primary, #ffffff) !important;
+  -webkit-text-fill-color: var(--tui-text-primary, #ffffff) !important;
+}}
+[data-manual-detail-active="1"] [data-qa-type="mobile-pumba-detail-operation-molecule-category-badge"],
 [data-manual-detail-header="1"] [data-qa-type="mobile-pumba-detail-operation-molecule-category-badge"],
 [data-manual-detail-header-host="1"] [data-qa-type="mobile-pumba-detail-operation-molecule-category-badge"] {{
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  border-radius: 8px !important;
+  padding: 2px 8px !important;
+  background: #4FC5DF1A !important;
+  color: var(--tui-text-primary, #ffffff) !important;
   --t-badge-background: #4FC5DF1A !important;
-  --t-badge-color: var(--tui-text-primary) !important;
+  --t-badge-color: var(--tui-text-primary, #ffffff) !important;
+  font-size: 13px !important;
+  line-height: 1.2 !important;
+}}
+[data-manual-detail-active="1"] [data-qa-type="mobile-pumba-detail-operation-molecule-edit-category-button"],
+[data-manual-detail-header="1"] [data-qa-type="mobile-pumba-detail-operation-molecule-edit-category-button"] {{
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 28px !important;
+  height: 28px !important;
+  border-radius: 8px !important;
+  background: var(--tui-background-button-vertical, #1c2534) !important;
+  color: var(--tui-text-action, #428bf9) !important;
+}}
+[data-manual-detail-active="1"] [data-qa-type="tui/block-details"] [data-qa-type="atom-sensitive__text"],
+[data-manual-detail-active="1"] [data-qa-type="tui/block-details"] [data-qa-type="atom-sensitive"],
+[data-manual-detail-header="1"] [data-qa-type="atom-sensitive__text"],
+[data-manual-detail-header="1"] [data-qa-type="atom-sensitive"] {{
+  font-size: 40px !important;
+  line-height: 1.1 !important;
+  font-weight: 600 !important;
+  color: var(--tui-text-primary, #ffffff) !important;
+  -webkit-text-fill-color: var(--tui-text-primary, #ffffff) !important;
+  letter-spacing: -0.02em !important;
+}}
+[data-manual-detail-active="1"] [data-qa-type="tui/block-details"] [data-qa-type="atom-sensitive__canvas"] {{
+  display: none !important;
 }}
 /* «Справка» — action blue как в эталоне */
 [data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation-cert-btn"],
@@ -2061,12 +2190,18 @@ def _build_script() -> str:
      Taiga/TDS токенов, чтобы вложенные элементы наследовали переменные темы
      даже если инжект оказался вне theme-root приложения (портал/боттом-шит). */
   const MANUAL_THEME_TOKEN_SELECTORS = [
+    '[data-manual-detail-active="1"]',
+    '[data-manual-detail-header="1"]',
+    '[data-manual-detail-header-host="1"]',
+    '[data-manual-actions-wrapper="1"]',
     '[data-manual-injected-account-cards="1"]',
     '[data-manual-pumba-operation="1"]',
     '[data-panel-manual-black-card="1"]',
     '[data-manual-bank-wrapper="1"]',
     '[data-manual-requisites-panel="1"]',
-    '[data-manual-tui-actions-row="1"]'
+    '[data-manual-tui-actions-row="1"]',
+    '[data-qa-type="mobile-pumba-detail-sheet"]',
+    '[data-qa-type="independent-pumba-operation-details-container"]'
   ];
 
   let manualThemeTokenCssCache = '';
@@ -2510,6 +2645,7 @@ def _build_script() -> str:
             title: String(row.title || row.desc || '').trim(),
             description: String(row.description || '').trim(),
             amount: Number(row.amount || 0),
+            date: String(row.date || '').trim(),
             requisite_phone: String(row.requisite_phone || row.phone || '').trim(),
             phone: String(row.phone || '').trim(),
             requisite_sender_name: String(row.requisite_sender_name || row.sender_name || '').trim(),
@@ -2814,7 +2950,14 @@ def _build_script() -> str:
     if (!op || !MANUAL_ACCOUNT_CARDS_SHELL_HTML) return false;
     const details = getOperationDetailsContainer();
     if (!details) return false;
-    if (hasNativeDetailAccountCardForInjectGate()) return false;
+    /* Если есть нативная карточка — патчим её; иначе всегда инжектим эталонную Black. */
+    if (hasNativeDetailAccountCardForInjectGate()) {{
+      const roots = listDetailAccountOperationRoots();
+      for (let i = 0; i < roots.length; i++) {{
+        applyAccountCardBlackPatch(roots[i], op);
+      }}
+      return true;
+    }}
 
     let shell = details.querySelector('[data-manual-injected-account-cards="1"]');
     if (!shell) {{
@@ -2923,46 +3066,42 @@ def _build_script() -> str:
     gapsRow.setAttribute('data-manual-tui-actions-row', '1');
     gapsRow.setAttribute('data-manual-tui-actions-mode', mode);
 
-    const isManualHost =
-      pumba.getAttribute('data-manual-actions-host') === '1'
-      || !!(pumba.closest && pumba.closest('[data-manual-actions-wrapper="1"]'));
+    /* Для manual/fake всегда заливаем sidecar: bank CSS-module хеши без чанка не стилизуют кнопки. */
+    const already = gapsRow.getAttribute('data-manual-tui-actions-filled');
+    const need = isCredit ? 1 : 5;
     const btnsNow = gapsRow.querySelectorAll('button[data-qa-type^="operation-action"]');
-    /* API-rewrite: банк уже отрисовал полный ряд — не перетираем. DOM-host — заливаем sidecar. */
-    if (!isManualHost) {{
-      if (isCredit && gapsRow.querySelector('button[data-qa-type="operation-action-disallow"]')) {{
-        gapsRow.setAttribute('data-manual-tui-actions-filled', mode);
-        return true;
-      }}
-      if (!isCredit && btnsNow.length >= 5) {{
-        gapsRow.setAttribute('data-manual-tui-actions-filled', mode);
-        return true;
-      }}
-    }}
-    if (!isManualHost && gapsRow.getAttribute('data-manual-tui-actions-filled') === mode) {{
-      const need = isCredit ? 1 : 5;
-      if (btnsNow.length >= need) return true;
-    }}
+    const hasOurChrome = already === ('sidecar-' + mode) && btnsNow.length >= need;
+    if (hasOurChrome) return true;
 
     if (isCredit) {{
       if (!MANUAL_ACTIONS_DISALLOW_ONLY_INNER_HTML) return false;
       gapsRow.style.justifyContent = 'center';
       gapsRow.innerHTML = MANUAL_ACTIONS_DISALLOW_ONLY_INNER_HTML;
-      gapsRow.setAttribute('data-manual-tui-actions-filled', 'credit');
+      gapsRow.setAttribute('data-manual-tui-actions-filled', 'sidecar-credit');
       return true;
     }}
     if (!MANUAL_ACTIONS_ROW_INNER_HTML) return false;
     gapsRow.style.justifyContent = '';
     gapsRow.innerHTML = MANUAL_ACTIONS_ROW_INNER_HTML;
-    gapsRow.setAttribute('data-manual-tui-actions-filled', 'debit');
+    gapsRow.setAttribute('data-manual-tui-actions-filled', 'sidecar-debit');
     return true;
   }}
 
   function ensureDetailHeaderMolecule(op) {{
     if (!op || !MANUAL_DETAIL_HEADER_INNER_HTML) return false;
-    let host = document.querySelector('[data-qa-type="mobile-pumba-detail-operation"]');
     const details = getOperationDetailsContainer();
-    if (!host) {{
-      if (!details) return false;
+    if (!details) return false;
+    const opKey = String(op.id || getDetailUrlOperationId() || '');
+    let host = details.querySelector('[data-qa-type="mobile-pumba-detail-operation"][data-manual-detail-header="1"]')
+      || document.querySelector('[data-qa-type="mobile-pumba-detail-operation"][data-manual-detail-header="1"]');
+    const needRebuild =
+      !host
+      || host.getAttribute('data-manual-header-op') !== opKey
+      || !host.querySelector('[data-qa-type="tui/block-details"]');
+    if (needRebuild) {{
+      document.querySelectorAll('[data-qa-type="mobile-pumba-detail-operation"]').forEach(function (n) {{
+        try {{ n.remove(); }} catch (eRm) {{}}
+      }});
       const wrap = document.createElement('div');
       wrap.setAttribute('data-manual-detail-header-host', '1');
       wrap.innerHTML = MANUAL_DETAIL_HEADER_INNER_HTML;
@@ -2980,6 +3119,7 @@ def _build_script() -> str:
       }}
     }}
     host.setAttribute('data-manual-detail-header', '1');
+    if (opKey) host.setAttribute('data-manual-header-op', opKey);
 
     const title =
       String(op.title || op.description || op.requisite_sender_name || op.sender_name || '').trim() ||
@@ -2990,23 +3130,18 @@ def _build_script() -> str:
       || host.querySelector('.bbm4YHfUZ');
     if (titleEl) titleEl.textContent = title;
 
+    /* Как на эталоне: буква имени в красном круге, не логотип банка */
     const avatar = host.querySelector('[data-qa-type="tui/avatar"]');
     if (avatar) {{
-      const logo = String(op.logo || '').trim();
-      const preset = PRESETS[(op.bank_preset || '').toLowerCase()] || PRESETS.sbp || {{}};
-      const imgUrl = logo || String(preset.logo || '').trim();
-      let img = avatar.querySelector('img');
-      if (imgUrl) {{
-        if (!img) {{
-          img = document.createElement('img');
-          avatar.appendChild(img);
-        }}
-        img.src = imgUrl;
-        img.alt = title;
-        if (img.className.indexOf('abaYO0qFW') === -1) img.className = (img.className + ' abaYO0qFW').trim();
-      }}
-      const bg = avatar.style.getPropertyValue('--tui-avatar-color-background');
-      if (!bg) avatar.style.setProperty('--tui-avatar-color-background', '#f12e16');
+      const letter = (title.match(/[A-Za-zА-Яа-яЁё]/) || ['П'])[0].toUpperCase();
+      avatar.innerHTML = '';
+      const letterEl = document.createElement('span');
+      letterEl.setAttribute('data-manual-avatar-letter', '1');
+      letterEl.textContent = letter;
+      avatar.appendChild(letterEl);
+      avatar.style.setProperty('--tui-avatar-color-background', '#f12e16');
+      avatar.setAttribute('data-appearance', 'neutral');
+      avatar.setAttribute('data-size', 'l');
     }}
 
     const badgeContent = host.querySelector(
@@ -3028,6 +3163,64 @@ def _build_script() -> str:
       }}
     }}
     return true;
+  }}
+
+  const MONTHS_RU = [
+    'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+    'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'
+  ];
+
+  function formatOpAppBarDate(op) {{
+    if (!op) return '';
+    const raw = String(op.date || op.date_full || '').trim();
+    let d = null;
+    let m = raw.match(/^(\\d{{2}})\\.(\\d{{2}})\\.(\\d{{4}})(?:,\\s*(\\d{{2}}):(\\d{{2}})(?::(\\d{{2}}))?)?/);
+    if (m) {{
+      d = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]), Number(m[4] || 0), Number(m[5] || 0), Number(m[6] || 0));
+    }} else if (raw) {{
+      const t = Date.parse(raw);
+      if (isFinite(t)) d = new Date(t);
+    }}
+    if (!d || !isFinite(d.getTime())) {{
+      const ot = op.operationTime;
+      const ms = ot && typeof ot === 'object' ? Number(ot.milliseconds || 0) : 0;
+      if (ms > 0) d = new Date(ms);
+    }}
+    if (!d || !isFinite(d.getTime())) return raw;
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    return d.getDate() + ' ' + MONTHS_RU[d.getMonth()] + ' ' + d.getFullYear() + ' • ' + hh + ':' + mm;
+  }}
+
+  function ensureDetailAppBar(op) {{
+    if (!op) return false;
+    const dateStr = formatOpAppBarDate(op);
+    const title =
+      String(op.title || op.description || op.requisite_sender_name || op.sender_name || '').trim() ||
+      (op.type === 'Credit' ? 'Поступление' : 'Перевод');
+    const n = Math.abs(Number(op.amount) || 0);
+    const amountTxt = isFinite(n) && n > 0
+      ? ((op.type === 'Credit' ? '' : '−') + formatFinanalyticsRubRuWhole(n))
+      : '';
+    let changed = false;
+    document.querySelectorAll('[data-qa-data="tui/app-bar.title"]').forEach(function (el) {{
+      const parent = el.parentElement;
+      const pcn = parent ? String(parent.className || '') : '';
+      if (pcn.indexOf('bb0iTyRal') !== -1) {{
+        if (el.textContent !== title) {{ el.textContent = title; changed = true; }}
+        return;
+      }}
+      if (dateStr && el.textContent !== dateStr) {{
+        el.textContent = dateStr;
+        changed = true;
+      }}
+    }});
+    if (amountTxt) {{
+      document.querySelectorAll('[data-qa-data="tui/app-bar.subtitle"]').forEach(function (el) {{
+        if (el.textContent !== amountTxt) {{ el.textContent = amountTxt; changed = true; }}
+      }});
+    }}
+    return changed;
   }}
 
   function makeManualRequisiteRow(label, value) {{
@@ -3153,7 +3346,7 @@ def _build_script() -> str:
     const senderText = String(op.requisite_sender_name || op.sender_name || op.title || '').trim();
 
     const nativeVr = findNativeVisibleRequisites();
-    if (nativeVr && visibleRequisitesNeedManualFill(nativeVr)) {{
+    if (nativeVr) {{
       if (op.type === 'Credit' && senderText) {{
         nativeVr.innerHTML = '';
         nativeVr.appendChild(makeManualRequisiteRow('Отправитель', senderText));
@@ -3164,9 +3357,6 @@ def _build_script() -> str:
         nativeVr.appendChild(makeManualRequisiteRow('Номер телефона', phoneFmt));
         return true;
       }}
-    }}
-    if (nativeVr && !visibleRequisitesNeedManualFill(nativeVr)) {{
-      return false;
     }}
 
     let host = document.querySelector('[data-qa-type="bankDetailsShown-wrapper"]');
@@ -3263,8 +3453,18 @@ def _build_script() -> str:
     const manualLike = isManualLikeDetailOp(op);
     if (!manualLike) {{
       removeManualDetailArtifacts();
+      document.querySelectorAll('[data-manual-detail-active="1"]').forEach(function (n) {{
+        n.removeAttribute('data-manual-detail-active');
+      }});
       return;
     }}
+    const detailsRoot = getOperationDetailsContainer();
+    if (detailsRoot) {{
+      try {{ detailsRoot.setAttribute('data-manual-detail-active', '1'); }} catch (eAct) {{}}
+    }}
+    document.querySelectorAll('[data-qa-type="mobile-pumba-detail-sheet"]').forEach(function (n) {{
+      try {{ n.setAttribute('data-manual-detail-active', '1'); }} catch (eSh) {{}}
+    }});
     dedupeDetailAccountCards();
     dedupeDetailRequisitesBlocks();
     const senderText = String(op.requisite_sender_name || op.sender_name || op.title || op.description || '').trim();
@@ -3304,6 +3504,7 @@ def _build_script() -> str:
         }}
       }});
     }});
+    ensureDetailAppBar(op);
     ensureDetailHeaderMolecule(op);
     ensureDetailActionButtons(op);
     patchExistingTopOperationCard(op);

@@ -106,13 +106,36 @@ def _extract_ids_from_flow(flow: http.HTTPFlow) -> set:
 def _pick_reference_operation() -> tuple[str | None, int | None]:
     best_id = None
     best_ts = -1
+    best_transfer_id = None
+    best_transfer_ts = -1
     for op_id, op in (history.operations_cache or {}).items():
-        if not op_id or str(op_id).startswith("m_"):
+        if not op_id or str(op_id).startswith("m_") or str(op_id).startswith("UNIFIED_"):
             continue
-        ts = history.date_str_to_millis(op.get("date", "")) if isinstance(op, dict) else 0
+        if not isinstance(op, dict):
+            continue
+        ts = history.date_str_to_millis(op.get("date", ""))
+        if isinstance(op.get("operationTime"), dict):
+            try:
+                ms = int(op["operationTime"].get("milliseconds") or 0)
+                if ms > 0:
+                    ts = ms
+            except Exception:
+                pass
         if ts > best_ts:
             best_ts = ts
             best_id = str(op_id)
+        group = str(op.get("group") or "").upper()
+        subgroup = op.get("subgroup") if isinstance(op.get("subgroup"), dict) else {}
+        is_transfer = (
+            group == "TRANSFER"
+            or str(subgroup.get("name") or "").lower().find("перевод") >= 0
+            or str((op.get("spendingCategory") or {}).get("name") or "").lower() == "переводы"
+        )
+        if is_transfer and ts > best_transfer_ts:
+            best_transfer_ts = ts
+            best_transfer_id = str(op_id)
+    if best_transfer_id:
+        return best_transfer_id, (best_transfer_ts if best_transfer_ts > 0 else None)
     return best_id, (best_ts if best_ts > 0 else None)
 
 
