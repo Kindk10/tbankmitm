@@ -313,8 +313,8 @@ def pending_fake_history_ops(month_restrict: bool = None) -> list:
 
 def get_panel_chart_display_totals():
     """Единые доход/расход для панели и гистограмм.
-    При histogram_sync_with_operations: всегда bank + manuals + deduped fakes (не sticky config.manual.income/expense).
-    Явный override — только если sync выключен и поля заданы вручную.
+    При histogram_sync_with_operations: bank + manuals + deduped fakes (не sticky).
+    Если bank ещё не пойман — только manuals+fakes (real_v), без «пустого» bank+addon.
     """
     restrict_month = not panel_include_all_cached_operations()
     real_inc, real_exp, inc_cnt, exp_cnt = calculate_manual_and_mock_transfer_stats(restrict_month=restrict_month)
@@ -326,7 +326,6 @@ def get_panel_chart_display_totals():
     sync_ops = manual.get("histogram_sync_with_operations", True)
 
     def pick(mkey, bank_v, real_v):
-        # Sticky aggregate в config.manual больше не перекрывает пересчёт при sync=on
         if not sync_ops and manual.get(mkey) is not None:
             try:
                 return round(float(manual[mkey]), 2)
@@ -339,12 +338,14 @@ def get_panel_chart_display_totals():
             if use_bank and bank_v is not None:
                 v = round(float(bank_v), 2)
                 if mkey == "expense":
+                    # bank (сайт) + только то, чего там нет: моки вне cache + ручные
                     if transfer_exp_addon:
                         v = round(v + transfer_exp_addon, 2)
                     v = round(v + man_exp_m, 2)
                 elif mkey == "income":
                     v = round(v + man_inc_m + fake_inc_m, 2)
                 return v
+            # Нет сводки банка — не раздувать: только ручные/моки
             return round(float(real_v), 2)
         try:
             return round(float(manual.get(mkey, real_v)), 2)
@@ -1945,6 +1946,13 @@ def inject_manual_into_response(
                 for x in lst
                 if isinstance(x, dict) and isinstance(x.get("node"), dict)
             ]
+            # Список счетов (account cards) — не вставлять ни manuals, ни fakes
+            if nodes_list and _row_looks_like_account_product(nodes_list[0]) and not any(
+                isinstance(x, dict) and operation_row_kind(x) for x in nodes_list[:12]
+            ):
+                if bank_debug_enabled():
+                    print("[history] GraphQL edges похожи на счета — пропуск inject")
+                return
             existing_ids = {n.get("id") for n in nodes_list if isinstance(n, dict)}
             fallback_tpl = load_fallback_operation_template()
             tick_ms = max((operation_time_ms(n) for n in nodes_list), default=0)
@@ -1997,6 +2005,8 @@ def inject_manual_into_response(
                     continue
                 if use_cross_debounce and _cross_response_inject_debounce_hit(op_id):
                     continue
+                if not operation_row_kind(fake_item) or _row_looks_like_account_product(fake_item):
+                    continue
                 node = copy.deepcopy(fake_item)
                 lst.insert(0, {"cursor": f"fake_{op_id}", "node": node})
                 existing_ids.add(op_id)
@@ -2012,6 +2022,13 @@ def inject_manual_into_response(
             return
 
         existing_ids = {x.get("id") for x in lst if isinstance(x, dict)}
+        # Плоский список счетов — полный пропуск merge
+        if lst and _row_looks_like_account_product(lst[0] if lst else None) and not any(
+            isinstance(x, dict) and operation_row_kind(x) for x in lst[:12]
+        ):
+            if bank_debug_enabled():
+                print("[history] плоский список похож на счета — пропуск inject")
+            return
         fallback_tpl = load_fallback_operation_template()
         tick_ms = max_operation_time_ms(lst)
 
@@ -2059,6 +2076,8 @@ def inject_manual_into_response(
             if share_injected_ids and op_id in injected_ids:
                 continue
             if use_cross_debounce and _cross_response_inject_debounce_hit(op_id):
+                continue
+            if not operation_row_kind(fake_item) or _row_looks_like_account_product(fake_item):
                 continue
             lst.insert(0, copy.deepcopy(fake_item))
             existing_ids.add(op_id)
