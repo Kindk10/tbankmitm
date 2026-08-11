@@ -875,24 +875,17 @@ def create_real_receipt(operation_id=None):
     output_pdf = f"receipt_{id_short}_{timestamp}.pdf"
     final_pdf = f"final_{output_pdf}"
 
-    doc = fitz.open("sbpfinaltbanksend.pdf")
+    tpl = func.ensure_blank_receipt_template()
+    if not tpl:
+        print("Нет шаблона sbpfinaltbanksend.pdf — чек не создается")
+        return None
+    doc = fitz.open(tpl)
     page = doc[0]
+    func.whiteout_receipt_dynamic_fields(page)
     page.insert_font("my_normal", "TinkoffSans-Regular.ttf")
     page.insert_font("my_bold", "TinkoffSans-Medium.ttf")
 
-    POSITIONS = {
-        "date": (20, 86.5),
-        "big_summ": (110, 92, 234.6, 142),
-        "summ": (110, 173.98, 242.05, 187.98),
-        "sender": (110, 214, 250, 228.18),
-        "number": (110, 239-5, 250.02, 253.08-5),
-        "name": (110, 239+20-5, 250.02, 253.08+20-5),
-        "bank": (110, 239+40-5, 250.02, 253.08+40-5),
-        "invoice": (110, 239+60-5, 250.02, 253.08+60-5),
-        "identificator": (124.98999786376953, 314.00299072265625 + 8.18),
-        "identificator2": (226.91000366210938, 325.0829772949219 + 8.18),
-        "kvit": (93.35900115966797, 450.9629821777344 + 8.18),
-    }
+    POSITIONS = func.RECEIPT_FIELD_POSITIONS
 
     page.insert_text(POSITIONS["date"], transfer_data["date_full"], fontname="my_normal", fontsize=8, color=(144/255, 144/255, 144/255))
     page.insert_textbox(POSITIONS["big_summ"], f"{int(transfer_data['amount']):,}".replace(",", " "), fontname="my_bold", fontsize=16, color=(51/255, 51/255, 51/255), align=fitz.TEXT_ALIGN_RIGHT)
@@ -959,6 +952,7 @@ def _try_serve_receipt_pdf_response(flow: http.HTTPFlow, url_raw: str) -> bool:
     Подмена ответа для URL с payment_receipt_pdf / operation_statement_pdf.
     Вызывается до проверок JSON/тела — как у кнопки «Квитанция» в мок‑переводе.
     Ручные операции и мок из истории: history.ensure_operation_receipt_pdf_path.
+    Не отдаём чужой чек (fake_history[0] / last_pdf_path / create_real_receipt с суммой last_transfer).
     """
     ul = url_raw.lower()
     if "payment_receipt_pdf" not in ul and "operation_statement_pdf" not in ul:
@@ -967,85 +961,76 @@ def _try_serve_receipt_pdf_response(flow: http.HTTPFlow, url_raw: str) -> bool:
         return False
 
     operation_id = _parse_receipt_operation_id_from_flow(flow)
-    if not operation_id and fake_history:
-        operation_id = fake_history[0].get("id")
+    if not operation_id:
+        # Без id нельзя безопасно выбрать операцию — не подставляем чужой PDF на 20000.
+        if flow.response is not None:
+            flow.response.status_code = 404
+            flow.response.content = b""
+            flow.response.headers["Content-Type"] = "text/plain"
+        print("[transfer] receipt: нет operationId — 404")
+        return True
 
     pdf_path = None
-    if operation_id:
-        try:
-            pdf_path = history_mod.ensure_operation_receipt_pdf_path(str(operation_id))
-        except Exception:
-            pdf_path = None
-    if pdf_path and Path(pdf_path).exists():
-        pass
-    else:
+    try:
+        pdf_path = history_mod.ensure_operation_receipt_pdf_path(str(operation_id))
+    except Exception:
         pdf_path = None
-        if operation_id and fake_history:
-            for op in fake_history:
-                if not isinstance(op, dict):
-                    continue
-                if op.get("id") == operation_id or op.get("transaction_id") == operation_id:
-                    pdf_path = op.get("pdf_path")
-                    break
-        if not pdf_path and fake_history:
-            pdf_path = fake_history[0].get("pdf_path") if isinstance(fake_history[0], dict) else None
-        if not pdf_path:
-            pdf_path = transfer_data.get("last_pdf_path")
 
-    if not pdf_path or not Path(pdf_path).exists():
-        fb = operation_id or ("FALLBACK_" + str(int(time.time() * 1000)))
-        pdf_path = None
-        if operation_id and fake_history:
-            for hop in fake_history:
-                if not isinstance(hop, dict):
-                    continue
-                if str(hop.get("id")) != str(operation_id):
-                    continue
-                amt = hop.get("amount")
-                if isinstance(amt, dict):
-                    amt = float(amt.get("value") or 0)
-                else:
-                    amt = float(amt or 0)
-                try:
-                    from history import now_moscow as _now_msk
-                    _hop_date_fb = _now_msk().strftime("%d.%m.%Y, %H:%M:%S")
-                except Exception:
-                    _hop_date_fb = datetime.now().strftime("%d.%m.%Y, %H:%M:%S")
-                od = {
-                    "id": hop.get("id"),
-                    "date": hop.get("date_full")
-                    or transfer_data.get("date_full")
-                    or _hop_date_fb,
-                    "amount": amt,
-                    "type": "Debit",
-                    "bank": (clean_bank_name(hop.get("bank_receiver") or "") or "").strip()
-                    or (hop.get("description") or hop.get("subcategory") or "Перевод"),
-                    "title": (hop.get("receiver_name") or hop.get("description") or "").strip()
-                    or "Получатель",
-                    "requisite_phone": str(hop.get("receiver_phone") or "").strip(),
-                    "phone": str(hop.get("receiver_phone") or "").strip(),
-                    "sender_name": str(transfer_data.get("sender_name") or "").strip(),
-                }
-                try:
-                    pdf_path = generate_receipt_for_manual_op(od)
-                    if pdf_path:
-                        hop["pdf_path"] = pdf_path
-                        save_data(transfer_data)
-                except Exception:
-                    pdf_path = None
-                break
-        if not pdf_path or not Path(pdf_path).exists():
-            pdf_path = create_real_receipt(fb)
+    if (not pdf_path or not Path(pdf_path).exists()) and fake_history:
+        for hop in fake_history:
+            if not isinstance(hop, dict):
+                continue
+            if str(hop.get("id") or "") != str(operation_id) and str(hop.get("transaction_id") or "") != str(operation_id):
+                continue
+            amt = hop.get("amount")
+            if isinstance(amt, dict):
+                amt = float(amt.get("value") or 0)
+            else:
+                amt = float(amt or 0)
+            try:
+                from history import now_moscow as _now_msk
+                _hop_date_fb = _now_msk().strftime("%d.%m.%Y, %H:%M:%S")
+            except Exception:
+                _hop_date_fb = datetime.now().strftime("%d.%m.%Y, %H:%M:%S")
+            od = {
+                "id": hop.get("id"),
+                "date": hop.get("date_full")
+                or transfer_data.get("date_full")
+                or _hop_date_fb,
+                "amount": amt,
+                "type": "Debit",
+                "bank": (clean_bank_name(hop.get("bank_receiver") or "") or "").strip()
+                or (hop.get("description") or hop.get("subcategory") or "Перевод"),
+                "title": (hop.get("receiver_name") or hop.get("description") or "").strip()
+                or "Получатель",
+                "requisite_phone": str(hop.get("receiver_phone") or "").strip(),
+                "phone": str(hop.get("receiver_phone") or "").strip(),
+                "sender_name": str(transfer_data.get("sender_name") or "").strip(),
+            }
+            try:
+                pdf_path = generate_receipt_for_manual_op(od)
+                if pdf_path:
+                    hop["pdf_path"] = pdf_path
+                    save_data(transfer_data)
+            except Exception:
+                pdf_path = None
+            break
 
     if pdf_path and Path(pdf_path).exists():
         with open(pdf_path, "rb") as f:
             flow.response.content = f.read()
         flow.response.headers["Content-Type"] = "application/pdf"
-        flow.response.headers["Content-Disposition"] = f'inline; filename=receipt_{operation_id or "file"}.pdf'
+        flow.response.headers["Content-Disposition"] = f'inline; filename=receipt_{operation_id}.pdf'
         flow.response.status_code = 200
         print(f"Чек отдан: {pdf_path}")
         return True
-    return False
+
+    if flow.response is not None:
+        flow.response.status_code = 404
+        flow.response.content = b""
+        flow.response.headers["Content-Type"] = "text/plain"
+    print(f"[transfer] receipt: не найден PDF для operationId={operation_id}")
+    return True
 
 
 def response(flow: http.HTTPFlow) -> None:

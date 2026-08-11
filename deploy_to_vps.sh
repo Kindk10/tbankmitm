@@ -24,12 +24,24 @@ FILES=(
   _action_buttons_row_inner.html
   _action_buttons_disallow_only_inner.html
   _reference_account_molecule.html
+  sbpfinaltbanksend.pdf
+  TinkoffSans-Regular.ttf
+  TinkoffSans-Medium.ttf
 )
 
 LOCAL=()
 for f in "${FILES[@]}"; do
-  LOCAL+=("$ROOT/$f")
+  if [[ -f "$ROOT/$f" ]]; then
+    LOCAL+=("$ROOT/$f")
+  else
+    echo "WARN: skip missing $f"
+  fi
 done
+
+if [[ ${#LOCAL[@]} -eq 0 ]]; then
+  echo "Nothing to deploy"
+  exit 1
+fi
 
 echo "Deploy -> ${HOST}:${REMOTE}"
 scp "${LOCAL[@]}" "${HOST}:${REMOTE}/"

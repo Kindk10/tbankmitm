@@ -1,6 +1,7 @@
 """Offline smoke checks for the five fixes; writes NDJSON to debug-f24997.log."""
 import json
 import os
+import re
 import sys
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -39,26 +40,44 @@ def main():
     except Exception as e:
         dbg("H2", "smoke.totals", "chart totals failed", {"error_type": type(e).__name__})
 
-    # H3 receipt template resolve + generate does not raise
-    tpl = func._resolve_receipt_template_path()
-    receipt = None
+    # H3 receipt template + разные суммы (не залипает 20000)
+    tpl = func.ensure_blank_receipt_template()
+    tpl_ok = bool(tpl) and os.path.isfile(str(tpl)) and os.path.basename(str(tpl)).lower() == "sbpfinaltbanksend.pdf"
+    amounts = (1234.0, 5678.0)
+    amount_ok = {}
     try:
-        receipt = func.generate_operation_receipt({
-            "id": "m_smoketest01",
-            "date": "13.07.2026, 12:00:00",
-            "amount": 1.0,
-            "type": "Debit",
-            "bank": "СБП",
-            "title": "Smoke",
-            "phone": "+79001112233",
-        })
-        dbg("H3", "smoke.receipt", "generate", {
-            "tpl_found": bool(tpl),
-            "receipt_ok": receipt is None or os.path.isfile(str(receipt)),
+        import fitz
+        for amt in amounts:
+            path = func.generate_operation_receipt({
+                "id": f"m_smoke_{int(amt)}",
+                "date": "11.08.2026, 12:00:00",
+                "amount": amt,
+                "type": "Debit",
+                "bank": "СБП",
+                "title": "Smoke",
+                "phone": "+79001112233",
+            })
+            text = ""
+            if path and os.path.isfile(path):
+                doc = fitz.open(path)
+                text = (doc[0].get_text() or "").replace("\xa0", " ")
+                doc.close()
+            formatted = f"{int(amt):,}".replace(",", " ")
+            has_amt = formatted in text or str(int(amt)) in re.sub(r"\D+", "", text)
+            has_20000 = ("20 000" in text) or ("20000" in re.sub(r"\s+", "", text))
+            # чужая сумма из другой тестовой генерации
+            other = "5678" if int(amt) == 1234 else "1234"
+            has_other = other in re.sub(r"\D+", "", text) and str(int(amt)) not in re.sub(r"\D+", "", text)
+            amount_ok[str(int(amt))] = bool(path) and has_amt and not has_20000 and not has_other
+        dbg("H3", "smoke.receipt", "generate amounts", {
+            "tpl_found": tpl_ok,
+            "tpl_path": tpl,
+            "amount_ok": amount_ok,
+            "all_ok": tpl_ok and all(amount_ok.values()),
             "raised": False,
         })
     except Exception as e:
-        dbg("H3", "smoke.receipt", "generate raised", {"error_type": type(e).__name__})
+        dbg("H3", "smoke.receipt", "generate raised", {"error_type": type(e).__name__, "error": str(e)[:200]})
 
     # H4 registration address field present in panel HTML
     html = panel_bridge.HTML_PANEL

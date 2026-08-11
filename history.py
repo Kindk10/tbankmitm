@@ -267,10 +267,25 @@ def op_passes_app_month_filter(date_str: str) -> bool:
     return is_current_month(date_str)
 
 
+_PENDING_FAKE_CACHE_KEY = None
+_PENDING_FAKE_CACHE_VAL = None
+
+
 def pending_fake_history_ops(month_restrict: bool = None) -> list:
     """Записи fake_history из last_transfer*.json для inject в ленту банка."""
+    global _PENDING_FAKE_CACHE_KEY, _PENDING_FAKE_CACHE_VAL
     if month_restrict is None:
         month_restrict = not app_include_all_operations()
+    mtimes = []
+    for path in _last_transfer_json_paths():
+        try:
+            mtimes.append(os.path.getmtime(path) if os.path.isfile(path) else 0.0)
+        except OSError:
+            mtimes.append(0.0)
+    cache_key = (tuple(mtimes), bool(month_restrict), frozenset(hidden_operations or ()))
+    if _PENDING_FAKE_CACHE_VAL is not None and _PENDING_FAKE_CACHE_KEY == cache_key:
+        return [copy.deepcopy(op) for op in _PENDING_FAKE_CACHE_VAL]
+
     out = []
     seen = set()
     for path in _last_transfer_json_paths():
@@ -291,7 +306,9 @@ def pending_fake_history_ops(month_restrict: bool = None) -> list:
             if month_restrict and not _fake_op_in_current_month(op):
                 continue
             out.append(copy.deepcopy(op))
-    return out
+    _PENDING_FAKE_CACHE_KEY = cache_key
+    _PENDING_FAKE_CACHE_VAL = out
+    return [copy.deepcopy(op) for op in out]
 
 
 def get_panel_chart_display_totals():
@@ -2433,22 +2450,34 @@ def _fake_history_record_by_id(op_id: str) -> Optional[dict]:
     return None
 
 
-def _resolve_stored_receipt_pdf(stored: str) -> Optional[str]:
-    """Абсолютный путь к PDF чека, если файл существует."""
+def _resolve_stored_receipt_pdf(stored: str, expected_amount: Optional[float] = None) -> Optional[str]:
+    """Абсолютный путь к PDF чека, если файл существует. При expected_amount — сумма в PDF должна совпадать."""
     if not stored or not isinstance(stored, str):
         return None
     p = stored.strip()
+    resolved = None
     if os.path.isabs(p) and os.path.isfile(p):
-        return p
-    _hd = os.path.dirname(os.path.abspath(__file__))
-    for base in (_hd, os.path.normpath(os.getcwd())):
-        cand = os.path.normpath(os.path.join(base, p))
-        if os.path.isfile(cand):
-            return cand
-    cand = os.path.join(_hd, os.path.basename(p))
-    if os.path.isfile(cand):
-        return cand
-    return None
+        resolved = p
+    else:
+        _hd = os.path.dirname(os.path.abspath(__file__))
+        for base in (_hd, os.path.normpath(os.getcwd())):
+            cand = os.path.normpath(os.path.join(base, p))
+            if os.path.isfile(cand):
+                resolved = cand
+                break
+        if not resolved:
+            cand = os.path.join(_hd, os.path.basename(p))
+            if os.path.isfile(cand):
+                resolved = cand
+    if not resolved:
+        return None
+    if expected_amount is not None:
+        try:
+            if not func.receipt_pdf_matches_amount(resolved, expected_amount):
+                return None
+        except Exception:
+            return None
+    return resolved
 
 
 def _fake_history_op_to_receipt_dict(hop: dict) -> dict:
@@ -2534,14 +2563,15 @@ def ensure_operation_receipt_pdf_path(op_id: str) -> Optional[str]:
 
     if op_id in manual_operations:
         op = manual_operations[op_id]
-        pdf_abs = _resolve_stored_receipt_pdf(str(op.get("pdf_path") or ""))
+        amt = abs(float(op.get("amount") or 0))
+        pdf_abs = _resolve_stored_receipt_pdf(str(op.get("pdf_path") or ""), expected_amount=amt)
         if pdf_abs:
             return pdf_abs
         op_data = {
             "id": op_id,
             "date": op.get("date") or "",
             "operationTime": op.get("operationTime"),
-            "amount": abs(float(op.get("amount") or 0)),
+            "amount": amt,
             "type": op.get("type") or "Debit",
             "bank": op.get("bank") or (op.get("bank_preset") or "") or "Перевод",
             "title": op.get("title") or op.get("description") or "",
@@ -2565,7 +2595,12 @@ def ensure_operation_receipt_pdf_path(op_id: str) -> Optional[str]:
     hop = _fake_history_record_by_id(op_id)
     if not hop:
         return None
-    pdf_abs = _resolve_stored_receipt_pdf(str(hop.get("pdf_path") or ""))
+    amt_h = hop.get("amount")
+    if isinstance(amt_h, dict):
+        amt_h = float(amt_h.get("value") or 0)
+    else:
+        amt_h = abs(float(amt_h or 0))
+    pdf_abs = _resolve_stored_receipt_pdf(str(hop.get("pdf_path") or ""), expected_amount=amt_h)
     if pdf_abs:
         return pdf_abs
     try:

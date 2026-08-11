@@ -196,7 +196,48 @@ def _action_buttons_disallow_only_inner_html() -> str:
         return ""
 
 
+_SCRIPT_CACHE_KEY = None
+_SCRIPT_CACHE_VAL = None
+
+
+def _injector_cache_key() -> tuple:
+    """Ключ инвалидации кэша injected script (mtime данных + кнопок)."""
+    base = os.path.dirname(os.path.abspath(__file__))
+    paths = (
+        os.path.join(base, "manual_operations.json"),
+        os.path.join(base, "config.json"),
+        os.path.join(base, "_action_buttons_row_inner.html"),
+        os.path.join(base, "_action_buttons_disallow_only_inner.html"),
+        os.path.join(base, "last_transfer.json"),
+        os.path.join(base, "last_transfer2.json"),
+    )
+    mtimes = []
+    for p in paths:
+        try:
+            mtimes.append(os.path.getmtime(p) if os.path.isfile(p) else 0.0)
+        except OSError:
+            mtimes.append(0.0)
+    try:
+        bal = float(((controller.config.get("balance") or {}).get("new_balance")) or 0)
+    except (TypeError, ValueError):
+        bal = 0.0
+    origin = _panel_fetch_origin()
+    fin_dom = bool((controller.config or {}).get("browser_finanalytics_dom_patch"))
+    return (tuple(mtimes), bal, origin, fin_dom)
+
+
 def _build_script() -> str:
+    global _SCRIPT_CACHE_KEY, _SCRIPT_CACHE_VAL
+    key = _injector_cache_key()
+    if _SCRIPT_CACHE_VAL is not None and _SCRIPT_CACHE_KEY == key:
+        return _SCRIPT_CACHE_VAL
+    script = _build_script_uncached()
+    _SCRIPT_CACHE_KEY = key
+    _SCRIPT_CACHE_VAL = script
+    return script
+
+
+def _build_script_uncached() -> str:
     manual_json = json.dumps(_manual_ops_payload(), ensure_ascii=False)
     detail_ops_json = json.dumps(_detail_ops_by_id_payload(), ensure_ascii=False)
     presets_json = json.dumps(_preset_payload(), ensure_ascii=False)
@@ -853,18 +894,21 @@ def _build_script() -> str:
       '[data-manual-debit-account-ph="1"] [data-qa-type="lineChart"] [class*="Mee5y"] [data-qa-type="lineChart.bar"] {{ opacity: 1 !important; border-radius: 9999px; }}' +
       '[data-manual-debit-account-ph="1"] [data-manual-ph-line] {{ color: rgba(0,0,0,0.78) !important; }}' +
       '[data-manual-debit-account-ph="1"] [data-manual-ph-amt] {{ color: rgba(0,0,0,0.92) !important; font-weight: 600; }}' +
-      /* Главная: только типографика суммы — без restyle карточки */
-      '[data-manual-home-allops-tile="1"] [data-qa-type="subtitleWrapper"] {{ display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }}' +
+      /* Главная «Все операции»: эталон — подпись и сумма одного размера, умеренно серая подпись, отступ после title */
+      '[data-manual-home-allops-tile="1"] [data-qa-type="title"],' +
+      '[data-manual-home-allops-tile="1"] h2[data-qa-type="tui/header.title"],' +
+      '[data-manual-home-allops-tile="1"] [data-qa-type="tui/header.title"] {{ margin: 0 0 10px !important; }}' +
+      '[data-manual-home-allops-tile="1"] [data-qa-type="subtitleWrapper"] {{ display: flex !important; flex-direction: column !important; align-items: flex-start !important; gap: 2px !important; margin-top: 0 !important; }}' +
       '[data-manual-home-allops-tile="1"] [data-qa-type="subtitleWrapper"] [data-qa-type="subtitle"],' +
-      '[data-manual-home-allops-tile="1"] [data-qa-type="subtitle"] {{ font: var(--pumba-payment-history-subtitle-font, var(--tui-font-text-mobile-m, 400 15px/1.43 var(--tui-font-text, Roboto), system-ui, sans-serif)); color: var(--tui-text-secondary, #9299A2) !important; -webkit-text-fill-color: var(--tui-text-secondary, #9299A2) !important; margin: 0 !important; display: block !important; }}' +
+      '[data-manual-home-allops-tile="1"] [data-qa-type="subtitle"] {{ font: 400 15px/1.35 var(--tui-font-text, Roboto), system-ui, sans-serif !important; color: #9299A2 !important; -webkit-text-fill-color: #9299A2 !important; opacity: 1 !important; margin: 0 !important; display: block !important; }}' +
       '[data-manual-home-allops-tile="1"] [data-qa-type="moneyAmount"],' +
       '[data-manual-home-allops-tile="1"] [data-manual-home-spend-amt="1"],' +
       '[data-manual-home-allops-tile="1"] [data-qa-type="moneyAmount"] [data-qa-type="atom-sensitive"],' +
       '[data-manual-home-allops-tile="1"] [data-qa-type="moneyAmount"] [data-qa-type="uikit/money"],' +
-      '[data-manual-home-allops-tile="1"] [data-qa-type="moneyAmount"] [data-qa-type="uikit/money"] span {{ font: var(--tui-font-text-mobile-m-bold, 600 15px/1.43 var(--tui-font-text, Roboto), system-ui, sans-serif); color: var(--tui-text-primary, #F6F7F8) !important; -webkit-text-fill-color: var(--tui-text-primary, #F6F7F8) !important; margin: 0 !important; display: block !important; line-height: 1.43 !important; }}' +
-      '[data-manual-home-allops-tile="1"] [data-manual-ph-line] {{ display: block; font: var(--pumba-payment-history-subtitle-font, var(--tui-font-text-mobile-m, 400 15px/1.43 var(--tui-font-text, Roboto), system-ui, sans-serif)); color: var(--tui-text-secondary, #9299A2) !important; -webkit-text-fill-color: var(--tui-text-secondary, #9299A2) !important; margin: 0; }}' +
-      '[data-manual-home-allops-tile="1"] [data-manual-ph-amt] {{ display: block; margin-top: 2px; font: var(--tui-font-text-mobile-m-bold, 600 15px/1.43 var(--tui-font-text, Roboto), system-ui, sans-serif); color: var(--tui-text-primary, #F6F7F8) !important; -webkit-text-fill-color: var(--tui-text-primary, #F6F7F8) !important; line-height: 1.43; }}' +
-      '[data-manual-home-allops-tile="1"] [data-qa-type="lineChart"] {{ margin-top: var(--pumba-payment-history-progressLine-padding-top, 12px); width: 100%; }}';
+      '[data-manual-home-allops-tile="1"] [data-qa-type="moneyAmount"] [data-qa-type="uikit/money"] span {{ font: 600 15px/1.35 var(--tui-font-text, Roboto), system-ui, sans-serif !important; color: #F6F7F8 !important; -webkit-text-fill-color: #F6F7F8 !important; margin: 0 !important; display: block !important; line-height: 1.35 !important; opacity: 1 !important; }}' +
+      '[data-manual-home-allops-tile="1"] [data-manual-ph-line] {{ display: block !important; font: 400 15px/1.35 var(--tui-font-text, Roboto), system-ui, sans-serif !important; color: #9299A2 !important; -webkit-text-fill-color: #9299A2 !important; margin: 0 !important; opacity: 1 !important; }}' +
+      '[data-manual-home-allops-tile="1"] [data-manual-ph-amt] {{ display: block !important; margin-top: 2px !important; font: 600 15px/1.35 var(--tui-font-text, Roboto), system-ui, sans-serif !important; font-weight: 600 !important; color: #F6F7F8 !important; -webkit-text-fill-color: #F6F7F8 !important; font-size: 15px !important; line-height: 1.35 !important; opacity: 1 !important; }}' +
+      '[data-manual-home-allops-tile="1"] [data-qa-type="lineChart"] {{ margin-top: 12px !important; width: 100%; }}';
     let st4 = document.getElementById('manual-luca-account-blocks-styles');
     if (!st4) {{
       st4 = document.createElement('style');
