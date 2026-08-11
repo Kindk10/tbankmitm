@@ -267,12 +267,12 @@ def _build_script_uncached() -> str:
     return f"""
 <script>
 (function () {{
-  if (window.__manualOpsBrowserInjectorV25) return;
-  window.__manualOpsBrowserInjectorV25 = true;
+  if (window.__manualOpsBrowserInjectorV26) return;
+  window.__manualOpsBrowserInjectorV26 = true;
   window.__manualOpsBrowserInjector = true;
 
   const ENABLE_BROWSER_FIN_DOM_PATCH = {fin_dom_js};
-  const INJECTOR_BUILD = 'v25-home-detail-fix';
+  const INJECTOR_BUILD = 'v26-fix-native-detail-receipt';
   try {{ console.info('[tbank-mitm] injector', INJECTOR_BUILD); }} catch (eLog) {{}}
 
   const MANUAL_OPS = {manual_json};
@@ -549,25 +549,45 @@ def _build_script_uncached() -> str:
     return false;
   }}
 
+  let __transferDetailLookCache = {{ t: 0, v: false }};
   function pageLooksLikeTransferDetail() {{
+    /* Cheap path: только data-qa узлы + кэш 700ms — не root.innerText (дорого / не любые покупки). */
     if (!isOperationsDetailPage()) return false;
+    const now = Date.now();
+    if (now - __transferDetailLookCache.t < 700) return __transferDetailLookCache.v;
+    let hit = false;
     const root =
       document.querySelector('[data-qa-type="independent-pumba-operation-details-container"]')
-      || document.querySelector('[data-qa-type="mobile-pumba-detail-sheet"]')
-      || document.body;
-    const sample = normalizeUiText((root && root.innerText) || '').slice(0, 2500).toLowerCase();
-    if (sample.indexOf('переводы') !== -1) return true;
-    if (sample.indexOf('сбп') !== -1) return true;
-    if (sample.indexOf('номер телефона') !== -1) return true;
-    if (sample.indexOf('отправитель') !== -1) return true;
-    if (sample.indexOf('пополнение') !== -1 && sample.indexOf('справка') !== -1) return true;
-    return false;
+      || document.querySelector('[data-qa-type="mobile-pumba-detail-sheet"]');
+    if (root) {{
+      const badge = root.querySelector('[data-qa-type="mobile-pumba-detail-operation-molecule-category-badge"]');
+      const badgeTx = normalizeUiText((badge && badge.textContent) || '').toLowerCase();
+      if (badgeTx.indexOf('перевод') !== -1 || badgeTx.indexOf('сбп') !== -1) hit = true;
+      if (!hit) {{
+        const titles = root.querySelectorAll('h2[data-qa-type="tui/header.title"], [data-qa-type="molecule-account-operation-title-text"]');
+        for (let i = 0; i < titles.length && !hit; i++) {{
+          const tx = normalizeUiText(titles[i].textContent || '').toLowerCase();
+          if (tx === 'пополнение' || tx === 'перевод' || tx.indexOf('пополнение') === 0 || tx.indexOf('перевод') === 0) hit = true;
+        }}
+      }}
+      if (!hit && root.querySelector('[data-qa-type="visible-requisites"] [data-qa-type="requisite"]')) {{
+        const labs = root.querySelectorAll('[data-qa-type="requisite"] p, [data-qa-type="requisite"] [data-qa-type="tui/header.title"]');
+        for (let j = 0; j < labs.length && !hit; j++) {{
+          const lb = normalizeUiText(labs[j].textContent || '').toLowerCase();
+          if (lb.indexOf('отправител') !== -1 || lb.indexOf('номер телефона') !== -1 || lb.indexOf('телефон') !== -1) hit = true;
+        }}
+      }}
+    }}
+    __transferDetailLookCache = {{ t: now, v: hit }};
+    return hit;
   }}
 
   function isManualLikeDetailOp(op) {{
+    /* Full chrome только для manual/fake — не любые покупки и не все нативные SBP-страницы. */
     if (!op) return false;
     const id = op.id != null ? String(op.id) : '';
     if (op.manual === true || op.fake_transfer === true) return true;
+    if (op._from_page_transfer === true && (id.indexOf('m_') === 0 || id.indexOf('fake_') === 0 || id === 'page')) return true;
     if (id) {{
       for (let i = 0; i < MANUAL_OPS.length; i++) {{
         const o = MANUAL_OPS[i];
@@ -578,14 +598,16 @@ def _build_script_uncached() -> str:
       }}
       if (id.indexOf('m_') === 0 || id.indexOf('fake_') === 0) return true;
     }}
-    const bank = String(op.bank || op.bank_preset || '').toLowerCase();
-    const cat = String(op.category || op.subtitle || '').toLowerCase();
-    const preset = String(op.bank_preset || '').toLowerCase();
-    if (preset === 'sbp' || bank.indexOf('сбп') !== -1 || bank === 'sbp') return true;
-    if (cat.indexOf('перевод') !== -1 || cat.indexOf('сбп') !== -1) return true;
-    if (op._from_page_transfer === true) return true;
-    if (pageLooksLikeTransferDetail()) return true;
     return false;
+  }}
+
+  function hasNativeElevatedDetailChrome() {{
+    if (!isOperationsDetailPage()) return false;
+    if (!hasNativeDetailAccountCardForInjectGate()) return false;
+    const req =
+      document.querySelector('[data-qa-type="mobile-pumba-requisites-operation"]')
+      || document.querySelector('[data-qa-type="visible-requisites"]');
+    return !!req;
   }}
 
   function removeManualDetailArtifacts() {{
@@ -897,7 +919,7 @@ def _build_script_uncached() -> str:
 
   function ensurePaymentHistorySubtitleStyles() {{
     /* Стили пишем один раз — постоянный rewrite textContent = layout thrash */
-    if (document.getElementById('manual-payment-history-styles-v25')) return;
+    if (document.getElementById('manual-payment-history-styles-v26')) return;
     let st = document.getElementById('manual-payment-history-subtitle-styles');
     if (!st) {{
       st = document.createElement('style');
@@ -933,21 +955,21 @@ def _build_script_uncached() -> str:
       '[data-manual-debit-account-ph="1"] [data-qa-type="lineChart"] [class*="Mee5y"] [data-qa-type="lineChart.bar"] {{ opacity: 1 !important; border-radius: 9999px; }}' +
       '[data-manual-debit-account-ph="1"] [data-manual-ph-line] {{ color: rgba(0,0,0,0.78) !important; }}' +
       '[data-manual-debit-account-ph="1"] [data-manual-ph-amt] {{ color: rgba(0,0,0,0.92) !important; font-weight: 600; }}' +
-      /* Главная «Все операции»: эталон скрин 3 — весь текст белый; подпись regular 14; сумма bold 16; зазор title→подпись */
+      /* Главная «Все операции»: эталон — title 17 bold; «Трат» 15/600; сумма 16 bold; ближе к полоске */
       '[data-manual-home-allops-tile="1"] [data-qa-type="title"],' +
       '[data-manual-home-allops-tile="1"] h2[data-qa-type="tui/header.title"],' +
-      '[data-manual-home-allops-tile="1"] [data-qa-type="tui/header.title"] {{ font: 700 16px/1.2 var(--tui-font-text, Roboto), system-ui, sans-serif !important; color: #F6F7F8 !important; -webkit-text-fill-color: #F6F7F8 !important; margin: 0 0 12px !important; opacity: 1 !important; }}' +
+      '[data-manual-home-allops-tile="1"] [data-qa-type="tui/header.title"] {{ font: 700 17px/1.2 var(--tui-font-text, Roboto), system-ui, sans-serif !important; color: #F6F7F8 !important; -webkit-text-fill-color: #F6F7F8 !important; margin: 0 0 10px !important; opacity: 1 !important; }}' +
       '[data-manual-home-allops-tile="1"] [data-qa-type="subtitleWrapper"] {{ display: flex !important; flex-direction: column !important; align-items: flex-start !important; gap: 1px !important; margin-top: 0 !important; }}' +
       '[data-manual-home-allops-tile="1"] [data-qa-type="subtitleWrapper"] [data-qa-type="subtitle"],' +
-      '[data-manual-home-allops-tile="1"] [data-qa-type="subtitle"] {{ font: 400 14px/1.3 var(--tui-font-text, Roboto), system-ui, sans-serif !important; font-weight: 400 !important; color: #F6F7F8 !important; -webkit-text-fill-color: #F6F7F8 !important; opacity: 1 !important; margin: 0 !important; display: block !important; }}' +
+      '[data-manual-home-allops-tile="1"] [data-qa-type="subtitle"] {{ font: 600 15px/1.3 var(--tui-font-text, Roboto), system-ui, sans-serif !important; font-weight: 600 !important; color: #F6F7F8 !important; -webkit-text-fill-color: #F6F7F8 !important; opacity: 1 !important; margin: 0 !important; display: block !important; }}' +
       '[data-manual-home-allops-tile="1"] [data-qa-type="moneyAmount"],' +
       '[data-manual-home-allops-tile="1"] [data-manual-home-spend-amt="1"],' +
       '[data-manual-home-allops-tile="1"] [data-qa-type="moneyAmount"] [data-qa-type="atom-sensitive"],' +
       '[data-manual-home-allops-tile="1"] [data-qa-type="moneyAmount"] [data-qa-type="uikit/money"],' +
       '[data-manual-home-allops-tile="1"] [data-qa-type="moneyAmount"] [data-qa-type="uikit/money"] span {{ font: 700 16px/1.25 var(--tui-font-text, Roboto), system-ui, sans-serif !important; font-weight: 700 !important; color: #F6F7F8 !important; -webkit-text-fill-color: #F6F7F8 !important; margin: 0 !important; display: block !important; line-height: 1.25 !important; opacity: 1 !important; }}' +
-      '[data-manual-home-allops-tile="1"] [data-manual-ph-line] {{ display: block !important; font: 400 14px/1.3 var(--tui-font-text, Roboto), system-ui, sans-serif !important; font-weight: 400 !important; color: #F6F7F8 !important; -webkit-text-fill-color: #F6F7F8 !important; margin: 0 !important; opacity: 1 !important; }}' +
+      '[data-manual-home-allops-tile="1"] [data-manual-ph-line] {{ display: block !important; font: 600 15px/1.3 var(--tui-font-text, Roboto), system-ui, sans-serif !important; font-weight: 600 !important; color: #F6F7F8 !important; -webkit-text-fill-color: #F6F7F8 !important; margin: 0 !important; opacity: 1 !important; }}' +
       '[data-manual-home-allops-tile="1"] [data-manual-ph-amt] {{ display: block !important; margin-top: 1px !important; font: 700 16px/1.25 var(--tui-font-text, Roboto), system-ui, sans-serif !important; font-weight: 700 !important; color: #F6F7F8 !important; -webkit-text-fill-color: #F6F7F8 !important; font-size: 16px !important; line-height: 1.25 !important; opacity: 1 !important; }}' +
-      '[data-manual-home-allops-tile="1"] [data-qa-type="lineChart"] {{ margin-top: 12px !important; width: 100%; }}';
+      '[data-manual-home-allops-tile="1"] [data-qa-type="lineChart"] {{ margin-top: 8px !important; width: 100%; }}';
     let st4 = document.getElementById('manual-luca-account-blocks-styles');
     if (!st4) {{
       st4 = document.createElement('style');
@@ -970,7 +992,7 @@ def _build_script_uncached() -> str:
       '[data-manual-debit-tail-section="1"] .manual-debit-tail-chevron {{ flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; color: var(--tui-text-tertiary, rgba(0,16,36,0.22)); width: 18px; height: 18px; }}' +
       '[data-manual-debit-tail-section="1"] .manual-debit-tail-chevron svg {{ display: block; }}';
     const marker = document.createElement('meta');
-    marker.id = 'manual-payment-history-styles-v25';
+    marker.id = 'manual-payment-history-styles-v26';
     (document.head || document.documentElement).appendChild(marker);
   }}
 
@@ -1370,16 +1392,20 @@ def _build_script_uncached() -> str:
     scope.querySelectorAll('[data-qa-type="title"], h2[data-qa-type="tui/header.title"], [data-qa-type="tui/header.title"]').forEach(function (el) {{
       const tx = normalizeUiText(el.textContent || '');
       if (tx.indexOf('Все операции') === -1) return;
-      paint(el, 700, '16px', '12px');
+      paint(el, 700, '17px', '10px');
     }});
     scope.querySelectorAll('[data-qa-type="subtitle"], [data-manual-ph-line]').forEach(function (el) {{
-      paint(el, 400, '14px', '0');
+      paint(el, 600, '15px', '0');
     }});
     scope.querySelectorAll('[data-qa-type="moneyAmount"], [data-manual-ph-amt], [data-manual-home-spend-amt="1"], [data-qa-type="uikit/money"], [data-qa-type="atom-sensitive"]').forEach(function (el) {{
       if (el.closest('[data-qa-type="lineChart"]')) return;
       paint(el, 700, '16px', '0');
       el.querySelectorAll('span').forEach(function (sp) {{ paint(sp, 700, '16px', '0'); }});
     }});
+    const chart = scope.querySelector('[data-qa-type="lineChart"]');
+    if (chart && chart.style) {{
+      try {{ chart.style.setProperty('margin-top', '8px', 'important'); }} catch (eC) {{}}
+    }}
   }}
 
   function patchOneHomeAllOperationsScope(scope, exp) {{
@@ -1641,11 +1667,7 @@ def _build_script_uncached() -> str:
       const le = Number(st.list_expense);
       if (isFinite(li) && isFinite(le)) return {{ income: li, expense: le }};
     }}
-    if (st.income != null && st.expense != null) {{
-      const pi = Number(st.income);
-      const pe = Number(st.expense);
-      if (isFinite(pi) && isFinite(pe)) return {{ income: pi, expense: pe }};
-    }}
+    /* Без fallback на stats.income/expense (bank aggregate) — лучше null, чем завышение. */
     return null;
   }}
 
@@ -1779,40 +1801,25 @@ def _build_script_uncached() -> str:
 
   function touchManualDetailStylesOrder() {{
     const st =
-      document.getElementById('manual-detail-pumba-cards-v24')
-      || document.getElementById('manual-detail-pumba-cards-v23')
-      || document.getElementById('manual-detail-pumba-cards-v22')
-      || document.getElementById('manual-detail-pumba-cards-v21')
-      || document.getElementById('manual-detail-pumba-cards-v20')
-      || document.getElementById('manual-detail-pumba-cards-v19')
-      || document.getElementById('manual-detail-pumba-cards-v18')
-      || document.getElementById('manual-detail-pumba-cards-v17')
-      || document.getElementById('manual-detail-pumba-cards-v16')
-      || document.getElementById('manual-detail-pumba-cards-v15')
-      || document.getElementById('manual-detail-pumba-cards-v14')
-      || document.getElementById('manual-detail-pumba-cards-v13')
-      || document.getElementById('manual-detail-pumba-cards-v12')
-      || document.getElementById('manual-detail-pumba-cards-v11')
-      || document.getElementById('manual-detail-pumba-cards-v10')
-      || document.getElementById('manual-detail-pumba-cards-v9')
-      || document.getElementById('manual-detail-pumba-cards-v8')
-      || document.getElementById('manual-detail-pumba-cards-v7')
-      || document.getElementById('manual-detail-pumba-cards-v6');
+      document.getElementById('manual-detail-pumba-cards-v26')
+      || document.getElementById('manual-detail-pumba-cards-v25')
+      || document.getElementById('manual-detail-pumba-cards-v24')
+      || document.getElementById('manual-detail-pumba-cards-v23');
     if (st && st.parentNode === document.head && document.head.lastElementChild !== st) {{
       try {{ document.head.appendChild(st); }} catch (eOrd) {{}}
     }}
   }}
 
   function injectManualDetailStyles() {{
-    if (document.getElementById('manual-detail-pumba-cards-v25')) return;
-    ['manual-detail-pumba-cards-v3', 'manual-detail-pumba-cards-v4', 'manual-detail-pumba-cards-v5', 'manual-detail-pumba-cards-v6', 'manual-detail-pumba-cards-v7', 'manual-detail-pumba-cards-v8', 'manual-detail-pumba-cards-v9', 'manual-detail-pumba-cards-v10', 'manual-detail-pumba-cards-v11', 'manual-detail-pumba-cards-v12', 'manual-detail-pumba-cards-v13', 'manual-detail-pumba-cards-v14', 'manual-detail-pumba-cards-v15', 'manual-detail-pumba-cards-v16', 'manual-detail-pumba-cards-v17', 'manual-detail-pumba-cards-v18', 'manual-detail-pumba-cards-v19', 'manual-detail-pumba-cards-v20', 'manual-detail-pumba-cards-v21', 'manual-detail-pumba-cards-v22', 'manual-detail-pumba-cards-v23', 'manual-detail-pumba-cards-v24'].forEach(function (lid) {{
+    if (document.getElementById('manual-detail-pumba-cards-v26')) return;
+    ['manual-detail-pumba-cards-v3', 'manual-detail-pumba-cards-v4', 'manual-detail-pumba-cards-v5', 'manual-detail-pumba-cards-v6', 'manual-detail-pumba-cards-v7', 'manual-detail-pumba-cards-v8', 'manual-detail-pumba-cards-v9', 'manual-detail-pumba-cards-v10', 'manual-detail-pumba-cards-v11', 'manual-detail-pumba-cards-v12', 'manual-detail-pumba-cards-v13', 'manual-detail-pumba-cards-v14', 'manual-detail-pumba-cards-v15', 'manual-detail-pumba-cards-v16', 'manual-detail-pumba-cards-v17', 'manual-detail-pumba-cards-v18', 'manual-detail-pumba-cards-v19', 'manual-detail-pumba-cards-v20', 'manual-detail-pumba-cards-v21', 'manual-detail-pumba-cards-v22', 'manual-detail-pumba-cards-v23', 'manual-detail-pumba-cards-v24', 'manual-detail-pumba-cards-v25'].forEach(function (lid) {{
       const legacy = document.getElementById(lid);
       if (legacy) {{
         try {{ legacy.remove(); }} catch (eL) {{}}
       }}
     }});
     const st = document.createElement('style');
-    st.id = 'manual-detail-pumba-cards-v25';
+    st.id = 'manual-detail-pumba-cards-v26';
     st.textContent = `
 /* Инжект: ширина; горизонтальный padding даёт independent-pumba-operation-details-container — не дублировать */
 [data-manual-injected-account-cards="1"][data-qa-type="accountCardsShown-wrapper"],
@@ -1876,10 +1883,8 @@ def _build_script_uncached() -> str:
 [data-manual-bank-wrapper="1"] {{
   margin-top: 0 !important;
 }}
-[data-qa-type="independent-pumba-operation-details-container"] [data-qa-type="bankDetailsShown-wrapper"] {{
-  margin-top: 24px !important;
-}}
-[data-qa-type="mobile-pumba-detail-sheet"] [data-qa-type="bankDetailsShown-wrapper"] {{
+[data-manual-injected-account-cards="1"] ~ [data-qa-type="bankDetailsShown-wrapper"],
+[data-manual-bank-wrapper="1"][data-qa-type="bankDetailsShown-wrapper"] {{
   margin-top: 24px !important;
 }}
 [data-manual-injected-account-cards="1"] + [data-qa-type="bankDetailsShown-wrapper"] {{
@@ -2049,8 +2054,7 @@ def _build_script_uncached() -> str:
   width: 40px !important;
   height: 40px !important;
 }}
-/* Кнопки действий: тёмные плитки + синие иконки 24px (эталон), не «голые» крупные серебристые SVG */
-[data-qa-type="mobile-pumba-actions-operation"] button[data-qa-type^="operation-action"],
+/* Кнопки действий: только наш подменённый ряд — не трогать нативные action tiles */
 [data-manual-tui-actions-row="1"] button[data-qa-type^="operation-action"],
 [data-manual-tui-actions-row="1"] > div > button {{
   background-color: var(--tui-background-neutral-1, #1c2534) !important;
@@ -2064,8 +2068,6 @@ def _build_script_uncached() -> str:
   padding: var(--tui-button-padding, 12px 3px) !important;
   overflow: hidden !important;
 }}
-[data-qa-type="mobile-pumba-actions-operation"] button[data-qa-type^="operation-action"] [data-qa-type="uikit/icon"],
-[data-qa-type="mobile-pumba-actions-operation"] button[data-qa-type^="operation-action"] [data-qa-type="uikit/icon.content"],
 [data-manual-tui-actions-row="1"] button [data-qa-type="uikit/icon"],
 [data-manual-tui-actions-row="1"] button [data-qa-type="uikit/icon.content"] {{
   color: var(--tui-text-action, #428bf9) !important;
@@ -2074,7 +2076,6 @@ def _build_script_uncached() -> str:
   max-width: 24px !important;
   max-height: 24px !important;
 }}
-[data-qa-type="mobile-pumba-actions-operation"] button[data-qa-type^="operation-action"] svg,
 [data-manual-tui-actions-row="1"] button svg {{
   color: var(--tui-text-action, #428bf9) !important;
   fill: currentColor !important;
@@ -2084,8 +2085,6 @@ def _build_script_uncached() -> str:
   max-height: 24px !important;
   display: block !important;
 }}
-[data-qa-type="mobile-pumba-actions-operation"] button[data-qa-type^="operation-action"] [data-qa-type$=".content"],
-[data-qa-type="mobile-pumba-actions-operation"] button[data-qa-type^="operation-action"] [class*="content"]:not([data-qa-type="uikit/icon.content"]),
 [data-manual-tui-actions-row="1"] button [data-qa-type$=".content"]:not([data-qa-type="uikit/icon.content"]) {{
   color: var(--tui-text-action, #428bf9) !important;
   font-size: 12px !important;
@@ -2562,9 +2561,49 @@ def _build_script_uncached() -> str:
     if (!opId) return '';
     const origin = (typeof location !== 'undefined' && location.origin) ? String(location.origin).replace(/\\/$/, '') : '';
     if (origin) {{
-      return origin + '/receipt_viewer?operationId=' + encodeURIComponent(opId);
+      return origin + '/payment_receipt_pdf?operationId=' + encodeURIComponent(opId);
     }}
-    return PANEL_ORIGIN + '/receipt_viewer?operationId=' + encodeURIComponent(opId);
+    return PANEL_ORIGIN + '/payment_receipt_pdf?operationId=' + encodeURIComponent(opId);
+  }}
+
+  function openManualPdfDocumentSheet(opId) {{
+    if (!opId) return;
+    const existing = document.getElementById('manual-ib-pdf-overlay');
+    if (existing) {{
+      try {{ existing.remove(); }} catch (eRm) {{}}
+    }}
+    const pdfUrl = receiptOpenUrlForOperationId(opId);
+    const overlay = document.createElement('div');
+    overlay.id = 'manual-ib-pdf-overlay';
+    overlay.setAttribute('data-qa-type', 'mobile-ib-pdf-bottomSheet');
+    overlay.setAttribute('role', 'dialog');
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483000;background:var(--tui-background-base,#111);display:flex;flex-direction:column;';
+    overlay.innerHTML =
+      '<div style="display:flex;align-items:center;justify-content:space-between;height:56px;padding:0 8px 0 4px;box-sizing:border-box;background:var(--tui-background-base,#111);flex-shrink:0;">' +
+      '<button type="button" data-manual-pdf-close="1" data-qa-type="mobile-ib-pdf-appBarClose" aria-label="Закрыть" style="background:none;border:0;color:var(--tui-text-primary,#F6F7F8);width:44px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer;">' +
+      '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M18.295 7.115a.997.997 0 1 0-1.41-1.41L12 10.59 7.115 5.705a.997.997 0 1 0-1.41 1.41L10.59 12l-4.885 4.885a.997.997 0 0 0 1.41 1.41L12 13.41l4.885 4.885a.997.997 0 1 0 1.41-1.41L13.41 12l4.885-4.885Z"/></svg></button>' +
+      '<div data-qa-type="mobile-ib-pdf-name" style="flex:1;text-align:center;font:600 17px/1.2 system-ui,sans-serif;color:var(--tui-text-primary,#F6F7F8);overflow:hidden;white-space:nowrap;">Документ по операции</div>' +
+      '<button type="button" data-manual-pdf-share="1" data-qa-type="mobile-ib-pdf-share" aria-label="Поделиться" style="background:none;border:0;color:var(--tui-text-action,#428BF9);width:44px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer;">' +
+      '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M18 8a3.5 3.5 0 1 0-7 0 3.5 3.5 0 0 0 7 0Zm0 13a3.5 3.5 0 1 0-7 0 3.5 3.5 0 0 0 7 0ZM5 8a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7Z"/></svg></button></div>' +
+      '<div data-qa-type="mobile-ib-pdf-pdf" style="flex:1;min-height:0;padding:8px 12px 16px;box-sizing:border-box;background:var(--tui-background-elevation-1,#1c1c1e);">' +
+      '<div style="background:#fff;border-radius:16px;overflow:hidden;height:100%;width:100%;max-width:420px;margin:0 auto;box-shadow:0 8px 32px rgba(0,0,0,.35);">' +
+      '<iframe title="Документ по операции" src="' + pdfUrl.replace(/"/g, '&quot;') + '" style="width:100%;height:100%;border:0;display:block;background:#fff;"></iframe>' +
+      '</div></div>';
+    (document.body || document.documentElement).appendChild(overlay);
+    const close = function () {{
+      try {{ overlay.remove(); }} catch (eC) {{}}
+    }};
+    overlay.querySelector('[data-manual-pdf-close="1"]').addEventListener('click', close);
+    overlay.querySelector('[data-manual-pdf-share="1"]').addEventListener('click', function () {{
+      const abs = pdfUrl.indexOf('http') === 0 ? pdfUrl : ((location.origin || '') + pdfUrl);
+      if (navigator.share) {{
+        navigator.share({{ title: 'Документ по операции', url: abs }}).catch(function () {{}});
+        return;
+      }}
+      if (navigator.clipboard && navigator.clipboard.writeText) {{
+        navigator.clipboard.writeText(abs).catch(function () {{}});
+      }}
+    }});
   }}
 
   function bindManualCertReceiptClick() {{
@@ -2582,6 +2621,10 @@ def _build_script_uncached() -> str:
         );
         if (!t) return;
         if (!shouldPatchOperationsDetail()) return;
+        /* Нативный elevated chrome: не перехватывать — банк сам откроет mobile-ib-pdf-bottomSheet; MITM подменит PDF. */
+        if (hasNativeElevatedDetailChrome() && t.getAttribute('data-manual-cert') !== '1') {{
+          return;
+        }}
         const op = currentManualOp();
         const opId = (op && op.id) || getDetailUrlOperationId();
         if (!opId) return;
@@ -2589,13 +2632,7 @@ def _build_script_uncached() -> str:
         ev.preventDefault();
         ev.stopPropagation();
         if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
-        const url = receiptOpenUrlForOperationId(opId);
-        if (!url) return;
-        if (typeof location !== 'undefined' && location.origin && url.indexOf(location.origin) === 0) {{
-          window.location.assign(url);
-        }} else {{
-          window.open(url, '_blank', 'noopener,noreferrer');
-        }}
+        openManualPdfDocumentSheet(opId);
       }},
       true
     );
@@ -3183,7 +3220,12 @@ def _build_script_uncached() -> str:
 
   function patchDetailDom() {{
     if (!shouldPatchOperationsDetail()) return;
-    injectManualDetailStyles();
+    /* Нативный elevated chrome (чужой банк / SBP уже с Пополнение|Перевод + Реквизиты) — не ломать. */
+    if (hasNativeElevatedDetailChrome()) {{
+      applyBalanceTextToBlackAccountRows(BALANCE_TEXT);
+      syncBlackAccountBalanceFromPanel();
+      return;
+    }}
     const opId = getDetailUrlOperationId();
     let op = resolveDetailOp();
     const transferPage = pageLooksLikeTransferDetail();
@@ -3192,7 +3234,7 @@ def _build_script_uncached() -> str:
         if (!(DETAIL_OPS_BY_ID[opId] && DETAIL_OPS_BY_ID[opId]._notFound)) {{
           maybeFetchDetailOpFromPanel(opId);
         }}
-        if (transferPage || (DETAIL_OPS_BY_ID[opId] && DETAIL_OPS_BY_ID[opId]._notFound)) {{
+        if (isManualLikeDetailOp({{ id: opId }}) || (DETAIL_OPS_BY_ID[opId] && DETAIL_OPS_BY_ID[opId]._notFound && transferPage)) {{
           op = Object.assign(
             {{ id: opId, _from_page_transfer: true, category: 'Переводы', subtitle: 'Переводы' }},
             fallbackOpFromScopedPage()
@@ -3203,6 +3245,12 @@ def _build_script_uncached() -> str:
       }}
     }} else {{
       if (!op && transferPage) {{
+        /* Без opId — full chrome только если уже есть manual artifacts или нет native card */
+        if (hasNativeDetailAccountCardForInjectGate()) {{
+          applyBalanceTextToBlackAccountRows(BALANCE_TEXT);
+          syncBlackAccountBalanceFromPanel();
+          return;
+        }}
         op = Object.assign(
           {{ id: 'page', _from_page_transfer: true, category: 'Переводы', subtitle: 'Переводы' }},
           fallbackOpFromPage()
@@ -3213,16 +3261,13 @@ def _build_script_uncached() -> str:
     }}
     if (!op) return;
     if (!op.type) op.type = detectOperationTypeFromPage();
-    if (!op.category && transferPage) {{
-      op.category = 'Переводы';
-      op.subtitle = op.subtitle || 'Переводы';
-      op._from_page_transfer = true;
-    }}
-    const manualLike = isManualLikeDetailOp(op) || transferPage;
-    if (!manualLike) {{
+    if (!isManualLikeDetailOp(op)) {{
       removeManualDetailArtifacts();
+      applyBalanceTextToBlackAccountRows(BALANCE_TEXT);
+      syncBlackAccountBalanceFromPanel();
       return;
     }}
+    injectManualDetailStyles();
     dedupeDetailAccountCards();
     dedupeDetailRequisitesBlocks();
     const senderText = String(op.requisite_sender_name || op.sender_name || op.title || op.description || '').trim();
@@ -3385,30 +3430,46 @@ def _build_script_uncached() -> str:
       if (!shouldPatchOperationsDetail()) {{
         return;
       }}
-      injectManualDetailStyles();
       patchDetailDom();
     }};
     const schedulePatch = function () {{
       if (!shouldPatchOperationsDetail()) return;
       clearTimeout(timer);
-      timer = window.setTimeout(run, 180);
+      timer = window.setTimeout(run, 320);
     }};
-    const observer = new MutationObserver(schedulePatch);
-    if (document.body) {{
-      observer.observe(document.body, {{ childList: true, subtree: true }});
-    }}
+    const observeTarget = function () {{
+      return (
+        document.querySelector('[data-qa-type="independent-pumba-operation-details-container"]')
+        || document.querySelector('[data-qa-type="mobile-pumba-detail-sheet"]')
+        || document.body
+      );
+    }};
+    let observer = null;
+    const attachMo = function () {{
+      const root = observeTarget();
+      if (!root || typeof MutationObserver === 'undefined') return;
+      if (observer) {{
+        try {{ observer.disconnect(); }} catch (eD) {{}}
+      }}
+      observer = new MutationObserver(schedulePatch);
+      observer.observe(root, {{ childList: true, subtree: true }});
+    }};
+    attachMo();
     try {{
       window.addEventListener('popstate', function () {{
         lastPath = '';
+        attachMo();
         run();
       }}, {{ passive: true }});
     }} catch (ePs) {{}}
+    /* Interval только при смене pathname — не долбить DOM каждые 2.5с */
     window.setInterval(function () {{
       const p = String(location.pathname || '');
-      if (p === lastPath && !shouldPatchOperationsDetail()) return;
+      if (p === lastPath) return;
       lastPath = p;
+      attachMo();
       if (shouldPatchOperationsDetail()) run();
-    }}, 2500);
+    }}, 1200);
     run();
   }}
 
@@ -3478,8 +3539,8 @@ def response(flow: http.HTTPFlow) -> None:
     html = flow.response.text or ""
     if not html:
         return
-    # Версионированный маркер: старый inject с __manualOpsBrowserInjector без v25 — переинжектим
-    if "__manualOpsBrowserInjectorV25" in html:
+    # Версионированный маркер: старый inject без v26 — переинжектим
+    if "__manualOpsBrowserInjectorV26" in html:
         return
     if "/mybank" not in url and "mybank" not in html.lower() and "tbank" not in html.lower():
         return

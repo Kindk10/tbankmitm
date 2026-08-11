@@ -1,0 +1,8 @@
+total_lines=146
+lines_after_146=0
+user_msgs_after_146=0
+line146_role=user
+content_parts=1
+part0_type=text
+text_len=2219918
+user_query_len=2218358

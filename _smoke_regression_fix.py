@@ -1,4 +1,4 @@
-"""Regression smoke after perf + UI fixes."""
+"""Regression smoke after perf + UI fixes (v26)."""
 from __future__ import annotations
 
 import os
@@ -18,44 +18,44 @@ def main() -> int:
 
     # Perf markers
     if "characterData: true" in s and "__homeFinReassertMo" in s:
-        # home observer must NOT use characterData
-        if "observe(r, { childList: true, subtree: true, characterData: true })" in s.replace(" ", ""):
+        compact = s.replace(" ", "")
+        if "observe(r,{childList:true,subtree:true,characterData:true})" in compact:
             fails.append("home MO still uses characterData")
     if "setInterval(patchDetailDom, 1100)" in s or "setTimeout(patchDetailDom, 42)" in s:
         fails.append("old aggressive detail timers still present")
     if "setInterval(tick, 900)" in s:
         fails.append("old 900ms fin interval still present")
-    if 'span, div' in s and "titleSel" in s:
-        # check narrowed selector
-        if '[data-qa-type="title"], span, div' in s:
-            fails.append("home still scans all span,div")
-    if "manual-payment-history-styles-v3" not in s:
-        fails.append("missing one-shot style marker v3")
-    if "home_mybank_income" not in s or "НЕ bank+manual" not in s and "не bank+manual" not in s.lower():
-        # prefer home_mybank first
-        idx_home = s.find("st.home_mybank_income")
-        idx_inc = s.find("st.income != null && st.expense != null")
-        if idx_home < 0 or (idx_inc >= 0 and idx_home > idx_inc and "home_mybank" in s[idx_inc:idx_inc+400]):
-            # verify order in finTotals function
-            fn = s[s.find("finTotalsForMybankHomeFromOperationsApi"):s.find("finTotalsForMybankHomeFromOperationsApi")+900]
-            if fn.find("home_mybank_income") > fn.find("st.income != null"):
-                fails.append("home still prefers stats.income before home_mybank")
+    if "setTimeout(run, 180)" in s:
+        fails.append("detail debounce still 180ms (want >=300)")
+    if "manual-payment-history-styles-v26" not in s:
+        fails.append("missing one-shot style marker v26")
+    if "__manualOpsBrowserInjectorV26" not in s:
+        fails.append("missing V26 guard")
 
-    # Home tile white
+    # home_mybank first, no bank aggregate fallback
+    fn = s[s.find("finTotalsForMybankHomeFromOperationsApi"): s.find("finTotalsForMybankHomeFromOperationsApi") + 900]
+    if "home_mybank_income" not in fn:
+        fails.append("home_mybank preference missing")
+    if "st.income != null && st.expense != null" in fn:
+        fails.append("home still falls back to stats.income")
+
+    # Home tile white + deltas
     if "data-manual-home-allops-tile" not in s or "#F6F7F8" not in s:
         fails.append("home tile white styles missing")
-    if 'color: rgba(0,0,0,0.55)' in s and 'mobile-pumba-payment-history"] [data-manual-ph-amt]' in s:
-        fails.append("global gray ph-amt still present")
+    if "font: 700 17px" not in s or "font: 600 15px" not in s:
+        fails.append("home typography deltas 17/15/600 missing")
 
-    # Receipt
-    if "/receipt_viewer" not in s:
-        fails.append("receipt viewer navigate missing")
+    # Receipt: overlay sheet, not assign to /receipt_viewer as primary
+    if "openManualPdfDocumentSheet" not in s or "Документ по операции" not in s:
+        fails.append("native-like PDF sheet overlay missing")
     if "payment_receipt_pdf" not in s:
-        fails.append("raw pdf still needed for iframe ok")
+        fails.append("raw pdf url for iframe missing")
 
-    # Detail gate narrower
-    if "любые покупки с телефоном" not in s and "не любые покупки" not in s:
+    # Detail gate narrower + native early-return
+    if "не любые покупки" not in s:
         fails.append("isManualLikeDetailOp comment/narrowing missing")
+    if "hasNativeElevatedDetailChrome" not in s:
+        fails.append("hasNativeElevatedDetailChrome missing")
 
     # History plaques
     if not hasattr(history, "_row_looks_like_account_product"):
