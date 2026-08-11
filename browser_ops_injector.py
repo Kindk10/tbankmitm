@@ -66,6 +66,7 @@ def _manual_ops_payload():
                 "sender_name": op.get("sender_name") or "",
                 "requisite_sender_name": op.get("requisite_sender_name") or op.get("sender_name") or "",
                 "card_number": op.get("card_number") or "",
+                "manual": True,
             }
         )
     skip_ids = set(history.manual_operations.keys())
@@ -89,6 +90,7 @@ def _manual_ops_payload():
                 "sender_name": row.get("sender_name") or "",
                 "requisite_sender_name": row.get("requisite_sender_name") or row.get("sender_name") or "",
                 "card_number": row.get("card_number") or "",
+                "fake_transfer": True,
             }
         )
     items.sort(key=lambda x: history.date_str_to_millis(x.get("date", "")), reverse=True)
@@ -106,6 +108,7 @@ def _detail_ops_by_id_payload() -> dict:
         oid_s = str(oid)
         out[oid_s] = {
             "type": op.get("type") or "Debit",
+            "amount": float(op.get("amount") or 0),
             "title": (op.get("title") or "").strip(),
             "description": (op.get("description") or "").strip(),
             "requisite_phone": (op.get("requisite_phone") or op.get("phone") or "").strip(),
@@ -124,6 +127,7 @@ def _detail_ops_by_id_payload() -> dict:
             continue
         out[oid_s] = {
             "type": row.get("type") or "Debit",
+            "amount": float(row.get("amount") or 0),
             "title": (row.get("title") or row.get("desc") or "").strip(),
             "description": (row.get("description") or "").strip(),
             "requisite_phone": (row.get("requisite_phone") or row.get("phone") or "").strip(),
@@ -550,6 +554,18 @@ def _build_script_uncached() -> str:
       const o = MANUAL_OPS[i];
       if (o && String(o.id) === id) return true;
     }}
+    if (DETAIL_OPS_BY_ID[id] && (DETAIL_OPS_BY_ID[id].manual || DETAIL_OPS_BY_ID[id].fake_transfer)) {{
+      return true;
+    }}
+    /* Оригинальные SBP/переводы: категория Переводы / банк / phone transfer */
+    const bank = String(op.bank || op.bank_preset || '').toLowerCase();
+    const cat = String(op.category || op.subtitle || op.description || op.title || '').toLowerCase();
+    const preset = String(op.bank_preset || '').toLowerCase();
+    if (preset === 'sbp' || bank.indexOf('сбп') !== -1 || bank.indexOf('sbp') !== -1) return true;
+    if (cat.indexOf('перевод') !== -1 || cat.indexOf('сбп') !== -1) return true;
+    if (op.requisite_phone || op.phone) {{
+      if (op.type === 'Credit' || op.type === 'Debit') return true;
+    }}
     return false;
   }}
 
@@ -894,20 +910,20 @@ def _build_script_uncached() -> str:
       '[data-manual-debit-account-ph="1"] [data-qa-type="lineChart"] [class*="Mee5y"] [data-qa-type="lineChart.bar"] {{ opacity: 1 !important; border-radius: 9999px; }}' +
       '[data-manual-debit-account-ph="1"] [data-manual-ph-line] {{ color: rgba(0,0,0,0.78) !important; }}' +
       '[data-manual-debit-account-ph="1"] [data-manual-ph-amt] {{ color: rgba(0,0,0,0.92) !important; font-weight: 600; }}' +
-      /* Главная «Все операции»: эталон — подпись и сумма одного размера, умеренно серая подпись, отступ после title */
+      /* Главная «Все операции»: эталон скрин 3 — весь текст белый; подпись regular 14; сумма bold 16; зазор title→подпись */
       '[data-manual-home-allops-tile="1"] [data-qa-type="title"],' +
       '[data-manual-home-allops-tile="1"] h2[data-qa-type="tui/header.title"],' +
-      '[data-manual-home-allops-tile="1"] [data-qa-type="tui/header.title"] {{ margin: 0 0 10px !important; }}' +
-      '[data-manual-home-allops-tile="1"] [data-qa-type="subtitleWrapper"] {{ display: flex !important; flex-direction: column !important; align-items: flex-start !important; gap: 2px !important; margin-top: 0 !important; }}' +
+      '[data-manual-home-allops-tile="1"] [data-qa-type="tui/header.title"] {{ font: 700 16px/1.2 var(--tui-font-text, Roboto), system-ui, sans-serif !important; color: #F6F7F8 !important; -webkit-text-fill-color: #F6F7F8 !important; margin: 0 0 12px !important; opacity: 1 !important; }}' +
+      '[data-manual-home-allops-tile="1"] [data-qa-type="subtitleWrapper"] {{ display: flex !important; flex-direction: column !important; align-items: flex-start !important; gap: 1px !important; margin-top: 0 !important; }}' +
       '[data-manual-home-allops-tile="1"] [data-qa-type="subtitleWrapper"] [data-qa-type="subtitle"],' +
-      '[data-manual-home-allops-tile="1"] [data-qa-type="subtitle"] {{ font: 400 15px/1.35 var(--tui-font-text, Roboto), system-ui, sans-serif !important; color: #9299A2 !important; -webkit-text-fill-color: #9299A2 !important; opacity: 1 !important; margin: 0 !important; display: block !important; }}' +
+      '[data-manual-home-allops-tile="1"] [data-qa-type="subtitle"] {{ font: 400 14px/1.3 var(--tui-font-text, Roboto), system-ui, sans-serif !important; font-weight: 400 !important; color: #F6F7F8 !important; -webkit-text-fill-color: #F6F7F8 !important; opacity: 1 !important; margin: 0 !important; display: block !important; }}' +
       '[data-manual-home-allops-tile="1"] [data-qa-type="moneyAmount"],' +
       '[data-manual-home-allops-tile="1"] [data-manual-home-spend-amt="1"],' +
       '[data-manual-home-allops-tile="1"] [data-qa-type="moneyAmount"] [data-qa-type="atom-sensitive"],' +
       '[data-manual-home-allops-tile="1"] [data-qa-type="moneyAmount"] [data-qa-type="uikit/money"],' +
-      '[data-manual-home-allops-tile="1"] [data-qa-type="moneyAmount"] [data-qa-type="uikit/money"] span {{ font: 600 15px/1.35 var(--tui-font-text, Roboto), system-ui, sans-serif !important; color: #F6F7F8 !important; -webkit-text-fill-color: #F6F7F8 !important; margin: 0 !important; display: block !important; line-height: 1.35 !important; opacity: 1 !important; }}' +
-      '[data-manual-home-allops-tile="1"] [data-manual-ph-line] {{ display: block !important; font: 400 15px/1.35 var(--tui-font-text, Roboto), system-ui, sans-serif !important; color: #9299A2 !important; -webkit-text-fill-color: #9299A2 !important; margin: 0 !important; opacity: 1 !important; }}' +
-      '[data-manual-home-allops-tile="1"] [data-manual-ph-amt] {{ display: block !important; margin-top: 2px !important; font: 600 15px/1.35 var(--tui-font-text, Roboto), system-ui, sans-serif !important; font-weight: 600 !important; color: #F6F7F8 !important; -webkit-text-fill-color: #F6F7F8 !important; font-size: 15px !important; line-height: 1.35 !important; opacity: 1 !important; }}' +
+      '[data-manual-home-allops-tile="1"] [data-qa-type="moneyAmount"] [data-qa-type="uikit/money"] span {{ font: 700 16px/1.25 var(--tui-font-text, Roboto), system-ui, sans-serif !important; font-weight: 700 !important; color: #F6F7F8 !important; -webkit-text-fill-color: #F6F7F8 !important; margin: 0 !important; display: block !important; line-height: 1.25 !important; opacity: 1 !important; }}' +
+      '[data-manual-home-allops-tile="1"] [data-manual-ph-line] {{ display: block !important; font: 400 14px/1.3 var(--tui-font-text, Roboto), system-ui, sans-serif !important; font-weight: 400 !important; color: #F6F7F8 !important; -webkit-text-fill-color: #F6F7F8 !important; margin: 0 !important; opacity: 1 !important; }}' +
+      '[data-manual-home-allops-tile="1"] [data-manual-ph-amt] {{ display: block !important; margin-top: 1px !important; font: 700 16px/1.25 var(--tui-font-text, Roboto), system-ui, sans-serif !important; font-weight: 700 !important; color: #F6F7F8 !important; -webkit-text-fill-color: #F6F7F8 !important; font-size: 16px !important; line-height: 1.25 !important; opacity: 1 !important; }}' +
       '[data-manual-home-allops-tile="1"] [data-qa-type="lineChart"] {{ margin-top: 12px !important; width: 100%; }}';
     let st4 = document.getElementById('manual-luca-account-blocks-styles');
     if (!st4) {{
@@ -1691,7 +1707,8 @@ def _build_script_uncached() -> str:
 
   function touchManualDetailStylesOrder() {{
     const st =
-      document.getElementById('manual-detail-pumba-cards-v23')
+      document.getElementById('manual-detail-pumba-cards-v24')
+      || document.getElementById('manual-detail-pumba-cards-v23')
       || document.getElementById('manual-detail-pumba-cards-v22')
       || document.getElementById('manual-detail-pumba-cards-v21')
       || document.getElementById('manual-detail-pumba-cards-v20')
@@ -1715,15 +1732,15 @@ def _build_script_uncached() -> str:
   }}
 
   function injectManualDetailStyles() {{
-    if (document.getElementById('manual-detail-pumba-cards-v23')) return;
-    ['manual-detail-pumba-cards-v3', 'manual-detail-pumba-cards-v4', 'manual-detail-pumba-cards-v5', 'manual-detail-pumba-cards-v6', 'manual-detail-pumba-cards-v7', 'manual-detail-pumba-cards-v8', 'manual-detail-pumba-cards-v9', 'manual-detail-pumba-cards-v10', 'manual-detail-pumba-cards-v11', 'manual-detail-pumba-cards-v12', 'manual-detail-pumba-cards-v13', 'manual-detail-pumba-cards-v14', 'manual-detail-pumba-cards-v15', 'manual-detail-pumba-cards-v16', 'manual-detail-pumba-cards-v17', 'manual-detail-pumba-cards-v18', 'manual-detail-pumba-cards-v19', 'manual-detail-pumba-cards-v20', 'manual-detail-pumba-cards-v21', 'manual-detail-pumba-cards-v22'].forEach(function (lid) {{
+    if (document.getElementById('manual-detail-pumba-cards-v24')) return;
+    ['manual-detail-pumba-cards-v3', 'manual-detail-pumba-cards-v4', 'manual-detail-pumba-cards-v5', 'manual-detail-pumba-cards-v6', 'manual-detail-pumba-cards-v7', 'manual-detail-pumba-cards-v8', 'manual-detail-pumba-cards-v9', 'manual-detail-pumba-cards-v10', 'manual-detail-pumba-cards-v11', 'manual-detail-pumba-cards-v12', 'manual-detail-pumba-cards-v13', 'manual-detail-pumba-cards-v14', 'manual-detail-pumba-cards-v15', 'manual-detail-pumba-cards-v16', 'manual-detail-pumba-cards-v17', 'manual-detail-pumba-cards-v18', 'manual-detail-pumba-cards-v19', 'manual-detail-pumba-cards-v20', 'manual-detail-pumba-cards-v21', 'manual-detail-pumba-cards-v22', 'manual-detail-pumba-cards-v23'].forEach(function (lid) {{
       const legacy = document.getElementById(lid);
       if (legacy) {{
         try {{ legacy.remove(); }} catch (eL) {{}}
       }}
     }});
     const st = document.createElement('style');
-    st.id = 'manual-detail-pumba-cards-v23';
+    st.id = 'manual-detail-pumba-cards-v24';
     st.textContent = `
 /* Инжект: ширина; горизонтальный padding даёт independent-pumba-operation-details-container — не дублировать */
 [data-manual-injected-account-cards="1"][data-qa-type="accountCardsShown-wrapper"],
@@ -1736,7 +1753,6 @@ def _build_script_uncached() -> str:
   padding: 0 !important;
   overflow-x: visible !important;
 }}
-/* Убрать огромный 20px gap под молекулой внутри шелла; зазор между карточками «Перевод» и «Реквизиты» — margin снизу обёртки */
 [data-manual-injected-account-cards="1"] > [data-component-type="platform-ui"][style*="--gaps"] {{
   width: 100% !important;
   box-sizing: border-box !important;
@@ -1747,7 +1763,6 @@ def _build_script_uncached() -> str:
 [data-manual-injected-account-cards="1"] .abeiuVKPb {{
   display: none !important;
 }}
-/* Карточка elevated — как в bottom sheet Т‑Банка (24px, elevation-2, --tui-shadow-medium) */
 [data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"][data-surface="true"],
 [data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"][data-surface="true"] {{
   position: relative !important;
@@ -1756,7 +1771,7 @@ def _build_script_uncached() -> str:
   justify-content: space-between !important;
   border-radius: 24px !important;
   padding: 0 !important;
-  overflow: hidden !important;
+  overflow: visible !important;
   isolation: isolate !important;
   box-sizing: border-box !important;
   background-color: var(--tui-background-elevation-2, #2C2C2E) !important;
@@ -1769,7 +1784,6 @@ def _build_script_uncached() -> str:
   border-radius: inherit !important;
   background-color: var(--tui-background-elevation-2, #2C2C2E) !important;
 }}
-/* Секции шапки и строки счёта — блочно, друг под другом (и инжект, и патч нативной карточки) */
 [data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"] .bbIfdcMse,
 [data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"] .ebIfdcMse,
 [data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"] .bb82ltuCV,
@@ -1785,8 +1799,8 @@ def _build_script_uncached() -> str:
   display: block !important;
   width: 100% !important;
   box-sizing: border-box !important;
+  overflow: visible !important;
 }}
-/* Паддинги «Перевод» / «Реквизиты» — из CSS приложения (bbyhDFZ1P, bb41GSHng, ab4U6BtRY и т.д.), здесь не дублируем */
 [data-manual-bank-wrapper="1"] {{
   margin-top: 0 !important;
 }}
@@ -1799,7 +1813,6 @@ def _build_script_uncached() -> str:
 [data-manual-injected-account-cards="1"] + [data-qa-type="bankDetailsShown-wrapper"] {{
   margin-top: 0 !important;
 }}
-/* Только строка с h2 + «Справка» (не внешняя оболочка с вложенным header) */
 [data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"] [data-qa-type="tui/header.wrapper"]:has(> h2[data-qa-type="tui/header.title"]),
 [data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] [data-qa-type="tui/header.wrapper"]:has(> h2[data-qa-type="tui/header.title"]) {{
   display: flex !important;
@@ -1809,12 +1822,35 @@ def _build_script_uncached() -> str:
   width: 100% !important;
   box-sizing: border-box !important;
   gap: 0.5rem !important;
+  padding-top: 4px !important;
+  overflow: visible !important;
 }}
 [data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"] h2[data-qa-type="tui/header.title"],
-[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] h2[data-qa-type="tui/header.title"] {{
+[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] h2[data-qa-type="tui/header.title"],
+[data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation-title-text"],
+[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation-title-text"] {{
   flex: 1 1 auto !important;
   min-width: 0 !important;
   margin: 0 !important;
+  padding: 2px 0 !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: nowrap !important;
+  line-height: 1.25 !important;
+  color: var(--tui-text-primary, #F6F7F8) !important;
+  -webkit-text-fill-color: var(--tui-text-primary, #F6F7F8) !important;
+}}
+[data-manual-detail-amount="1"] {{
+  font-weight: 700 !important;
+  opacity: 1 !important;
+}}
+[data-manual-detail-amount="1"][data-manual-amount-kind="debit"] {{
+  color: #F6F7F8 !important;
+  -webkit-text-fill-color: #F6F7F8 !important;
+}}
+[data-manual-detail-amount="1"][data-manual-amount-kind="credit"] {{
+  color: #3DD68C !important;
+  -webkit-text-fill-color: #3DD68C !important;
 }}
 [data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"] [data-qa-type="tui/header.accessories"],
 [data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] [data-qa-type="tui/header.accessories"] {{
@@ -2002,10 +2038,15 @@ def _build_script_uncached() -> str:
   overflow-x: visible !important;
 }}
 [data-manual-requisites-panel="1"][data-qa-type="mobile-pumba-requisites-operation"],
-[data-manual-bank-wrapper="1"] [data-qa-type="mobile-pumba-requisites-operation"] {{
+[data-manual-bank-wrapper="1"] [data-qa-type="mobile-pumba-requisites-operation"],
+[data-panel-manual-requisites="1"][data-qa-type="mobile-pumba-requisites-operation"] {{
   width: 100% !important;
   max-width: 100% !important;
   box-sizing: border-box !important;
+  border-radius: 24px !important;
+  overflow: visible !important;
+  background-color: var(--tui-background-elevation-2, #2C2C2E) !important;
+  box-shadow: var(--tui-shadow-medium, 0px 6px 34px 0px #0000001f) !important;
 }}
 /* Строки реквизитов — чуть правее, вровень с началом заголовка «Реквизиты» */
 [data-manual-bank-wrapper="1"] [data-qa-type="mobile-pumba-requisites-operation"] [data-qa-type="visible-requisites"],
@@ -2449,9 +2490,9 @@ def _build_script_uncached() -> str:
     if (!opId) return '';
     const origin = (typeof location !== 'undefined' && location.origin) ? String(location.origin).replace(/\\/$/, '') : '';
     if (origin) {{
-      return origin + '/payment_receipt_pdf?operationId=' + encodeURIComponent(opId);
+      return origin + '/receipt_viewer?operationId=' + encodeURIComponent(opId);
     }}
-    return PANEL_ORIGIN + '/api/manual_operation_receipt?operationId=' + encodeURIComponent(opId);
+    return PANEL_ORIGIN + '/receipt_viewer?operationId=' + encodeURIComponent(opId);
   }}
 
   function bindManualCertReceiptClick() {{
@@ -2932,26 +2973,53 @@ def _build_script_uncached() -> str:
     return true;
   }}
 
+  function elevateRequisitesPanels() {{
+    document.querySelectorAll('[data-qa-type="mobile-pumba-requisites-operation"]').forEach(function (panel) {{
+      try {{
+        panel.setAttribute('data-surface', 'true');
+        panel.setAttribute('data-appearance', 'elevated');
+        panel.setAttribute('data-panel-manual-requisites', '1');
+        const layer = panel.querySelector('[data-qa-type="tui/surface-layer"]');
+        if (layer && layer.style) {{
+          layer.style.setProperty('background-color', 'var(--tui-background-elevation-2, #2C2C2E)', 'important');
+          layer.style.setProperty('border-radius', '24px', 'important');
+        }}
+      }} catch (eEl) {{}}
+    }});
+  }}
+
   function ensureManualRequisitesPanel(op) {{
     if (!op) return false;
     const phoneFmt = formatPhoneRu(op.requisite_phone || op.phone || '');
     const senderText = String(op.requisite_sender_name || op.sender_name || op.title || '').trim();
 
     const nativeVr = findNativeVisibleRequisites();
-    if (nativeVr && visibleRequisitesNeedManualFill(nativeVr)) {{
-      if (op.type === 'Credit' && senderText) {{
+    if (nativeVr) {{
+      const needFill = visibleRequisitesNeedManualFill(nativeVr);
+      let hasPhoneLabel = false;
+      let hasSenderLabel = false;
+      nativeVr.querySelectorAll('[data-qa-type="requisite"]').forEach(function (req) {{
+        const parts = getRequisiteParts(req);
+        const label = String(parts.labelEl && parts.labelEl.textContent || '').trim().toLowerCase();
+        if (label.indexOf('номер телефона') !== -1 || label.indexOf('телефон') !== -1) hasPhoneLabel = true;
+        if (label.indexOf('отправител') !== -1) hasSenderLabel = true;
+      }});
+      if (op.type === 'Credit' && senderText && (needFill || !hasSenderLabel)) {{
         nativeVr.innerHTML = '';
         nativeVr.appendChild(makeManualRequisiteRow('Отправитель', senderText));
+        elevateRequisitesPanels();
         return true;
       }}
-      if (op.type === 'Debit' && phoneFmt) {{
+      if (op.type === 'Debit' && phoneFmt && (needFill || !hasPhoneLabel)) {{
         nativeVr.innerHTML = '';
         nativeVr.appendChild(makeManualRequisiteRow('Номер телефона', phoneFmt));
+        elevateRequisitesPanels();
         return true;
       }}
-    }}
-    if (nativeVr && !visibleRequisitesNeedManualFill(nativeVr)) {{
-      return false;
+      if (!needFill) {{
+        elevateRequisitesPanels();
+        return false;
+      }}
     }}
 
     let host = document.querySelector('[data-qa-type="bankDetailsShown-wrapper"]');
@@ -3092,6 +3160,7 @@ def _build_script_uncached() -> str:
     patchExistingTopOperationCard(op);
     ensureInjectedTopOperationCard(op);
     ensureManualRequisitesPanel(op);
+    elevateRequisitesPanels();
     patchDetailHeaderAmount(op);
     dedupeDetailAccountCards();
     dedupeDetailRequisitesBlocks();
@@ -3104,7 +3173,7 @@ def _build_script_uncached() -> str:
     if (!op) return;
     const n = Math.abs(Number(op.amount) || 0);
     if (!isFinite(n) || n <= 0) return;
-    const sign = (op.type === 'Credit') ? '' : '-';
+    const sign = (op.type === 'Credit') ? '+' : '-';
     const want = sign + formatFinanalyticsRubRuWhole(n);
     const wantDigits = String(Math.round(n));
 
@@ -3133,7 +3202,13 @@ def _build_script_uncached() -> str:
       const tx = el.textContent || '';
       if (!isHeaderAmountCandidate(el, tx)) return false;
       el.textContent = want;
-      try {{ el.setAttribute('data-manual-detail-amount', '1'); }} catch (eA) {{}}
+      try {{
+        el.setAttribute('data-manual-detail-amount', '1');
+        el.setAttribute('data-manual-amount-kind', (op.type === 'Credit') ? 'credit' : 'debit');
+        el.style.setProperty('color', (op.type === 'Credit') ? '#3DD68C' : '#F6F7F8', 'important');
+        el.style.setProperty('-webkit-text-fill-color', (op.type === 'Credit') ? '#3DD68C' : '#F6F7F8', 'important');
+        el.style.setProperty('font-weight', '700', 'important');
+      }} catch (eA) {{}}
       return true;
     }}
 

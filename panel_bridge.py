@@ -1859,12 +1859,48 @@ def request(flow: http.HTTPFlow) -> None:
         )
         return
 
-    if flow.request.method == "GET" and path_only == "/api/manual_operation_receipt":
+    def _panel_receipt_op_id() -> str:
         qs = _panel_request_query_params(path)
         op_id = (qs.get("operationId") or qs.get("operation_id") or qs.get("id") or [""])[0]
-        op_id = (op_id or "").strip()
+        return (op_id or "").strip()
+
+    # SPA-like «Квитанция» (скрин 4) — клик «Справка» с PANEL_ORIGIN
+    if flow.request.method == "GET" and path_only == "/receipt_viewer":
+        op_id = _panel_receipt_op_id()
+        if not op_id:
+            flow.response = http.Response.make(400, b"operationId required", {"Content-Type": "text/plain; charset=utf-8"})
+            return
+        try:
+            import transfer as _transfer_mod
+
+            html = _transfer_mod._receipt_viewer_html(op_id)
+        except Exception:
+            pdf_href = f"/payment_receipt_pdf?operationId={op_id}"
+            html = (
+                "<!DOCTYPE html><html lang=ru><head><meta charset=utf-8>"
+                "<meta name=viewport content=\"width=device-width,initial-scale=1\">"
+                "<title>Квитанция</title>"
+                "<style>html,body{margin:0;height:100%;background:#000;color:#fff;font-family:system-ui,sans-serif}"
+                ".bar{display:flex;align-items:center;justify-content:space-between;padding:16px}"
+                ".bar a{color:#428BF9;text-decoration:none}.title{flex:1;text-align:center;font-weight:600}"
+                ".stage{padding:8px 12px;height:calc(100% - 56px)}.card{background:#fff;border-radius:16px;height:100%;overflow:hidden}"
+                "iframe{width:100%;height:100%;border:0}</style></head><body>"
+                "<div class=bar><a href=\"javascript:history.back()\">Закрыть</a>"
+                "<div class=title>Квитанция</div><span style=\"width:48px\"></span></div>"
+                f"<div class=stage><div class=card><iframe src=\"{pdf_href}\"></iframe></div></div>"
+                "</body></html>"
+            )
+        flow.response = http.Response.make(
+            200,
+            html.encode("utf-8"),
+            {"Content-Type": "text/html; charset=utf-8", "Access-Control-Allow-Origin": "*"},
+        )
+        return
+
+    if flow.request.method == "GET" and path_only in ("/payment_receipt_pdf", "/api/manual_operation_receipt"):
+        op_id = _panel_receipt_op_id()
         history.ensure_manual_operations_fresh()
-        pdf_abs = history.ensure_operation_receipt_pdf_path(op_id)
+        pdf_abs = history.ensure_operation_receipt_pdf_path(op_id) if op_id else None
         if not pdf_abs or not os.path.isfile(pdf_abs):
             flow.response = http.Response.make(
                 404,

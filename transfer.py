@@ -947,6 +947,88 @@ def _parse_receipt_operation_id_from_flow(flow: http.HTTPFlow):
     return operation_id
 
 
+def _receipt_viewer_html(operation_id: str) -> str:
+    """Обёртка «Квитанция» (скрин 4): Закрыть / заголовок / share + PDF в iframe."""
+    oid = urllib.parse.quote(str(operation_id or ""), safe="")
+    pdf_url = f"/payment_receipt_pdf?operationId={oid}"
+    return f"""<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"/>
+<title>Квитанция</title>
+<style>
+  html,body {{ margin:0; padding:0; height:100%; background:#000; color:#fff;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Roboto, system-ui, sans-serif; }}
+  .bar {{ display:flex; align-items:center; justify-content:space-between;
+    padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 10px; box-sizing:border-box; }}
+  .bar a, .bar button {{ background:none; border:0; color:#428BF9; font-size:17px; padding:8px 4px; cursor:pointer; text-decoration:none; }}
+  .bar .title {{ flex:1; text-align:center; font-size:17px; font-weight:600; color:#fff; }}
+  .share {{ width:28px; height:28px; display:flex; align-items:center; justify-content:center; }}
+  .share svg {{ width:22px; height:22px; fill:#428BF9; }}
+  .stage {{ padding:8px 12px 24px; box-sizing:border-box; height: calc(100% - 56px);
+    display:flex; justify-content:center; }}
+  .card {{ background:#fff; border-radius:16px; overflow:hidden; width:100%; max-width:420px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.45); height:100%; }}
+  iframe, object {{ width:100%; height:100%; border:0; display:block; background:#fff; }}
+</style>
+</head>
+<body>
+  <div class="bar">
+    <a href="javascript:history.back()">Закрыть</a>
+    <div class="title">Квитанция</div>
+    <button type="button" class="share" id="shareBtn" aria-label="Поделиться">
+      <svg viewBox="0 0 24 24"><path d="M12 3v10.5M8 6.5L12 3l4 3.5M6 12.5v6a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-6"/></svg>
+    </button>
+  </div>
+  <div class="stage">
+    <div class="card">
+      <iframe title="Квитанция" src="{pdf_url}"></iframe>
+    </div>
+  </div>
+  <script>
+    (function() {{
+      var btn = document.getElementById('shareBtn');
+      var pdf = {json.dumps(pdf_url)};
+      if (!btn) return;
+      btn.addEventListener('click', function () {{
+        var abs = location.origin + pdf;
+        if (navigator.share) {{
+          navigator.share({{ title: 'Квитанция', url: abs }}).catch(function(){{}});
+          return;
+        }}
+        if (navigator.clipboard && navigator.clipboard.writeText) {{
+          navigator.clipboard.writeText(abs).catch(function(){{}});
+        }}
+      }});
+    }})();
+  </script>
+</body>
+</html>"""
+
+
+def _try_serve_receipt_viewer_response(flow: http.HTTPFlow, url_raw: str) -> bool:
+    ul = (url_raw or "").lower()
+    if "/receipt_viewer" not in ul and "receipt_viewer?" not in ul:
+        return False
+    if not is_bank_flow(flow):
+        return False
+    operation_id = _parse_receipt_operation_id_from_flow(flow)
+    if not operation_id:
+        if flow.response is not None:
+            flow.response.status_code = 400
+            flow.response.content = b"operationId required"
+            flow.response.headers["Content-Type"] = "text/plain; charset=utf-8"
+        return True
+    html = _receipt_viewer_html(str(operation_id))
+    flow.response.content = html.encode("utf-8")
+    flow.response.headers["Content-Type"] = "text/html; charset=utf-8"
+    flow.response.headers.pop("Content-Disposition", None)
+    flow.response.status_code = 200
+    print(f"[transfer] receipt viewer: operationId={operation_id}")
+    return True
+
+
 def _try_serve_receipt_pdf_response(flow: http.HTTPFlow, url_raw: str) -> bool:
     """
     Подмена ответа для URL с payment_receipt_pdf / operation_statement_pdf.
@@ -1041,6 +1123,8 @@ def response(flow: http.HTTPFlow) -> None:
     if not is_bank_flow(flow):
         return
     ensure_response_decoded(flow)
+    if _try_serve_receipt_viewer_response(flow, url_raw):
+        return
     if _try_serve_receipt_pdf_response(flow, url_raw):
         return
     if not flow.response.text:

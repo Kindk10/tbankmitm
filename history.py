@@ -312,22 +312,22 @@ def pending_fake_history_ops(month_restrict: bool = None) -> list:
 
 
 def get_panel_chart_display_totals():
-    """Единые доход/расход для панели и подмены гистограмм: если в config.manual заданы income/expense — они главные;
-    иначе при histogram_sync_with_operations: сводка банка + только ручные/мок‑переводы; без кэша реальных операций."""
+    """Единые доход/расход для панели и гистограмм.
+    При histogram_sync_with_operations: всегда bank + manuals + deduped fakes (не sticky config.manual.income/expense).
+    Явный override — только если sync выключен и поля заданы вручную.
+    """
     restrict_month = not panel_include_all_cached_operations()
     real_inc, real_exp, inc_cnt, exp_cnt = calculate_manual_and_mock_transfer_stats(restrict_month=restrict_month)
     manual = controller.config.get("manual") or {}
     b_inc, b_exp = get_bank_histogram_totals()
     transfer_exp_addon = _panel_transfer_expense_addon()
-    # Доп. к сводке банка только за текущий месяц (как у гистограммы /mybank).
     man_inc_m, man_exp_m = _manual_operations_income_expense_month(restrict_month=True)
-    fake_inc_m = _fake_credit_month_total()
+    fake_inc_m = get_fake_credit_not_in_manual_or_cache()
+    sync_ops = manual.get("histogram_sync_with_operations", True)
 
     def pick(mkey, bank_v, real_v):
-        sync_ops = manual.get("histogram_sync_with_operations", True)
-        # Явно введённые в панели доход/расход всегда главные для гистограммы и блоков на mybank.
-        # Сброс поля (null) в панели возвращает расчёт по операциям/банку ниже.
-        if manual.get(mkey) is not None:
+        # Sticky aggregate в config.manual больше не перекрывает пересчёт при sync=on
+        if not sync_ops and manual.get(mkey) is not None:
             try:
                 return round(float(manual[mkey]), 2)
             except (TypeError, ValueError):
@@ -396,8 +396,7 @@ _BROWSER_TBANK_INJECT_PATH_OK = (
     "aggregated",
     "receipt",
     "fiscal",
-    "light_ib",
-    "lightib",
+    # НЕ light_ib / accounts_light_ib — это карточки счетов на главной
     "payment_session",
     "phonetransfer",
     "phone-transfer",
@@ -480,9 +479,16 @@ def _mybank_page_kind(referer: Optional[str]) -> str:
     ref = (referer or "").lower()
     if not ref:
         return ""
-    if "tbank.ru/mybank/operations" in ref:
+    if "tbank.ru/mybank/operations" in ref or "tinkoff.ru/mybank/operations" in ref:
         return "operations"
-    if "tbank.ru/mybank/" in ref:
+    # /mybank и /mybank/ (без trailing slash) — главная
+    if (
+        "tbank.ru/mybank/" in ref
+        or "tinkoff.ru/mybank/" in ref
+        or ref.rstrip("/").endswith("tbank.ru/mybank")
+        or ref.rstrip("/").endswith("tinkoff.ru/mybank")
+        or "/mybank?" in ref
+    ):
         return "mybank"
     return ""
 
@@ -713,7 +719,7 @@ def url_allows_operation_inject(url: str) -> bool:
         "payments",
         "money-session",
         "aggregated",
-        "light_ib",
+        # НЕ light_ib — accounts_light_ib рисует плашки счетов на главной
         "receipt",
         "cashback",
         "transfer",
@@ -820,14 +826,47 @@ def _graphql_manual_inject_noise_request(url: str, request_text: Optional[str]) 
     return not any_clean
 
 
+def _row_looks_like_account_product(x) -> bool:
+    """Строка счёта/карты (не операция) — нельзя клонировать как шаблон inject."""
+    if not isinstance(x, dict):
+        return False
+    if operation_row_kind(x):
+        return False
+    if isinstance(x.get("operationTime"), dict):
+        return False
+    product_markers = (
+        "accountType",
+        "cards",
+        "cardList",
+        "previewCards",
+        "availableBalance",
+        "moneyAmount",
+        "collectSum",
+        "hiddenCardNumbers",
+        "accountNumber",
+    )
+    hits = sum(1 for k in product_markers if k in x)
+    if hits >= 1 and not x.get("merchant") and not x.get("category"):
+        return True
+    if hits >= 2:
+        return True
+    return False
+
+
 def pick_template_for_type(lst, typ):
     if not lst:
         return None
     for x in lst:
-        if isinstance(x, dict) and operation_row_kind(x) == typ:
+        if not isinstance(x, dict):
+            continue
+        if _row_looks_like_account_product(x):
+            continue
+        if operation_row_kind(x) == typ:
             return x
-    x0 = lst[0]
-    return x0 if isinstance(x0, dict) else None
+    for x in lst:
+        if isinstance(x, dict) and operation_row_kind(x) and not _row_looks_like_account_product(x):
+            return x
+    return None
 
 
 def _apply_bank_brand_preset(out, op):
@@ -1817,8 +1856,8 @@ def inject_manual_into_response(
     has_operation_candidates = bool(candidates)
     url_u = (url or "").lower()
     is_strict_ops_feed = "/api/common/v1/operations" in url_u and "operations_category_list" not in url_u
-    # Главная /mybank/: только баланс через balance.py; inject — только strict ops feed.
-    if page_kind == "mybank" and _ua_looks_like_desktop_browser(user_agent) and not is_strict_ops_feed:
+    # Главная /mybank/: inject только в strict ops feed (не accounts_light_ib и т.п.).
+    if page_kind == "mybank" and not is_strict_ops_feed:
         if bank_debug_enabled():
             print(f"[history] ручные операции: пропуск inject на главной mybank: {url[:140]}")
         return False
@@ -1830,6 +1869,10 @@ def inject_manual_into_response(
     if product_surface and page_kind != "operations":
         if bank_debug_enabled():
             print(f"[history] ручные операции: пропуск product-surface ответа: {url[:140]}")
+        return False
+    if "accounts_light" in url_u or "account_cards" in url_u or "/accounts" in url_u:
+        if bank_debug_enabled():
+            print(f"[history] ручные операции: пропуск accounts URL: {url[:140]}")
         return False
     if not url_allows_operation_inject(url) and not has_operation_candidates:
         if bank_debug_enabled():
@@ -1980,10 +2023,16 @@ def inject_manual_into_response(
             if use_cross_debounce and _cross_response_inject_debounce_hit(op_id):
                 continue
             typ = op.get("type") or "Debit"
+            if _row_looks_like_account_product(lst[0] if lst else None) and not any(
+                isinstance(x, dict) and operation_row_kind(x) for x in lst[:12]
+            ):
+                if bank_debug_enabled():
+                    print(f"[history] список похож на счета — пропуск merge op={op_id[:16]}")
+                continue
             template = pick_template_for_type(lst, typ)
             if template is None:
                 template = fallback_tpl
-            if template is None:
+            if template is None or _row_looks_like_account_product(template):
                 if bank_debug_enabled():
                     print(f"[history] нет шаблона операции (пустой список и нет operation_sample.json), id={op_id[:16]}")
                 continue
@@ -2044,9 +2093,12 @@ def inject_manual_into_response(
         primary = pick_primary_operation_list(candidates)
         if primary is not None:
             merge_into_list(primary, share_injected_ids=True)
-        elif page_kind != "mybank":
+        elif page_kind == "operations":
+            # Blind merge только на ленте операций и только в списки, похожие на ops feed
             for field in ("payload", "items", "operations"):
-                if field in data and isinstance(data[field], list):
+                if field in data and isinstance(data[field], list) and _list_looks_like_operation_feed(
+                    data[field], field
+                ):
                     merge_into_list(data[field], share_injected_ids=True)
             for key, val in data.items():
                 if key in ("payload", "items", "operations"):
@@ -2057,6 +2109,7 @@ def inject_manual_into_response(
                     and isinstance(val[0], dict)
                     and val[0].get("id")
                     and operation_row_kind(val[0])
+                    and not _row_looks_like_account_product(val[0])
                 ):
                     merge_into_list(val, share_injected_ids=True)
 
@@ -2319,11 +2372,11 @@ def get_fake_expense_from_last_transfer() -> float:
 
 
 def get_fake_expense_not_in_operations_cache() -> float:
-    """Часть fake_history, которой ещё нет в operations_cache — чтобы не дублировать в calculate_stats."""
+    """Часть fake_history Debit, которой нет в cache и manual_operations."""
     ensure_manual_operations_fresh()
     total = 0.0
     for oid_s, amt, _op in _iter_fake_debit_ops_month():
-        if oid_s and oid_s in operations_cache:
+        if oid_s and (oid_s in operations_cache or oid_s in manual_operations):
             continue
         total += amt
     return round(min(total, 1e15), 2)
@@ -2333,18 +2386,32 @@ def _count_fake_debit_ops_not_in_cache() -> int:
     ensure_manual_operations_fresh()
     n = 0
     for oid_s, _amt, _op in _iter_fake_debit_ops_month():
-        if oid_s and oid_s in operations_cache:
+        if oid_s and (oid_s in operations_cache or oid_s in manual_operations):
             continue
         n += 1
     return n
 
 
+def get_fake_credit_not_in_manual_or_cache() -> float:
+    """Credit из fake_history за месяц без id из manual/cache."""
+    ensure_manual_operations_fresh()
+    total = 0.0
+    for oid_s, amt, _op in _iter_fake_credit_ops_month():
+        if oid_s and (oid_s in operations_cache or oid_s in manual_operations):
+            continue
+        total += amt
+    return round(min(total, 1e15), 2)
+
+
 def _panel_transfer_expense_addon() -> float:
-    """Доп. расход для строки «как у банка»: fake_history или legacy total_out_rub (как в calculate_stats)."""
-    fake = get_fake_expense_from_last_transfer()
+    """Доп. расход к гистограмме банка: только моки, которых ещё нет в cache/manual."""
+    fake = get_fake_expense_not_in_operations_cache()
     if fake > 0:
         return fake
-    return float((controller.config.get("transfers") or {}).get("total_out_rub", 0) or 0)
+    # Legacy total_out_rub — только если нет fake debit вообще
+    if get_fake_expense_from_last_transfer() <= 0:
+        return float((controller.config.get("transfers") or {}).get("total_out_rub", 0) or 0)
+    return 0.0
 
 
 def _fake_bank_display_name(op: dict) -> str:
@@ -2785,20 +2852,34 @@ def calculate_manual_and_mock_transfer_stats(restrict_month: bool = True):
     extra_out = float((controller.config.get("transfers") or {}).get("total_out_rub", 0) or 0)
 
     if restrict_month:
-        fake_deb_m = get_fake_expense_from_last_transfer()
+        fake_deb_m = 0.0
+        n_fd = 0
+        for oid_s, amt, _op in _iter_fake_debit_ops_month():
+            if oid_s and oid_s in manual_operations:
+                continue
+            fake_deb_m += amt
+            n_fd += 1
         if fake_deb_m > 0:
             expense = round(expense + fake_deb_m, 2)
-            exp_cnt += sum(1 for _ in _iter_fake_debit_ops_month())
+            exp_cnt += n_fd
         elif extra_out > 0:
             expense = round(expense + extra_out, 2)
-        fake_cred_m = _fake_credit_month_total()
+        fake_cred_m = 0.0
+        n_fc = 0
+        for oid_s, amt, _op in _iter_fake_credit_ops_month():
+            if oid_s and oid_s in manual_operations:
+                continue
+            fake_cred_m += amt
+            n_fc += 1
         if fake_cred_m > 0:
             income = round(income + fake_cred_m, 2)
-            inc_cnt += sum(1 for _ in _iter_fake_credit_ops_month())
+            inc_cnt += n_fc
     else:
         d_sum = 0.0
         n_d = 0
-        for _oid, amt, _op in _iter_fake_debit_ops_all():
+        for oid_s, amt, _op in _iter_fake_debit_ops_all():
+            if oid_s and oid_s in manual_operations:
+                continue
             d_sum += amt
             n_d += 1
         expense = round(expense + d_sum, 2)
@@ -2807,7 +2888,9 @@ def calculate_manual_and_mock_transfer_stats(restrict_month: bool = True):
             expense = round(expense + extra_out, 2)
         c_sum = 0.0
         n_c = 0
-        for _oid, amt, _op in _iter_fake_credit_ops_all():
+        for oid_s, amt, _op in _iter_fake_credit_ops_all():
+            if oid_s and oid_s in manual_operations:
+                continue
             c_sum += amt
             n_c += 1
         income = round(income + c_sum, 2)
@@ -2861,9 +2944,8 @@ def calculate_stats(restrict_month: bool = True):
 
 def sync_manual_ie_panel_aggregate_into_config() -> bool:
     """
-    Записать в config.manual.income / expense сумму: сводка банка из последней гистограммы
-    + ручные операции (manual_operations.json) + мок‑переводы (как в get_panel_chart_display_totals).
-    Тогда панель «траты/доходы» совпадает с подменой на сайте без ручного ввода.
+    При histogram_sync: очищаем sticky income/expense в config.
+    Источник истины — get_panel_chart_display_totals() (пересчёт), не залипшие поля.
     """
     ensure_manual_operations_fresh()
     manual = controller.config.setdefault("manual", {})
@@ -2871,32 +2953,14 @@ def sync_manual_ie_panel_aggregate_into_config() -> bool:
         return False
     if manual.get("manual_ie_panel_aggregate", True) is False:
         return False
-    b_inc, b_exp = get_bank_histogram_totals()
-    man_inc_m, man_exp_m = _manual_operations_income_expense_month(restrict_month=True)
-    fake_inc_m = _fake_credit_month_total()
-    transfer_exp_addon = _panel_transfer_expense_addon()
-    restrict = not panel_include_all_cached_operations()
-
-    if b_exp is not None:
-        exp_val = round(float(b_exp) + float(transfer_exp_addon or 0) + float(man_exp_m or 0), 2)
-    else:
-        _, exp_val, _, _ = calculate_stats(restrict_month=restrict)
-
-    if b_inc is not None:
-        inc_val = round(float(b_inc) + float(man_inc_m or 0) + float(fake_inc_m or 0), 2)
-    else:
-        inc_val, _, _, _ = calculate_stats(restrict_month=restrict)
-
     changed = False
-    if manual.get("expense") != exp_val:
-        manual["expense"] = exp_val
-        changed = True
-    if manual.get("income") != inc_val:
-        manual["income"] = inc_val
-        changed = True
+    for key in ("income", "expense"):
+        if key in manual and manual.get(key) is not None:
+            manual[key] = None
+            changed = True
     if changed:
         controller.save_config()
-        print(f"[history] Панель доход/расход: доходы={inc_val} ₽, расходы={exp_val} ₽ (сводка банка + ручн./моки)")
+        print("[history] config.manual.income/expense сброшены (синхронизация по операциям)")
     return changed
 
 
