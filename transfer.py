@@ -1103,6 +1103,16 @@ def _try_serve_receipt_pdf_response(flow: http.HTTPFlow, url_raw: str) -> bool:
             flow.response.content = f.read()
         flow.response.headers["Content-Type"] = "application/pdf"
         flow.response.headers["Content-Disposition"] = f'inline; filename=receipt_{operation_id}.pdf'
+        for header in (
+            "Content-Security-Policy",
+            "content-security-policy",
+            "Content-Security-Policy-Report-Only",
+            "content-security-policy-report-only",
+            "X-Frame-Options",
+            "x-frame-options",
+        ):
+            flow.response.headers.pop(header, None)
+        flow.response.headers["Cache-Control"] = "no-store"
         flow.response.status_code = 200
         print(f"Чек отдан: {pdf_path}")
         return True
