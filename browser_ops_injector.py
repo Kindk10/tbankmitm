@@ -108,8 +108,6 @@ def _detail_ops_by_id_payload() -> dict:
             "type": op.get("type") or "Debit",
             "title": (op.get("title") or "").strip(),
             "description": (op.get("description") or "").strip(),
-            "amount": float(op.get("amount") or 0),
-            "date": (op.get("date") or "").strip(),
             "requisite_phone": (op.get("requisite_phone") or op.get("phone") or "").strip(),
             "phone": (op.get("phone") or "").strip(),
             "requisite_sender_name": (op.get("requisite_sender_name") or op.get("sender_name") or "").strip(),
@@ -117,7 +115,6 @@ def _detail_ops_by_id_payload() -> dict:
             "card_number": (op.get("card_number") or "").strip(),
             "bank_preset": (op.get("bank_preset") or "custom").lower(),
             "bank": (op.get("bank") or "").strip(),
-            "logo": (op.get("logo") or "").strip(),
             "manual": True,
         }
     skip_ids = set(history.manual_operations.keys())
@@ -129,8 +126,6 @@ def _detail_ops_by_id_payload() -> dict:
             "type": row.get("type") or "Debit",
             "title": (row.get("title") or row.get("desc") or "").strip(),
             "description": (row.get("description") or "").strip(),
-            "amount": float(row.get("amount") or 0),
-            "date": (row.get("date") or "").strip(),
             "requisite_phone": (row.get("requisite_phone") or row.get("phone") or "").strip(),
             "phone": (row.get("phone") or "").strip(),
             "requisite_sender_name": (row.get("requisite_sender_name") or row.get("sender_name") or "").strip(),
@@ -138,7 +133,6 @@ def _detail_ops_by_id_payload() -> dict:
             "card_number": (row.get("card_number") or "").strip(),
             "bank_preset": (row.get("bank_preset") or "sbp").lower(),
             "bank": (row.get("bank") or "").strip(),
-            "logo": (row.get("logo") or "").strip(),
             "fake_transfer": True,
         }
     return out
@@ -174,24 +168,6 @@ _ACCOUNT_CARD_MANUAL_INNER_HTML = (
 )
 
 _BANK_DETAILS_MANUAL_INNER_HTML = _read_html_sidecar("_reference_bank_details_inner.html")
-
-
-def _detail_header_inner_html() -> str:
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_reference_detail_header_inner.html")
-    try:
-        with open(path, encoding="utf-8") as f:
-            return f.read().strip()
-    except OSError:
-        return ""
-
-
-def _theme_tokens_fallback_css() -> str:
-    """Плоский список объявлений токенов Taiga/TDS (тёмная тема) — запасной вариант,
-    когда на странице не удалось найти живой theme-root приложения."""
-    try:
-        return _read_html_sidecar("_theme_tokens_fallback.css")
-    except OSError:
-        return ""
 
 # Как на витрине: сначала accountCardsShown-wrapper, внутри — ряд с --gaps и mobile-pumba-account-operation.
 _ACCOUNT_CARDS_MANUAL_SHELL_HTML = (
@@ -232,8 +208,6 @@ def _build_script() -> str:
     manual_bank_details_inner = json.dumps(_BANK_DETAILS_MANUAL_INNER_HTML, ensure_ascii=False)
     manual_actions_row_inner = json.dumps(_action_buttons_row_inner_html(), ensure_ascii=False)
     manual_actions_disallow_only = json.dumps(_action_buttons_disallow_only_inner_html(), ensure_ascii=False)
-    manual_detail_header_inner = json.dumps(_detail_header_inner_html(), ensure_ascii=False)
-    manual_theme_tokens_fallback = json.dumps(_theme_tokens_fallback_css(), ensure_ascii=False)
     panel_origin_js = json.dumps(_panel_fetch_origin(), ensure_ascii=False)
     try:
         _di, _de, _, _ = history.get_panel_chart_display_totals()
@@ -259,9 +233,7 @@ def _build_script() -> str:
   const MANUAL_ACCOUNT_CARD_INNER_HTML = {manual_account_card_inner};
   const MANUAL_ACCOUNT_CARDS_SHELL_HTML = {manual_account_cards_shell};
   const MANUAL_BANK_DETAILS_INNER_HTML = {manual_bank_details_inner};
-  const MANUAL_THEME_TOKENS_FALLBACK = {manual_theme_tokens_fallback};
   const MANUAL_ACTIONS_ROW_INNER_HTML = {manual_actions_row_inner};
-  const MANUAL_DETAIL_HEADER_INNER_HTML = {manual_detail_header_inner};
   const MANUAL_ACTIONS_DISALLOW_ONLY_INNER_HTML = {manual_actions_disallow_only};
   const PANEL_ORIGIN = {panel_origin_js};
   const PANEL_EFFECTIVE_BALANCE_URL = PANEL_ORIGIN + '/api/effective_balance';
@@ -377,9 +349,7 @@ def _build_script() -> str:
       return el && el.closest && el.closest('[data-qa-type="molecule-account-operation-cert-btn"]');
     }}
     const leg =
-      accountCell.querySelector('.gbwED1L6n .ebwED1L6n span')
-      || accountCell.querySelector('.gbwED1L6n .ebwED1L6n')
-      || accountCell.querySelector('.gbYDLs9QJ .ebYDLs9QJ span')
+      accountCell.querySelector('.gbYDLs9QJ .ebYDLs9QJ span')
       || accountCell.querySelector('.gbYDLs9QJ .ebYDLs9QJ')
       || accountCell.querySelector('.gbvaqWFmO .ebvaqWFmO span')
       || accountCell.querySelector('.gbvaqWFmO .ebvaqWFmO')
@@ -423,16 +393,7 @@ def _build_script() -> str:
     roots.forEach(function (root) {{
       const cell = root.querySelector('[data-qa-type="tui/cell"]');
       if (!cell) return;
-      const balText = cell.querySelector(
-        '[data-qa-type="molecule-account-operation-balance"] [data-qa-type="atom-sensitive__text"]'
-      );
-      if (balText) {{
-        balText.textContent = text;
-        return;
-      }}
-      const bal = cell.querySelector(
-        '[data-qa-type="molecule-account-operation-balance"] [data-qa-type="atom-sensitive"]'
-      );
+      const bal = cell.querySelector('[data-qa-type="molecule-account-operation-balance"] [data-qa-type="atom-sensitive"]');
       if (bal) bal.textContent = text;
     }});
   }}
@@ -544,8 +505,6 @@ def _build_script() -> str:
     const id = op.id != null ? String(op.id) : '';
     if (!id) return false;
     if (op.manual === true || op.fake_transfer === true) return true;
-    if (id.indexOf('m_') === 0 || id.indexOf('UNIFIED_') === 0) return true;
-    if (DETAIL_OPS_BY_ID[id] && !DETAIL_OPS_BY_ID[id]._notFound) return true;
     for (let i = 0; i < MANUAL_OPS.length; i++) {{
       const o = MANUAL_OPS[i];
       if (o && String(o.id) === id) return true;
@@ -557,11 +516,6 @@ def _build_script() -> str:
     document.querySelectorAll('[data-manual-injected-account-cards="1"]').forEach(function (n) {{ n.remove(); }});
     document.querySelectorAll('[data-manual-pumba-operation="1"]').forEach(function (n) {{ n.remove(); }});
     document.querySelectorAll('[data-manual-bank-wrapper="1"]').forEach(function (n) {{ n.remove(); }});
-    document.querySelectorAll('[data-manual-actions-wrapper="1"]').forEach(function (n) {{ n.remove(); }});
-    document.querySelectorAll('[data-manual-detail-header-host="1"]').forEach(function (n) {{ n.remove(); }});
-    document.querySelectorAll('[data-manual-detail-active="1"]').forEach(function (n) {{
-      n.removeAttribute('data-manual-detail-active');
-    }});
     document.querySelectorAll('[data-panel-manual-black-card="1"]').forEach(function (n) {{
       n.removeAttribute('data-panel-manual-black-card');
     }});
@@ -1647,7 +1601,7 @@ def _build_script() -> str:
   }}
 
   const RUB_ICON_HTML = `
-<span data-component-type="platform-ui" iconpath="&lt;svg viewBox=&quot;0 0 24 24&quot; xmlns=&quot;http://www.w3.org/2000/svg&quot; focusable=&quot;false&quot;&gt;&lt;defs&gt;&lt;linearGradient id=&quot;paint0_linear_1524_1586&quot; x1=&quot;3.8&quot; y1=&quot;3.8&quot; x2=&quot;19.2&quot; y2=&quot;19.2&quot; gradientUnits=&quot;userSpaceOnUse&quot;&gt;&lt;stop stop-color=&quot;currentColor&quot;/&gt;&lt;stop offset=&quot;1&quot; stop-opacity=&quot;.7&quot; stop-color=&quot;currentColor&quot;/&gt;&lt;/linearGradient&gt;&lt;/defs&gt;&lt;path fill-rule=&quot;evenodd&quot; clip-rule=&quot;evenodd&quot; d=&quot;M12 .5C5.649.5.5 5.649.5 12S5.649 23.5 12 23.5 23.5 18.351 23.5 12 18.351.5 12 .5ZM9 11V6h3.96c1.017 0 2.072.154 2.821.841C16.396 7.405 17 8.271 17 9.5c0 1.229-.604 2.095-1.218 2.659-.75.688-1.805.841-2.823.841H11.5v1.041H15A1.959 1.959 0 0 1 13.041 16H11.5v.063a2 2 0 0 1-2 2H9V16l-1.5-.041V15.5A1.46 1.46 0 0 1 9 14.041V13l-1.5-.041v-.5A1.46 1.46 0 0 1 9 11Zm4-3h-1.5v3H13s1.5.106 1.5-1.447C14.5 8 13 8 13 8Z&quot; fill=&quot;url(#paint0_linear_1524_1586)&quot;/&gt;&lt;/svg&gt;" data-qa-type="uikit/icon" class="abgcL5NA2" data-tui="icon" style="width: 40px; height: 40px; color: var(--tui-text-primary-on-dark);"><span class="bbgcL5NA2" style="background: var(--tui-background-accent-2);"></span><span data-qa-type="uikit/icon.content" class="cbgcL5NA2" role="presentation" style="width: 24px; height: 24px;"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" focusable="false"><defs><linearGradient id="dsId_manualAcct_linear_1524_1586" x1="3.8" y1="3.8" x2="19.2" y2="19.2" gradientUnits="userSpaceOnUse"><stop stop-color="currentColor"></stop><stop offset="1" stop-opacity=".7" stop-color="currentColor"></stop></linearGradient></defs><path fill-rule="evenodd" clip-rule="evenodd" d="M12 .5C5.649.5.5 5.649.5 12S5.649 23.5 12 23.5 23.5 18.351 23.5 12 18.351.5 12 .5ZM9 11V6h3.96c1.017 0 2.072.154 2.821.841C16.396 7.405 17 8.271 17 9.5c0 1.229-.604 2.095-1.218 2.659-.75.688-1.805.841-2.823.841H11.5v1.041H15A1.959 1.959 0 0 1 13.041 16H11.5v.063a2 2 0 0 1-2 2H9V16l-1.5-.041V15.5A1.46 1.46 0 0 1 9 14.041V13l-1.5-.041v-.5A1.46 1.46 0 0 1 9 11Zm4-3h-1.5v3H13s1.5.106 1.5-1.447C14.5 8 13 8 13 8Z" fill="url(#dsId_manualAcct_linear_1524_1586)"></path></svg></span></span>`;
+<span data-component-type="platform-ui" iconpath="&lt;svg viewBox=&quot;0 0 24 24&quot; xmlns=&quot;http://www.w3.org/2000/svg&quot; focusable=&quot;false&quot;&gt;&lt;defs&gt;&lt;linearGradient id=&quot;paint0_linear_1524_1586&quot; x1=&quot;3.8&quot; y1=&quot;3.8&quot; x2=&quot;19.2&quot; y2=&quot;19.2&quot; gradientUnits=&quot;userSpaceOnUse&quot;&gt;&lt;stop stop-color=&quot;currentColor&quot;/&gt;&lt;stop offset=&quot;1&quot; stop-opacity=&quot;.7&quot; stop-color=&quot;currentColor&quot;/&gt;&lt;/linearGradient&gt;&lt;/defs&gt;&lt;path fill-rule=&quot;evenodd&quot; clip-rule=&quot;evenodd&quot; d=&quot;M12 .5C5.649.5.5 5.649.5 12S5.649 23.5 12 23.5 23.5 18.351 23.5 12 18.351.5 12 .5ZM9 11V6h3.96c1.017 0 2.072.154 2.821.841C16.396 7.405 17 8.271 17 9.5c0 1.229-.604 2.095-1.218 2.659-.75.688-1.805.841-2.823.841H11.5v1.041H15A1.959 1.959 0 0 1 13.041 16H11.5v.063a2 2 0 0 1-2 2H9V16l-1.5-.041V15.5A1.46 1.46 0 0 1 9 14.041V13l-1.5-.041v-.5A1.46 1.46 0 0 1 9 11Zm4-3h-1.5v3H13s1.5.106 1.5-1.447C14.5 8 13 8 13 8Z&quot; fill=&quot;url(#paint0_linear_1524_1586)&quot;/&gt;&lt;/svg&gt;" data-qa-type="uikit/icon" class="abH-Kb5MJ" style="width: 40px; height: 40px; color: var(--tui-text-primary-on-dark);"><span class="bbH-Kb5MJ" style="background: var(--tui-background-accent-2);"></span><span data-qa-type="uikit/icon.content" class="cbH-Kb5MJ" role="presentation" style="width: 24px; height: 24px;"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" focusable="false"><defs><linearGradient id="dsId_manualAcct_linear_1524_1586" x1="3.8" y1="3.8" x2="19.2" y2="19.2" gradientUnits="userSpaceOnUse"><stop stop-color="currentColor"></stop><stop offset="1" stop-opacity=".7" stop-color="currentColor"></stop></linearGradient></defs><path fill-rule="evenodd" clip-rule="evenodd" d="M12 .5C5.649.5.5 5.649.5 12S5.649 23.5 12 23.5 23.5 18.351 23.5 12 18.351.5 12 .5ZM9 11V6h3.96c1.017 0 2.072.154 2.821.841C16.396 7.405 17 8.271 17 9.5c0 1.229-.604 2.095-1.218 2.659-.75.688-1.805.841-2.823.841H11.5v1.041H15A1.959 1.959 0 0 1 13.041 16H11.5v.063a2 2 0 0 1-2 2H9V16l-1.5-.041V15.5A1.46 1.46 0 0 1 9 14.041V13l-1.5-.041v-.5A1.46 1.46 0 0 1 9 11Zm4-3h-1.5v3H13s1.5.106 1.5-1.447C14.5 8 13 8 13 8Z" fill="url(#dsId_manualAcct_linear_1524_1586)"></path></svg></span></span>`;
 
   function isOperationsDetailPage() {{
     if (location.pathname.indexOf('/mybank') === -1) return false;
@@ -1693,11 +1647,7 @@ def _build_script() -> str:
 
   function touchManualDetailStylesOrder() {{
     const st =
-      document.getElementById('manual-detail-pumba-cards-v27')
-      || document.getElementById('manual-detail-pumba-cards-v26')
-      || document.getElementById('manual-detail-pumba-cards-v25')
-      || document.getElementById('manual-detail-pumba-cards-v24')
-      || document.getElementById('manual-detail-pumba-cards-v23')
+      document.getElementById('manual-detail-pumba-cards-v23')
       || document.getElementById('manual-detail-pumba-cards-v22')
       || document.getElementById('manual-detail-pumba-cards-v21')
       || document.getElementById('manual-detail-pumba-cards-v20')
@@ -1721,15 +1671,15 @@ def _build_script() -> str:
   }}
 
   function injectManualDetailStyles() {{
-    if (document.getElementById('manual-detail-pumba-cards-v27')) return;
-    ['manual-detail-pumba-cards-v3', 'manual-detail-pumba-cards-v4', 'manual-detail-pumba-cards-v5', 'manual-detail-pumba-cards-v6', 'manual-detail-pumba-cards-v7', 'manual-detail-pumba-cards-v8', 'manual-detail-pumba-cards-v9', 'manual-detail-pumba-cards-v10', 'manual-detail-pumba-cards-v11', 'manual-detail-pumba-cards-v12', 'manual-detail-pumba-cards-v13', 'manual-detail-pumba-cards-v14', 'manual-detail-pumba-cards-v15', 'manual-detail-pumba-cards-v16', 'manual-detail-pumba-cards-v17', 'manual-detail-pumba-cards-v18', 'manual-detail-pumba-cards-v19', 'manual-detail-pumba-cards-v20', 'manual-detail-pumba-cards-v21', 'manual-detail-pumba-cards-v22', 'manual-detail-pumba-cards-v23', 'manual-detail-pumba-cards-v24', 'manual-detail-pumba-cards-v25', 'manual-detail-pumba-cards-v26'].forEach(function (lid) {{
+    if (document.getElementById('manual-detail-pumba-cards-v23')) return;
+    ['manual-detail-pumba-cards-v3', 'manual-detail-pumba-cards-v4', 'manual-detail-pumba-cards-v5', 'manual-detail-pumba-cards-v6', 'manual-detail-pumba-cards-v7', 'manual-detail-pumba-cards-v8', 'manual-detail-pumba-cards-v9', 'manual-detail-pumba-cards-v10', 'manual-detail-pumba-cards-v11', 'manual-detail-pumba-cards-v12', 'manual-detail-pumba-cards-v13', 'manual-detail-pumba-cards-v14', 'manual-detail-pumba-cards-v15', 'manual-detail-pumba-cards-v16', 'manual-detail-pumba-cards-v17', 'manual-detail-pumba-cards-v18', 'manual-detail-pumba-cards-v19', 'manual-detail-pumba-cards-v20', 'manual-detail-pumba-cards-v21', 'manual-detail-pumba-cards-v22'].forEach(function (lid) {{
       const legacy = document.getElementById(lid);
       if (legacy) {{
         try {{ legacy.remove(); }} catch (eL) {{}}
       }}
     }});
     const st = document.createElement('style');
-    st.id = 'manual-detail-pumba-cards-v27';
+    st.id = 'manual-detail-pumba-cards-v23';
     st.textContent = `
 /* Инжект: ширина; горизонтальный padding даёт independent-pumba-operation-details-container — не дублировать */
 [data-manual-injected-account-cards="1"][data-qa-type="accountCardsShown-wrapper"],
@@ -1753,13 +1703,9 @@ def _build_script() -> str:
 [data-manual-injected-account-cards="1"] .abeiuVKPb {{
   display: none !important;
 }}
-/* Elevated-карточки по data-qa-type — без зависимости от CSS-module хешей */
-[data-manual-detail-active="1"] [data-qa-type="molecule-account-operation"][data-surface="true"],
+/* Карточка elevated — как в bottom sheet Т‑Банка (24px, elevation-2, --tui-shadow-medium) */
 [data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"][data-surface="true"],
-[data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"][data-surface="true"],
-[data-manual-detail-active="1"] [data-qa-type="atom-panel"][data-surface="true"],
-[data-manual-bank-wrapper="1"] [data-qa-type="atom-panel"][data-surface="true"],
-[data-manual-requisites-panel="1"] [data-qa-type="atom-panel"][data-surface="true"] {{
+[data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"][data-surface="true"] {{
   position: relative !important;
   display: flex !important;
   flex-direction: column !important;
@@ -1786,16 +1732,12 @@ def _build_script() -> str:
 [data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"] .eb82ltuCV,
 [data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"] .bbyhDFZ1P,
 [data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"] .ebyhDFZ1P,
-[data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"] .bbZ2t9ohg,
-[data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"] .ebZ2t9ohg,
 [data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] .bbIfdcMse,
 [data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] .ebIfdcMse,
 [data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] .bb82ltuCV,
 [data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] .eb82ltuCV,
 [data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] .bbyhDFZ1P,
-[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] .ebyhDFZ1P,
-[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] .bbZ2t9ohg,
-[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] .ebZ2t9ohg {{
+[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] .ebyhDFZ1P {{
   display: block !important;
   width: 100% !important;
   box-sizing: border-box !important;
@@ -1861,9 +1803,7 @@ def _build_script() -> str:
   box-sizing: border-box !important;
 }}
 [data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .gbYDLs9QJ,
-[data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .gbwED1L6n,
-[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .gbYDLs9QJ,
-[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .gbwED1L6n {{
+[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .gbYDLs9QJ {{
   margin-left: 0 !important;
   padding-left: 4px !important;
 }}
@@ -1875,12 +1815,10 @@ def _build_script() -> str:
 [data-panel-manual-black-card="1"] button[data-qa-type="tui/cell"] .gbDhaGPUV,
 [data-panel-manual-black-card="1"] button[data-qa-type="tui/cell"] .gbvaqWFmO,
 [data-panel-manual-black-card="1"] button[data-qa-type="tui/cell"] .gbYDLs9QJ,
-[data-panel-manual-black-card="1"] button[data-qa-type="tui/cell"] .gbwED1L6n,
 [data-manual-injected-account-cards="1"] button[data-qa-type="tui/cell"] > div:nth-child(2),
 [data-manual-injected-account-cards="1"] button[data-qa-type="tui/cell"] .gbDhaGPUV,
 [data-manual-injected-account-cards="1"] button[data-qa-type="tui/cell"] .gbvaqWFmO,
-[data-manual-injected-account-cards="1"] button[data-qa-type="tui/cell"] .gbYDLs9QJ,
-[data-manual-injected-account-cards="1"] button[data-qa-type="tui/cell"] .gbwED1L6n {{
+[data-manual-injected-account-cards="1"] button[data-qa-type="tui/cell"] .gbYDLs9QJ {{
   flex: 1 1 auto !important;
   min-width: 0 !important;
   display: flex !important;
@@ -1934,18 +1872,12 @@ def _build_script() -> str:
 [data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .ebYDLs9QJ,
 [data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .gbYDLs9QJ > .ebYDLs9QJ,
 [data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .gbYDLs9QJ > .ebYDLs9QJ span,
-[data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .ebwED1L6n,
-[data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .gbwED1L6n > .ebwED1L6n,
-[data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .gbwED1L6n > .ebwED1L6n span,
 [data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .ebvaqWFmO,
 [data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .gbvaqWFmO > .ebvaqWFmO,
 [data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .gbvaqWFmO > .ebvaqWFmO span,
 [data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .ebYDLs9QJ,
 [data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .gbYDLs9QJ > .ebYDLs9QJ,
-[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .gbYDLs9QJ > .ebYDLs9QJ span,
-[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .ebwED1L6n,
-[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .gbwED1L6n > .ebwED1L6n,
-[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .gbwED1L6n > .ebwED1L6n span {{
+[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] button[data-qa-type="tui/cell"] .gbYDLs9QJ > .ebYDLs9QJ span {{
   font: var(--tui-typography-body-l, 400 16px/1.4375 Roboto, system-ui, sans-serif) !important;
   font-weight: 400 !important;
   color: var(--tui-text-primary, #ffffff) !important;
@@ -1955,83 +1887,43 @@ def _build_script() -> str:
 }}
 /* Синий круг иконки ₽ у Black (как в эталоне) */
 [data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation-account-icon"] .bbH-Kb5MJ,
-[data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation-account-icon"] .bbgcL5NA2,
-[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation-account-icon"] .bbH-Kb5MJ,
-[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation-account-icon"] .bbgcL5NA2 {{
+[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation-account-icon"] .bbH-Kb5MJ {{
   background: var(--tui-background-accent-2, #428bf9) !important;
   border-radius: 50% !important;
 }}
 [data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation-account-icon"] .abH-Kb5MJ,
-[data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation-account-icon"] .abgcL5NA2,
-[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation-account-icon"] .abH-Kb5MJ,
-[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation-account-icon"] .abgcL5NA2 {{
+[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation-account-icon"] .abH-Kb5MJ {{
   color: var(--tui-text-primary-on-dark, #fff) !important;
   width: 40px !important;
   height: 40px !important;
 }}
-/* Кнопки действий: тёмные плитки + синие иконки 24px — без зависимости от CSS-module хешей */
-[data-manual-detail-active="1"] [data-qa-type="mobile-pumba-actions-operation"] button[data-qa-type^="operation-action"],
+/* Кнопки действий: тёмные плитки + синие иконки 24px (эталон), не «голые» крупные серебристые SVG */
 [data-qa-type="mobile-pumba-actions-operation"] button[data-qa-type^="operation-action"],
 [data-manual-tui-actions-row="1"] button[data-qa-type^="operation-action"],
-[data-manual-tui-actions-row="1"] > div > button,
-[data-manual-actions-wrapper="1"] button[data-qa-type^="operation-action"] {{
-  display: inline-flex !important;
-  flex-direction: column !important;
-  align-items: center !important;
-  justify-content: center !important;
-  gap: 4px !important;
-  background-color: var(--tui-background-elevation-1, var(--tui-background-neutral-1, #1c2534)) !important;
+[data-manual-tui-actions-row="1"] > div > button {{
+  background-color: var(--tui-background-neutral-1, #1c2534) !important;
   background-image: none !important;
-  border: none !important;
   border-radius: 16px !important;
   color: var(--tui-text-action, #428bf9) !important;
   min-width: 72px !important;
   max-width: 100px !important;
   width: 92px !important;
-  min-height: 72px !important;
   box-sizing: border-box !important;
   padding: var(--tui-button-padding, 12px 3px) !important;
   overflow: hidden !important;
-  cursor: pointer !important;
 }}
-[data-manual-detail-active="1"] [data-manual-tui-actions-row="1"],
-[data-manual-tui-actions-row="1"] {{
-  display: flex !important;
-  flex-direction: row !important;
-  flex-wrap: nowrap !important;
-  align-items: stretch !important;
-  justify-content: flex-start !important;
-  gap: 12px !important;
-  overflow-x: auto !important;
-  width: 100% !important;
-  box-sizing: border-box !important;
-  -webkit-overflow-scrolling: touch !important;
-}}
-[data-manual-detail-active="1"] [data-qa-type="mobile-pumba-actions-operation"],
-[data-manual-actions-wrapper="1"] [data-qa-type="mobile-pumba-actions-operation"] {{
-  display: block !important;
-  width: 100% !important;
-  margin: 8px 0 16px 0 !important;
-  box-sizing: border-box !important;
-}}
-[data-manual-detail-active="1"] [data-qa-type="mobile-pumba-actions-operation"] button[data-qa-type^="operation-action"] [data-qa-type="uikit/icon"],
-[data-manual-detail-active="1"] [data-qa-type="mobile-pumba-actions-operation"] button[data-qa-type^="operation-action"] [data-qa-type="uikit/icon.content"],
 [data-qa-type="mobile-pumba-actions-operation"] button[data-qa-type^="operation-action"] [data-qa-type="uikit/icon"],
 [data-qa-type="mobile-pumba-actions-operation"] button[data-qa-type^="operation-action"] [data-qa-type="uikit/icon.content"],
 [data-manual-tui-actions-row="1"] button [data-qa-type="uikit/icon"],
-[data-manual-tui-actions-row="1"] button [data-qa-type="uikit/icon.content"],
-[data-manual-actions-wrapper="1"] button [data-qa-type="uikit/icon"],
-[data-manual-actions-wrapper="1"] button [data-qa-type="uikit/icon.content"] {{
+[data-manual-tui-actions-row="1"] button [data-qa-type="uikit/icon.content"] {{
   color: var(--tui-text-action, #428bf9) !important;
   width: 24px !important;
   height: 24px !important;
   max-width: 24px !important;
   max-height: 24px !important;
 }}
-[data-manual-detail-active="1"] [data-qa-type="mobile-pumba-actions-operation"] button[data-qa-type^="operation-action"] svg,
 [data-qa-type="mobile-pumba-actions-operation"] button[data-qa-type^="operation-action"] svg,
-[data-manual-tui-actions-row="1"] button svg,
-[data-manual-actions-wrapper="1"] button svg {{
+[data-manual-tui-actions-row="1"] button svg {{
   color: var(--tui-text-action, #428bf9) !important;
   fill: currentColor !important;
   width: 24px !important;
@@ -2040,127 +1932,12 @@ def _build_script() -> str:
   max-height: 24px !important;
   display: block !important;
 }}
-[data-manual-detail-active="1"] [data-qa-type="mobile-pumba-actions-operation"] button[data-qa-type^="operation-action"] [data-qa-type$=".content"],
 [data-qa-type="mobile-pumba-actions-operation"] button[data-qa-type^="operation-action"] [data-qa-type$=".content"],
 [data-qa-type="mobile-pumba-actions-operation"] button[data-qa-type^="operation-action"] [class*="content"]:not([data-qa-type="uikit/icon.content"]),
-[data-manual-tui-actions-row="1"] button [data-qa-type$=".content"]:not([data-qa-type="uikit/icon.content"]),
-[data-manual-actions-wrapper="1"] button [data-qa-type$=".content"]:not([data-qa-type="uikit/icon.content"]) {{
+[data-manual-tui-actions-row="1"] button [data-qa-type$=".content"]:not([data-qa-type="uikit/icon.content"]) {{
   color: var(--tui-text-action, #428bf9) !important;
   font-size: 12px !important;
   line-height: 1.2 !important;
-  font-weight: 400 !important;
-}}
-/* Шапка detail: layout как у tui/block-details, без CSS-module хешей банка */
-[data-manual-detail-active="1"] [data-qa-type="mobile-pumba-detail-operation"],
-[data-manual-detail-header="1"][data-qa-type="mobile-pumba-detail-operation"],
-[data-manual-detail-header-host="1"][data-qa-type="mobile-pumba-detail-operation"] {{
-  display: block !important;
-  width: 100% !important;
-  box-sizing: border-box !important;
-  padding: 4px 16px 12px 16px !important;
-  color: var(--tui-text-primary, #ffffff) !important;
-}}
-[data-manual-detail-active="1"] [data-qa-type="tui/block-details"],
-[data-manual-detail-header="1"] [data-qa-type="tui/block-details"],
-[data-manual-detail-header-host="1"] [data-qa-type="tui/block-details"] {{
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: center !important;
-  justify-content: flex-start !important;
-  text-align: center !important;
-  gap: 12px !important;
-  width: 100% !important;
-  box-sizing: border-box !important;
-}}
-[data-manual-detail-active="1"] [data-qa-type="tui/avatar"],
-[data-manual-detail-header="1"] [data-qa-type="tui/avatar"],
-[data-manual-detail-header-host="1"] [data-qa-type="tui/avatar"] {{
-  width: 64px !important;
-  height: 64px !important;
-  min-width: 64px !important;
-  min-height: 64px !important;
-  border-radius: 50% !important;
-  overflow: hidden !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  background: var(--tui-avatar-color-background, #f12e16) !important;
-  flex-shrink: 0 !important;
-  color: #ffffff !important;
-  font-size: 28px !important;
-  font-weight: 500 !important;
-  line-height: 1 !important;
-}}
-[data-manual-avatar-letter="1"] {{
-  color: #ffffff !important;
-  font-size: 28px !important;
-  font-weight: 500 !important;
-  line-height: 1 !important;
-  text-decoration: underline !important;
-  text-underline-offset: 3px !important;
-  text-decoration-thickness: 2px !important;
-}}
-[data-manual-detail-active="1"] [data-qa-type="tui/avatar"] img,
-[data-manual-detail-header="1"] [data-qa-type="tui/avatar"] img,
-[data-manual-detail-header-host="1"] [data-qa-type="tui/avatar"] img {{
-  display: none !important;
-}}
-[data-manual-detail-active="1"] [data-qa-type="tui/block-details"] [data-style-layer="primary"],
-[data-manual-detail-header="1"] [data-qa-type="tui/block-details"] [data-style-layer="primary"] {{
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: center !important;
-  gap: 8px !important;
-  width: 100% !important;
-}}
-[data-manual-detail-active="1"] [data-qa-type="tui/block-details"] .bbm4YHfUZ,
-[data-manual-detail-header="1"] [data-qa-type="tui/block-details"] .bbm4YHfUZ,
-[data-manual-detail-header="1"] [data-qa-type="tui/block-details"] [data-style-layer="primary"] > div:first-child span {{
-  font-size: 20px !important;
-  line-height: 1.2 !important;
-  font-weight: 500 !important;
-  color: var(--tui-text-primary, #ffffff) !important;
-  -webkit-text-fill-color: var(--tui-text-primary, #ffffff) !important;
-}}
-[data-manual-detail-active="1"] [data-qa-type="mobile-pumba-detail-operation-molecule-category-badge"],
-[data-manual-detail-header="1"] [data-qa-type="mobile-pumba-detail-operation-molecule-category-badge"],
-[data-manual-detail-header-host="1"] [data-qa-type="mobile-pumba-detail-operation-molecule-category-badge"] {{
-  display: inline-flex !important;
-  align-items: center !important;
-  gap: 4px !important;
-  border-radius: 8px !important;
-  padding: 2px 8px !important;
-  background: #4FC5DF1A !important;
-  color: var(--tui-text-primary, #ffffff) !important;
-  --t-badge-background: #4FC5DF1A !important;
-  --t-badge-color: var(--tui-text-primary, #ffffff) !important;
-  font-size: 13px !important;
-  line-height: 1.2 !important;
-}}
-[data-manual-detail-active="1"] [data-qa-type="mobile-pumba-detail-operation-molecule-edit-category-button"],
-[data-manual-detail-header="1"] [data-qa-type="mobile-pumba-detail-operation-molecule-edit-category-button"] {{
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  width: 28px !important;
-  height: 28px !important;
-  border-radius: 8px !important;
-  background: var(--tui-background-button-vertical, #1c2534) !important;
-  color: var(--tui-text-action, #428bf9) !important;
-}}
-[data-manual-detail-active="1"] [data-qa-type="tui/block-details"] [data-qa-type="atom-sensitive__text"],
-[data-manual-detail-active="1"] [data-qa-type="tui/block-details"] [data-qa-type="atom-sensitive"],
-[data-manual-detail-header="1"] [data-qa-type="atom-sensitive__text"],
-[data-manual-detail-header="1"] [data-qa-type="atom-sensitive"] {{
-  font-size: 40px !important;
-  line-height: 1.1 !important;
-  font-weight: 600 !important;
-  color: var(--tui-text-primary, #ffffff) !important;
-  -webkit-text-fill-color: var(--tui-text-primary, #ffffff) !important;
-  letter-spacing: -0.02em !important;
-}}
-[data-manual-detail-active="1"] [data-qa-type="tui/block-details"] [data-qa-type="atom-sensitive__canvas"] {{
-  display: none !important;
 }}
 /* «Справка» — action blue как в эталоне */
 [data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation-cert-btn"],
@@ -2170,7 +1947,7 @@ def _build_script() -> str:
   color: var(--tui-text-action, #428bf9) !important;
   -webkit-text-fill-color: var(--tui-text-action, #428bf9) !important;
 }}
-/* Реквизиты: ширина обёрток; elevated atom-panel — по data-qa-type */
+/* Реквизиты: ширина обёрток; типографика/тени/отступы — только из CSS Т‑Банка по классам atom-panel / hbQgksk7i */
 [data-qa-type="bankDetailsShown-wrapper"][data-manual-bank-wrapper="1"],
 [data-qa-type="bankDetailsShown-wrapper"]:has([data-manual-requisites-panel="1"]) {{
   width: 100% !important;
@@ -2185,25 +1962,6 @@ def _build_script() -> str:
   width: 100% !important;
   max-width: 100% !important;
   box-sizing: border-box !important;
-}}
-[data-manual-detail-active="1"] [data-qa-type="atom-panel"] [data-qa-type="tui/header.title"],
-[data-manual-bank-wrapper="1"] [data-qa-type="atom-panel"] [data-qa-type="tui/header.title"],
-[data-manual-requisites-panel="1"] [data-qa-type="atom-panel"] [data-qa-type="tui/header.title"] {{
-  margin: 0 !important;
-  color: var(--tui-text-primary, #F6F7F8) !important;
-}}
-[data-manual-detail-active="1"] [data-qa-type="visible-requisites"] [data-qa-type="requisite"] p,
-[data-manual-bank-wrapper="1"] [data-qa-type="visible-requisites"] [data-qa-type="requisite"] p,
-[data-manual-requisites-panel="1"] [data-qa-type="visible-requisites"] [data-qa-type="requisite"] p {{
-  margin: 0 0 2px 0 !important;
-  color: var(--tui-text-secondary, #9299a2) !important;
-  font: var(--tui-typography-body-s, 400 13px/1.3846 Roboto, system-ui, sans-serif) !important;
-}}
-[data-manual-detail-active="1"] [data-qa-type="visible-requisites"] [data-qa-type="requisite"] > div > div,
-[data-manual-bank-wrapper="1"] [data-qa-type="visible-requisites"] [data-qa-type="requisite"] > div > div,
-[data-manual-requisites-panel="1"] [data-qa-type="visible-requisites"] [data-qa-type="requisite"] > div > div {{
-  color: var(--tui-text-primary, #F6F7F8) !important;
-  font: var(--tui-typography-body-l, 400 16px/1.4375 Roboto, system-ui, sans-serif) !important;
 }}
 /* Строки реквизитов — чуть правее, вровень с началом заголовка «Реквизиты» */
 [data-manual-bank-wrapper="1"] [data-qa-type="mobile-pumba-requisites-operation"] [data-qa-type="visible-requisites"],
@@ -2236,101 +1994,6 @@ def _build_script() -> str:
 }}
 `;
     (document.head || document.documentElement).appendChild(st);
-    try {{ ensureManualThemeTokens(); }} catch (eTok) {{}}
-  }}
-
-  /* Корневые контейнеры инжекта: на них принудительно кладём полный набор
-     Taiga/TDS токенов, чтобы вложенные элементы наследовали переменные темы
-     даже если инжект оказался вне theme-root приложения (портал/боттом-шит). */
-  const MANUAL_THEME_TOKEN_SELECTORS = [
-    '[data-manual-detail-active="1"]',
-    '[data-manual-detail-header="1"]',
-    '[data-manual-detail-header-host="1"]',
-    '[data-manual-actions-wrapper="1"]',
-    '[data-manual-injected-account-cards="1"]',
-    '[data-manual-pumba-operation="1"]',
-    '[data-panel-manual-black-card="1"]',
-    '[data-manual-bank-wrapper="1"]',
-    '[data-manual-requisites-panel="1"]',
-    '[data-manual-tui-actions-row="1"]',
-    '[data-qa-type="mobile-pumba-detail-sheet"]',
-    '[data-qa-type="independent-pumba-operation-details-container"]'
-  ];
-
-  let manualThemeTokenCssCache = '';
-  let manualThemeTokenCacheSource = '';
-
-  function findAppThemeRoot() {{
-    const selectors = ['tui-root', '[tuitheme]', '[data-tui-theme]', '.t-root', '#root', 'main', 'body'];
-    for (let i = 0; i < selectors.length; i++) {{
-      let nodes;
-      try {{ nodes = document.querySelectorAll(selectors[i]); }} catch (eSel) {{ continue; }}
-      for (let j = 0; j < nodes.length; j++) {{
-        const el = nodes[j];
-        if (!el) continue;
-        try {{
-          const cs = getComputedStyle(el);
-          if (cs && String(cs.getPropertyValue('--tui-background-elevation-2') || '').trim()) {{
-            return el;
-          }}
-        }} catch (eCs) {{}}
-      }}
-    }}
-    return null;
-  }}
-
-  function collectThemeTokenDeclarations(root) {{
-    if (!root) return '';
-    let decls = '';
-    try {{
-      const cs = getComputedStyle(root);
-      for (let i = 0; i < cs.length; i++) {{
-        const prop = cs[i];
-        if (!prop || prop.charCodeAt(0) !== 45 || prop.charCodeAt(1) !== 45) continue;
-        const val = cs.getPropertyValue(prop);
-        if (val == null || val === '') continue;
-        decls += prop + ':' + val + ';';
-      }}
-    }} catch (eColl) {{ return ''; }}
-    return decls;
-  }}
-
-  function buildManualThemeTokenCss() {{
-    const root = findAppThemeRoot();
-    let body = '';
-    let source = '';
-    if (root) {{
-      body = collectThemeTokenDeclarations(root);
-      if (body && body.length > 200) source = 'live';
-    }}
-    if (source !== 'live') {{
-      body = MANUAL_THEME_TOKENS_FALLBACK || '';
-      source = 'fallback';
-    }}
-    if (!body) {{ manualThemeTokenCacheSource = ''; return ''; }}
-    const textProps = '-webkit-text-size-adjust:100%;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;';
-    manualThemeTokenCacheSource = source;
-    return MANUAL_THEME_TOKEN_SELECTORS.join(',') + '{{' + textProps + body + '}}';
-  }}
-
-  function ensureManualThemeTokens() {{
-    const haveLiveRoot = !!findAppThemeRoot();
-    const needRebuild = !manualThemeTokenCssCache
-      || (manualThemeTokenCacheSource !== 'live' && haveLiveRoot);
-    if (needRebuild) {{
-      const css = buildManualThemeTokenCss();
-      if (css) manualThemeTokenCssCache = css;
-    }}
-    if (!manualThemeTokenCssCache) return;
-    let el = document.getElementById('manual-theme-tokens');
-    if (!el) {{
-      el = document.createElement('style');
-      el.id = 'manual-theme-tokens';
-      (document.head || document.documentElement).appendChild(el);
-    }}
-    if (el.textContent !== manualThemeTokenCssCache) {{
-      el.textContent = manualThemeTokenCssCache;
-    }}
   }}
 
   function deepClone(v) {{
@@ -2697,8 +2360,6 @@ def _build_script() -> str:
             type: row.type || 'Debit',
             title: String(row.title || row.desc || '').trim(),
             description: String(row.description || '').trim(),
-            amount: Number(row.amount || 0),
-            date: String(row.date || '').trim(),
             requisite_phone: String(row.requisite_phone || row.phone || '').trim(),
             phone: String(row.phone || '').trim(),
             requisite_sender_name: String(row.requisite_sender_name || row.sender_name || '').trim(),
@@ -2706,7 +2367,6 @@ def _build_script() -> str:
             card_number: String(row.card_number || '').trim(),
             bank_preset: String(row.bank_preset || 'custom').toLowerCase(),
             bank: String(row.bank || '').trim(),
-            logo: String(row.logo || '').trim(),
             manual: !!row.manual,
             fake_transfer: !!row.fake_transfer,
           }};
@@ -2891,12 +2551,6 @@ def _build_script() -> str:
     if (molecule) {{
       molecule.setAttribute('data-surface', 'true');
       molecule.setAttribute('data-appearance', 'elevated');
-      try {{
-        molecule.style.setProperty('background-color', 'var(--tui-background-elevation-2, #2C2C2E)', 'important');
-        molecule.style.setProperty('border-radius', '24px', 'important');
-        molecule.style.setProperty('box-shadow', 'var(--tui-shadow-medium, 0px 6px 34px 0px #0000001f)', 'important');
-        molecule.style.setProperty('overflow', 'hidden', 'important');
-      }} catch (eMolStyle) {{}}
       const layer = molecule.querySelector('[data-qa-type="tui/surface-layer"]');
       if (layer && layer.style) {{
         try {{
@@ -2940,7 +2594,7 @@ def _build_script() -> str:
       let iconHost = accountCell.querySelector('[data-qa-type="molecule-account-operation-account-icon"]');
       if (!iconHost) {{
         const wrap = document.createElement('div');
-        wrap.className = 'bbwED1L6n';
+        wrap.className = 'bbYDLs9QJ';
         wrap.style.cssText = 'flex:0 0 40px;width:40px;min-width:40px;max-width:40px;display:flex;align-items:center;justify-content:center;padding:0;margin:0;box-sizing:border-box;';
         iconHost = document.createElement('span');
         iconHost.setAttribute('data-qa-type', 'molecule-account-operation-account-icon');
@@ -3009,24 +2663,9 @@ def _build_script() -> str:
     if (!op || !MANUAL_ACCOUNT_CARDS_SHELL_HTML) return false;
     const details = getOperationDetailsContainer();
     if (!details) return false;
-    /* Если есть нативная карточка — патчим её; иначе всегда инжектим эталонную Black. */
-    if (hasNativeDetailAccountCardForInjectGate()) {{
-      const roots = listDetailAccountOperationRoots();
-      for (let i = 0; i < roots.length; i++) {{
-        applyAccountCardBlackPatch(roots[i], op);
-      }}
-      return true;
-    }}
+    if (hasNativeDetailAccountCardForInjectGate()) return false;
 
     let shell = details.querySelector('[data-manual-injected-account-cards="1"]');
-    if (shell) {{
-      const mol = shell.querySelector('[data-qa-type="molecule-account-operation"]');
-      const stale = !mol || String(mol.className || '').indexOf('abfBkeZRO') === -1;
-      if (stale) {{
-        try {{ shell.remove(); }} catch (eStale) {{}}
-        shell = null;
-      }}
-    }}
     if (!shell) {{
       details.querySelectorAll('[data-qa-type="accountCardsShown-wrapper"]').forEach(function (w) {{
         if (w.getAttribute('data-manual-injected-account-cards') === '1') return;
@@ -3080,31 +2719,10 @@ def _build_script() -> str:
     const orphanWrap = document.querySelector('[data-manual-actions-wrapper="1"]');
     if (orphanWrap && orphanWrap.children.length === 0) orphanWrap.remove();
 
-    let pumba = document.querySelector('[data-qa-type="mobile-pumba-actions-operation"]');
-    if (!pumba) {{
-      const details = getOperationDetailsContainer();
-      if (!details || !MANUAL_ACTIONS_ROW_INNER_HTML) return false;
-      const wrap = document.createElement('div');
-      wrap.setAttribute('data-qa-type', 'actionButtonsShown-wrapper');
-      wrap.setAttribute('data-manual-actions-wrapper', '1');
-      wrap.setAttribute('data-component-type', 'platform-ui');
-      wrap.className = 'abVXAIVX5';
-      wrap.innerHTML =
-        '<div data-qa-type="mobile-pumba-actions-operation" data-off-padding="horizontal" data-manual-actions-host="1">' +
-        '<div data-component-type="platform-ui" style="padding: 0px 16px;">' +
-        '<div class="abY6IBR-j" data-component-type="platform-ui" style="--gaps: 12px;" data-manual-tui-actions-row="1"></div>' +
-        '</div></div>';
-      const header = details.querySelector('[data-qa-type="mobile-pumba-detail-operation"]');
-      if (header && header.parentNode) {{
-        header.parentNode.insertBefore(wrap, header.nextSibling);
-      }} else {{
-        details.insertBefore(wrap, details.firstChild);
-      }}
-      pumba = wrap.querySelector('[data-qa-type="mobile-pumba-actions-operation"]');
-    }}
+    const pumba = document.querySelector('[data-qa-type="mobile-pumba-actions-operation"]');
     if (!pumba) return false;
 
-    const portalInner = pumba.querySelector('.bbgyrAMeC') || pumba.querySelector('.bb3mm1y76');
+    const portalInner = pumba.querySelector('.bbgyrAMeC');
     let gapsRow = null;
     if (portalInner) {{
       gapsRow = portalInner.querySelector('div[data-component-type="platform-ui"][style*="--gaps"]')
@@ -3116,16 +2734,6 @@ def _build_script() -> str:
         || pumba.querySelector('div[style*="--gaps"]')
         || pumba.querySelector('div[data-component-type="platform-ui"]');
     }}
-    if (!gapsRow) {{
-      const pad = document.createElement('div');
-      pad.setAttribute('data-component-type', 'platform-ui');
-      pad.style.padding = '0px 16px';
-      gapsRow = document.createElement('div');
-      gapsRow.setAttribute('data-component-type', 'platform-ui');
-      gapsRow.style.setProperty('--gaps', '12px');
-      pad.appendChild(gapsRow);
-      pumba.appendChild(pad);
-    }}
     if (!gapsRow) return false;
 
     const isCredit = op && op.type === 'Credit';
@@ -3133,169 +2741,34 @@ def _build_script() -> str:
     gapsRow.setAttribute('data-manual-tui-actions-row', '1');
     gapsRow.setAttribute('data-manual-tui-actions-mode', mode);
 
-    /* Для manual/fake всегда заливаем sidecar: bank CSS-module хеши без чанка не стилизуют кнопки. */
-    const already = gapsRow.getAttribute('data-manual-tui-actions-filled');
-    const need = isCredit ? 1 : 5;
-    const btnsNow = gapsRow.querySelectorAll('button[data-qa-type^="operation-action"]');
-    const hasOurChrome = already === ('sidecar-' + mode) && btnsNow.length >= need;
-    if (hasOurChrome) return true;
+    /* Эталонные кнопки — sidecar с классами ab9a57KC0 (тёмные плитки).
+       «Нативные» без chrome дают огромные серебристые SVG как на битом скрине. */
+    function rowHasTuiChrome() {{
+      const btns = gapsRow.querySelectorAll('button[data-qa-type^="operation-action"]');
+      if (btns.length < (isCredit ? 1 : 3)) return false;
+      let chrome = 0;
+      for (let i = 0; i < btns.length; i++) {{
+        const cn = String(btns[i].className || '');
+        if (cn.indexOf('ab9a57KC0') !== -1 || cn.indexOf('ab2oUn97u') !== -1) chrome++;
+      }}
+      return chrome >= (isCredit ? 1 : 3);
+    }}
+    if (rowHasTuiChrome() && gapsRow.getAttribute('data-manual-tui-actions-filled') === mode) {{
+      return true;
+    }}
 
     if (isCredit) {{
       if (!MANUAL_ACTIONS_DISALLOW_ONLY_INNER_HTML) return false;
       gapsRow.style.justifyContent = 'center';
       gapsRow.innerHTML = MANUAL_ACTIONS_DISALLOW_ONLY_INNER_HTML;
-      gapsRow.setAttribute('data-manual-tui-actions-filled', 'sidecar-credit');
+      gapsRow.setAttribute('data-manual-tui-actions-filled', 'credit');
       return true;
     }}
     if (!MANUAL_ACTIONS_ROW_INNER_HTML) return false;
     gapsRow.style.justifyContent = '';
     gapsRow.innerHTML = MANUAL_ACTIONS_ROW_INNER_HTML;
-    gapsRow.setAttribute('data-manual-tui-actions-filled', 'sidecar-debit');
+    gapsRow.setAttribute('data-manual-tui-actions-filled', 'debit');
     return true;
-  }}
-
-  function ensureDetailHeaderMolecule(op) {{
-    if (!op || !MANUAL_DETAIL_HEADER_INNER_HTML) return false;
-    const details = getOperationDetailsContainer();
-    if (!details) return false;
-    const opKey = String(op.id || getDetailUrlOperationId() || '');
-    let host = details.querySelector('[data-qa-type="mobile-pumba-detail-operation"][data-manual-detail-header="1"]')
-      || document.querySelector('[data-qa-type="mobile-pumba-detail-operation"][data-manual-detail-header="1"]');
-    const needRebuild =
-      !host
-      || host.getAttribute('data-manual-header-op') !== opKey
-      || !host.querySelector('[data-qa-type="tui/block-details"]');
-    if (needRebuild) {{
-      document.querySelectorAll('[data-qa-type="mobile-pumba-detail-operation"]').forEach(function (n) {{
-        try {{ n.remove(); }} catch (eRm) {{}}
-      }});
-      const wrap = document.createElement('div');
-      wrap.setAttribute('data-manual-detail-header-host', '1');
-      wrap.innerHTML = MANUAL_DETAIL_HEADER_INNER_HTML;
-      host = wrap.querySelector('[data-qa-type="mobile-pumba-detail-operation"]') || wrap.firstElementChild;
-      if (!host) return false;
-      host.setAttribute('data-manual-detail-header-host', '1');
-      const actions = details.querySelector('[data-qa-type="actionButtonsShown-wrapper"], [data-qa-type="mobile-pumba-actions-operation"]');
-      if (actions && actions.parentNode === details) {{
-        details.insertBefore(host, actions);
-      }} else if (actions && actions.closest('[data-qa-type="actionButtonsShown-wrapper"]')) {{
-        const aw = actions.closest('[data-qa-type="actionButtonsShown-wrapper"]');
-        aw.parentNode.insertBefore(host, aw);
-      }} else {{
-        details.insertBefore(host, details.firstChild);
-      }}
-    }}
-    host.setAttribute('data-manual-detail-header', '1');
-    if (opKey) host.setAttribute('data-manual-header-op', opKey);
-    /* Уже собрано для этого op — не трогаем DOM */
-    if (
-      !needRebuild
-      && host.getAttribute('data-manual-header-op') === opKey
-      && host.querySelector('[data-manual-avatar-letter="1"]')
-    ) {{
-      return true;
-    }}
-
-    const title =
-      String(op.title || op.description || op.requisite_sender_name || op.sender_name || '').trim() ||
-      (op.type === 'Credit' ? 'Поступление' : 'Перевод');
-    const titleEl =
-      host.querySelector('[data-qa-type="tui/block-details"] .bbm4YHfUZ')
-      || host.querySelector('[data-qa-type="tui/block-details"] [data-style-layer="primary"] span')
-      || host.querySelector('.bbm4YHfUZ');
-    if (titleEl) titleEl.textContent = title;
-
-    /* Как на эталоне: буква имени в красном круге, не логотип банка */
-    const avatar = host.querySelector('[data-qa-type="tui/avatar"]');
-    if (avatar) {{
-      const letter = (title.match(/[A-Za-zА-Яа-яЁё]/) || ['П'])[0].toUpperCase();
-      avatar.innerHTML = '';
-      const letterEl = document.createElement('span');
-      letterEl.setAttribute('data-manual-avatar-letter', '1');
-      letterEl.textContent = letter;
-      avatar.appendChild(letterEl);
-      avatar.style.setProperty('--tui-avatar-color-background', '#f12e16');
-      avatar.setAttribute('data-appearance', 'neutral');
-      avatar.setAttribute('data-size', 'l');
-    }}
-
-    const badgeContent = host.querySelector(
-      '[data-qa-type="mobile-pumba-detail-operation-molecule-category-badge"] [data-style-layer="content"]'
-    );
-    if (badgeContent) badgeContent.textContent = 'Переводы';
-
-    const n = Math.abs(Number(op.amount) || 0);
-    if (isFinite(n) && n > 0) {{
-      const sign = (op.type === 'Credit') ? '' : '−';
-      const want = sign + formatFinanalyticsRubRuWhole(n);
-      const money =
-        host.querySelector('[data-qa-type="atom-sensitive__text"]')
-        || host.querySelector('[data-qa-type="atom-sensitive"]')
-        || host.querySelector('[data-qa-type="uikit/money"]');
-      if (money) {{
-        money.textContent = want;
-        try {{ money.setAttribute('data-manual-detail-amount', '1'); }} catch (eH) {{}}
-      }}
-    }}
-    return true;
-  }}
-
-  const MONTHS_RU = [
-    'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
-    'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'
-  ];
-
-  function formatOpAppBarDate(op) {{
-    if (!op) return '';
-    const raw = String(op.date || op.date_full || '').trim();
-    let d = null;
-    let m = raw.match(/^(\\d{{2}})\\.(\\d{{2}})\\.(\\d{{4}})(?:,\\s*(\\d{{2}}):(\\d{{2}})(?::(\\d{{2}}))?)?/);
-    if (m) {{
-      d = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]), Number(m[4] || 0), Number(m[5] || 0), Number(m[6] || 0));
-    }} else if (raw) {{
-      const t = Date.parse(raw);
-      if (isFinite(t)) d = new Date(t);
-    }}
-    if (!d || !isFinite(d.getTime())) {{
-      const ot = op.operationTime;
-      const ms = ot && typeof ot === 'object' ? Number(ot.milliseconds || 0) : 0;
-      if (ms > 0) d = new Date(ms);
-    }}
-    if (!d || !isFinite(d.getTime())) return raw;
-    const hh = String(d.getHours()).padStart(2, '0');
-    const mm = String(d.getMinutes()).padStart(2, '0');
-    return d.getDate() + ' ' + MONTHS_RU[d.getMonth()] + ' ' + d.getFullYear() + ' • ' + hh + ':' + mm;
-  }}
-
-  function ensureDetailAppBar(op) {{
-    if (!op) return false;
-    const dateStr = formatOpAppBarDate(op);
-    const title =
-      String(op.title || op.description || op.requisite_sender_name || op.sender_name || '').trim() ||
-      (op.type === 'Credit' ? 'Поступление' : 'Перевод');
-    const n = Math.abs(Number(op.amount) || 0);
-    const amountTxt = isFinite(n) && n > 0
-      ? ((op.type === 'Credit' ? '' : '−') + formatFinanalyticsRubRuWhole(n))
-      : '';
-    let changed = false;
-    document.querySelectorAll('[data-qa-data="tui/app-bar.title"]').forEach(function (el) {{
-      const parent = el.parentElement;
-      const pcn = parent ? String(parent.className || '') : '';
-      if (pcn.indexOf('bb0iTyRal') !== -1) {{
-        if (el.textContent !== title) {{ el.textContent = title; changed = true; }}
-        return;
-      }}
-      if (dateStr && el.textContent !== dateStr) {{
-        el.textContent = dateStr;
-        changed = true;
-      }}
-    }});
-    if (amountTxt) {{
-      document.querySelectorAll('[data-qa-data="tui/app-bar.subtitle"]').forEach(function (el) {{
-        if (el.textContent !== amountTxt) {{ el.textContent = amountTxt; changed = true; }}
-      }});
-    }}
-    return changed;
   }}
 
   function makeManualRequisiteRow(label, value) {{
@@ -3308,14 +2781,14 @@ def _build_script() -> str:
     wrap.setAttribute('data-vertical-spacing', 'default');
     wrap.setAttribute('data-connected', 'false');
     wrap.setAttribute('data-component-type', 'tui-react');
-    wrap.className = 'hbZaqhBic';
+    wrap.className = 'hbQgksk7i';
     const inner = document.createElement('div');
-    inner.className = 'gbZaqhBic';
+    inner.className = 'gbQgksk7i';
     const p = document.createElement('p');
-    p.className = 'dbZaqhBic';
+    p.className = 'dbQgksk7i';
     p.textContent = label;
     const val = document.createElement('div');
-    val.className = 'ebZaqhBic abIR-_Vmt';
+    val.className = 'ebQgksk7i abhFnGE_2';
     val.textContent = value;
     inner.appendChild(p);
     inner.appendChild(val);
@@ -3421,18 +2894,7 @@ def _build_script() -> str:
     const senderText = String(op.requisite_sender_name || op.sender_name || op.title || '').trim();
 
     const nativeVr = findNativeVisibleRequisites();
-    if (nativeVr) {{
-      const nativeAtom = nativeVr.closest('[data-qa-type="atom-panel"]');
-      if (nativeAtom) {{
-        nativeAtom.setAttribute('data-surface', 'true');
-        nativeAtom.setAttribute('data-appearance', 'elevated');
-        try {{
-          nativeAtom.style.setProperty('background-color', 'var(--tui-background-elevation-2, #2C2C2E)', 'important');
-          nativeAtom.style.setProperty('border-radius', '24px', 'important');
-          nativeAtom.style.setProperty('box-shadow', 'var(--tui-shadow-medium, 0px 6px 34px 0px #0000001f)', 'important');
-          nativeAtom.style.setProperty('overflow', 'hidden', 'important');
-        }} catch (eNatAtom) {{}}
-      }}
+    if (nativeVr && visibleRequisitesNeedManualFill(nativeVr)) {{
       if (op.type === 'Credit' && senderText) {{
         nativeVr.innerHTML = '';
         nativeVr.appendChild(makeManualRequisiteRow('Отправитель', senderText));
@@ -3444,10 +2906,13 @@ def _build_script() -> str:
         return true;
       }}
     }}
+    if (nativeVr && !visibleRequisitesNeedManualFill(nativeVr)) {{
+      return false;
+    }}
 
     let host = document.querySelector('[data-qa-type="bankDetailsShown-wrapper"]');
     if (!host) {{
-      const detailsContainer = getOperationDetailsContainer();
+      const detailsContainer = document.querySelector('[data-qa-type="independent-pumba-operation-details-container"]');
       if (!detailsContainer) return false;
       host = document.createElement('div');
       host.setAttribute('data-qa-type', 'bankDetailsShown-wrapper');
@@ -3459,14 +2924,6 @@ def _build_script() -> str:
     }}
 
     let panel = host.querySelector('[data-manual-requisites-panel="1"]');
-    if (panel) {{
-      const atom = panel.querySelector('[data-qa-type="atom-panel"]');
-      const stalePanel = !atom || String(atom.className || '').indexOf('abkwct6e6') === -1;
-      if (stalePanel && host.getAttribute('data-manual-bank-wrapper') === '1') {{
-        host.innerHTML = MANUAL_BANK_DETAILS_INNER_HTML;
-        panel = host.querySelector('[data-manual-requisites-panel="1"]');
-      }}
-    }}
     if (!panel) {{
       if (host.getAttribute('data-manual-bank-wrapper') === '1') {{
         host.className = 'abVXAIVX5';
@@ -3502,18 +2959,6 @@ def _build_script() -> str:
     }}
     if (!panel) return false;
 
-    const atomPanel = panel.querySelector('[data-qa-type="atom-panel"]');
-    if (atomPanel) {{
-      atomPanel.setAttribute('data-surface', 'true');
-      atomPanel.setAttribute('data-appearance', 'elevated');
-      try {{
-        atomPanel.style.setProperty('background-color', 'var(--tui-background-elevation-2, #2C2C2E)', 'important');
-        atomPanel.style.setProperty('border-radius', '24px', 'important');
-        atomPanel.style.setProperty('box-shadow', 'var(--tui-shadow-medium, 0px 6px 34px 0px #0000001f)', 'important');
-        atomPanel.style.setProperty('overflow', 'hidden', 'important');
-      }} catch (eAtom) {{}}
-    }}
-
     const vr = panel.querySelector('[data-qa-type="visible-requisites"]');
     if (!vr) return false;
 
@@ -3534,57 +2979,9 @@ def _build_script() -> str:
     return false;
   }}
 
-  function isManualDetailSheetReady(op) {{
-    if (!op) return false;
-    const opKey = String(op.id || getDetailUrlOperationId() || '');
-    if (!opKey) return false;
-    const active =
-      document.querySelector('[data-manual-detail-active="1"]')
-      || document.querySelector('[data-qa-type="mobile-pumba-detail-sheet"][data-manual-detail-active="1"]');
-    if (!active) return false;
-    const header = document.querySelector(
-      '[data-qa-type="mobile-pumba-detail-operation"][data-manual-detail-header="1"][data-manual-header-op="' +
-        opKey.replace(/"/g, '') +
-        '"]'
-    );
-    if (!header || !header.querySelector('[data-qa-type="tui/block-details"]')) return false;
-    if (!header.querySelector('[data-manual-avatar-letter="1"]')) return false;
-    const isCredit = op.type === 'Credit';
-    const wantFill = isCredit ? 'sidecar-credit' : 'sidecar-debit';
-    const gaps = document.querySelector('[data-manual-tui-actions-row="1"]');
-    if (!gaps || gaps.getAttribute('data-manual-tui-actions-filled') !== wantFill) return false;
-    const needBtns = isCredit ? 1 : 5;
-    const actionBtns = gaps.querySelectorAll('button[data-qa-type^="operation-action"]');
-    if (actionBtns.length < needBtns) return false;
-    /* Black card: elevated molecule + имя Black */
-    const blackCard =
-      document.querySelector('[data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"]')
-      || document.querySelector('[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"]');
-    if (!blackCard) return false;
-    if (!document.querySelector('[data-manual-black-name="1"]')) return false;
-    /* Реквизиты: atom-panel + visible-requisites с телефоном/отправителем */
-    const vr =
-      document.querySelector('[data-manual-requisites-panel="1"] [data-qa-type="visible-requisites"]')
-      || document.querySelector('[data-qa-type="atom-panel"] [data-qa-type="visible-requisites"]')
-      || document.querySelector('[data-qa-type="visible-requisites"]');
-    if (!vr) return false;
-    const phoneText = formatPhoneRu(op.requisite_phone || op.phone || '');
-    const senderText = String(op.requisite_sender_name || op.sender_name || op.title || '').trim();
-    const vrTxt = String(vr.textContent || '');
-    if (op.type === 'Debit') {{
-      const dig = phoneText.replace(/\\D/g, '');
-      if (!dig) return false;
-      if (String(vr.textContent || '').replace(/\\D/g, '').indexOf(dig.slice(-10)) === -1) return false;
-    }} else if (op.type === 'Credit') {{
-      if (!senderText || vrTxt.indexOf(senderText) === -1) return false;
-    }}
-    return true;
-  }}
-
   function patchDetailDom() {{
     if (!shouldPatchOperationsDetail()) return;
     injectManualDetailStyles();
-    try {{ ensureManualThemeTokens(); }} catch (eTok0) {{}}
     const opId = getDetailUrlOperationId();
     let op = resolveDetailOp();
     if (opId) {{
@@ -3606,25 +3003,8 @@ def _build_script() -> str:
     const manualLike = isManualLikeDetailOp(op);
     if (!manualLike) {{
       removeManualDetailArtifacts();
-      document.querySelectorAll('[data-manual-detail-active="1"]').forEach(function (n) {{
-        n.removeAttribute('data-manual-detail-active');
-      }});
       return;
     }}
-    /* Sheet уже собран для этого op — лёгкий sync без rebuild */
-    if (isManualDetailSheetReady(op)) {{
-      try {{ ensureDetailAppBar(op); }} catch (eAb) {{}}
-      try {{ patchDetailHeaderAmount(op); }} catch (eAmt) {{}}
-      try {{ applyBalanceTextToBlackAccountRows(BALANCE_TEXT); }} catch (eBal) {{}}
-      return;
-    }}
-    const detailsRoot = getOperationDetailsContainer();
-    if (detailsRoot) {{
-      try {{ detailsRoot.setAttribute('data-manual-detail-active', '1'); }} catch (eAct) {{}}
-    }}
-    document.querySelectorAll('[data-qa-type="mobile-pumba-detail-sheet"]').forEach(function (n) {{
-      try {{ n.setAttribute('data-manual-detail-active', '1'); }} catch (eSh) {{}}
-    }});
     dedupeDetailAccountCards();
     dedupeDetailRequisitesBlocks();
     const senderText = String(op.requisite_sender_name || op.sender_name || op.title || op.description || '').trim();
@@ -3664,8 +3044,6 @@ def _build_script() -> str:
         }}
       }});
     }});
-    ensureDetailAppBar(op);
-    ensureDetailHeaderMolecule(op);
     ensureDetailActionButtons(op);
     patchExistingTopOperationCard(op);
     ensureInjectedTopOperationCard(op);
@@ -3675,7 +3053,6 @@ def _build_script() -> str:
     dedupeDetailRequisitesBlocks();
     applyBalanceTextToBlackAccountRows(BALANCE_TEXT);
     syncBlackAccountBalanceFromPanel();
-    try {{ ensureManualThemeTokens(); }} catch (eTok2) {{}}
     try {{ touchManualDetailStylesOrder(); }} catch (eTouch) {{}}
   }}
 
@@ -3783,7 +3160,7 @@ def _build_script() -> str:
     let timer = 0;
     const schedulePatch = function () {{
       clearTimeout(timer);
-      timer = window.setTimeout(patchDetailDom, 200);
+      timer = window.setTimeout(patchDetailDom, 42);
     }};
     const observer = new MutationObserver(schedulePatch);
     if (document.body) {{
@@ -3792,7 +3169,7 @@ def _build_script() -> str:
     try {{
       window.addEventListener('popstate', patchDetailDom, {{ passive: true }});
     }} catch (ePs) {{}}
-    window.setInterval(patchDetailDom, 2800);
+    window.setInterval(patchDetailDom, 1100);
   }}
 
   function startFinanalyticsCardSync() {{
@@ -3804,7 +3181,7 @@ def _build_script() -> str:
     let __finMoTimer = 0;
     function scheduleFromDom() {{
       window.clearTimeout(__finMoTimer);
-      __finMoTimer = window.setTimeout(tick, 300);
+      __finMoTimer = window.setTimeout(tick, 140);
     }}
     try {{
       const moRoot =
@@ -3814,7 +3191,7 @@ def _build_script() -> str:
       const mo = new MutationObserver(scheduleFromDom);
       mo.observe(moRoot, {{ childList: true, subtree: true }});
     }} catch (eMo) {{}}
-    window.setInterval(tick, 2500);
+    window.setInterval(tick, 900);
   }}
 
   bindManualCertReceiptClick();

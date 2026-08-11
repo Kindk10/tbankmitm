@@ -34,9 +34,6 @@ def build_mitmdump_argv(script_dir: str) -> list[str]:
 
     listen = os.environ.get("TBANKMITM_PROXY_LISTEN_HOST", "127.0.0.1").strip() or "127.0.0.1"
     port = os.environ.get("TBANKMITM_PROXY_PORT", "8082").strip() or "8082"
-    # Default on (faster PWA). Rollback: TBANKMITM_HTTP2=0
-    _http2_raw = os.environ.get("TBANKMITM_HTTP2", "1").strip().lower()
-    http2_on = _http2_raw not in ("0", "false", "no", "off")
 
     argv.extend(
         [
@@ -49,7 +46,7 @@ def build_mitmdump_argv(script_dir: str) -> list[str]:
             "--set",
             "ssl_insecure=true",
             "--set",
-            "http2=true" if http2_on else "http2=false",
+            "http2=false",
         ]
     )
     return argv
