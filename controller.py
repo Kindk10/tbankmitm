@@ -106,17 +106,6 @@ def sync_name_phone_number(name_cfg=None):
     changed = current != derived
     if changed:
         nm["phone_number"] = derived
-    # #region agent log
-    try:
-        from _agent_debug_log import dbg
-        dbg("H1", "controller.sync_name_phone_number", "phone sync", {
-            "derived_len": len(derived),
-            "changed": changed,
-            "match": derived == nm.get("phone_number"),
-        })
-    except Exception:
-        pass
-    # #endregion
 
 
 def save_config():

@@ -1,4 +1,4 @@
-"""Regression smoke after perf + UI fixes (v26)."""
+"""Regression smoke after perf + UI fixes (v31)."""
 from __future__ import annotations
 
 import os
@@ -27,10 +27,10 @@ def main() -> int:
         fails.append("old 900ms fin interval still present")
     if "setTimeout(run, 180)" in s:
         fails.append("detail debounce still 180ms (want >=300)")
-    if "manual-payment-history-styles-v26" not in s:
-        fails.append("missing one-shot style marker v26")
-    if "__manualOpsBrowserInjectorV26" not in s:
-        fails.append("missing V26 guard")
+    if "manual-payment-history-styles-v31" not in s:
+        fails.append("missing one-shot style marker v31")
+    if "__manualOpsBrowserInjectorV31" not in s:
+        fails.append("missing V31 guard")
 
     # home_mybank first, no bank aggregate fallback
     fn = s[s.find("finTotalsForMybankHomeFromOperationsApi"): s.find("finTotalsForMybankHomeFromOperationsApi") + 900]
@@ -42,8 +42,8 @@ def main() -> int:
     # Home tile white + deltas
     if "data-manual-home-allops-tile" not in s or "#F6F7F8" not in s:
         fails.append("home tile white styles missing")
-    if "font: 700 17px" not in s or "font: 600 15px" not in s:
-        fails.append("home typography deltas 17/15/600 missing")
+    if "font: 700 16px" not in s or "font: 400 14px" not in s or "font: 600 15px" not in s:
+        fails.append("home typography deltas 16/14/15 missing")
 
     # Receipt: overlay sheet, not assign to /receipt_viewer as primary
     if "openManualPdfDocumentSheet" not in s or "Документ по операции" not in s:

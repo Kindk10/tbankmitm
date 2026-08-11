@@ -312,49 +312,14 @@ def pending_fake_history_ops(month_restrict: bool = None) -> list:
 
 
 def get_panel_chart_display_totals():
-    """Единые доход/расход для панели и гистограмм.
-    При histogram_sync_with_operations: bank + manuals + deduped fakes (не sticky).
-    Если bank ещё не пойман — только manuals+fakes (real_v), без «пустого» bank+addon.
+    """Единые суммы по тем же deduped операциям, которые видит пользователь.
+
+    Bank histogram нельзя складывать с manual/fake: после инжекта часть этих id
+    уже может попасть в банковскую сводку, что и давало завышенные суммы.
     """
-    restrict_month = not panel_include_all_cached_operations()
-    real_inc, real_exp, inc_cnt, exp_cnt = calculate_manual_and_mock_transfer_stats(restrict_month=restrict_month)
-    manual = controller.config.get("manual") or {}
-    b_inc, b_exp = get_bank_histogram_totals()
-    transfer_exp_addon = _panel_transfer_expense_addon()
-    man_inc_m, man_exp_m = _manual_operations_income_expense_month(restrict_month=True)
-    fake_inc_m = get_fake_credit_not_in_manual_or_cache()
-    sync_ops = manual.get("histogram_sync_with_operations", True)
-
-    def pick(mkey, bank_v, real_v):
-        if not sync_ops and manual.get(mkey) is not None:
-            try:
-                return round(float(manual[mkey]), 2)
-            except (TypeError, ValueError):
-                pass
-        use_bank = manual.get("panel_sync_bank_histogram", True)
-        if hidden_operations and use_bank:
-            use_bank = False
-        if sync_ops:
-            if use_bank and bank_v is not None:
-                v = round(float(bank_v), 2)
-                if mkey == "expense":
-                    # bank (сайт) + только то, чего там нет: моки вне cache + ручные
-                    if transfer_exp_addon:
-                        v = round(v + transfer_exp_addon, 2)
-                    v = round(v + man_exp_m, 2)
-                elif mkey == "income":
-                    v = round(v + man_inc_m + fake_inc_m, 2)
-                return v
-            # Нет сводки банка — не раздувать: только ручные/моки
-            return round(float(real_v), 2)
-        try:
-            return round(float(manual.get(mkey, real_v)), 2)
-        except (TypeError, ValueError):
-            return round(float(real_v), 2)
-
-    di = pick("income", b_inc, real_inc)
-    de = pick("expense", b_exp, real_exp)
-    return di, de, inc_cnt, exp_cnt
+    return calculate_stats(
+        restrict_month=not panel_include_all_cached_operations()
+    )
 
 
 def sync_panel_income_expense_with_operations():
@@ -1864,7 +1829,7 @@ def inject_manual_into_response(
         return False
     # WebView/браузер (Mozilla/Chrome UA) — inject на ленте операций не отключаем.
     if _ua_looks_like_desktop_browser(user_agent) and not (
-        is_strict_ops_feed or page_kind == "operations"
+        is_strict_ops_feed or has_operation_candidates or page_kind == "operations"
     ):
         return False
     if product_surface and page_kind != "operations":
@@ -2225,6 +2190,50 @@ def _last_transfer_json_paths():
     return paths
 
 
+_FAKE_HISTORY_CACHE_KEY = None
+_FAKE_HISTORY_CACHE_ROWS = []
+
+
+def _fake_history_records() -> list:
+    """Read fake_history once per source mtime instead of on every totals helper."""
+    global _FAKE_HISTORY_CACHE_KEY, _FAKE_HISTORY_CACHE_ROWS
+    paths = _last_transfer_json_paths()
+    key_parts = []
+    for path in paths:
+        try:
+            key_parts.append((path, os.path.getmtime(path), os.path.getsize(path)))
+        except OSError:
+            key_parts.append((path, 0.0, 0))
+    key = tuple(key_parts)
+    if key == _FAKE_HISTORY_CACHE_KEY:
+        return _FAKE_HISTORY_CACHE_ROWS
+
+    rows = []
+    seen_ids = set()
+    for path in paths:
+        if not os.path.isfile(path):
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception as e:
+            if bank_debug_enabled():
+                print(f"[history] fake_history read {path}: {e}")
+            continue
+        for op in data.get("fake_history") or []:
+            if not isinstance(op, dict):
+                continue
+            oid = str(op.get("id") or "").strip()
+            if oid:
+                if oid in seen_ids:
+                    continue
+                seen_ids.add(oid)
+            rows.append(op)
+    _FAKE_HISTORY_CACHE_KEY = key
+    _FAKE_HISTORY_CACHE_ROWS = rows
+    return rows
+
+
 def _fake_op_in_current_month(op: dict) -> bool:
     if not isinstance(op, dict):
         return False
@@ -2241,120 +2250,42 @@ def _fake_op_in_current_month(op: dict) -> bool:
     return False
 
 
-def _iter_fake_debit_ops_month():
-    """Debit из fake_history за текущий месяц: (id_str или '', amount, op)."""
+def _iter_fake_ops(kind: str, month_only: bool):
     seen_ids = set()
-    for path in _last_transfer_json_paths():
-        if not os.path.isfile(path):
+    for op in _fake_history_records():
+        if op.get("type") != kind:
             continue
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception as e:
-            if bank_debug_enabled():
-                print(f"[history] _iter_fake_debit_ops_month {path}: {e}")
+        if month_only and not _fake_op_in_current_month(op):
             continue
-        for op in data.get("fake_history") or []:
-            if not isinstance(op, dict) or op.get("type") != "Debit":
+        oid_s = str(op.get("id") or "").strip()
+        if oid_s:
+            if oid_s in seen_ids or oid_s in hidden_operations:
                 continue
-            if not _fake_op_in_current_month(op):
-                continue
-            oid = op.get("id")
-            oid_s = str(oid).strip() if oid is not None and str(oid).strip() else ""
-            if oid_s:
-                if oid_s in seen_ids or oid_s in hidden_operations:
-                    continue
-                seen_ids.add(oid_s)
-            amt = op.get("amount")
-            if isinstance(amt, dict):
-                amt = amt.get("value", 0)
-            yield oid_s, float(amt or 0), op
+            seen_ids.add(oid_s)
+        amt = op.get("amount")
+        if isinstance(amt, dict):
+            amt = amt.get("value", 0)
+        yield oid_s, abs(float(amt or 0)), op
+
+
+def _iter_fake_debit_ops_month():
+    """Debit из fake_history за текущий месяц: (id, amount, op)."""
+    yield from _iter_fake_ops("Debit", True)
 
 
 def _iter_fake_credit_ops_month():
-    """Credit из fake_history за текущий месяц: (id_str или '', amount, op)."""
-    seen_ids = set()
-    for path in _last_transfer_json_paths():
-        if not os.path.isfile(path):
-            continue
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception as e:
-            if bank_debug_enabled():
-                print(f"[history] _iter_fake_credit_ops_month {path}: {e}")
-            continue
-        for op in data.get("fake_history") or []:
-            if not isinstance(op, dict) or op.get("type") != "Credit":
-                continue
-            if not _fake_op_in_current_month(op):
-                continue
-            oid = op.get("id")
-            oid_s = str(oid).strip() if oid is not None and str(oid).strip() else ""
-            if oid_s:
-                if oid_s in seen_ids or oid_s in hidden_operations:
-                    continue
-                seen_ids.add(oid_s)
-            amt = op.get("amount")
-            if isinstance(amt, dict):
-                amt = amt.get("value", 0)
-            yield oid_s, float(amt or 0), op
+    """Credit из fake_history за текущий месяц: (id, amount, op)."""
+    yield from _iter_fake_ops("Credit", True)
 
 
 def _iter_fake_debit_ops_all():
-    """Все Debit из fake_history (не только текущий месяц)."""
-    seen_ids = set()
-    for path in _last_transfer_json_paths():
-        if not os.path.isfile(path):
-            continue
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception as e:
-            if bank_debug_enabled():
-                print(f"[history] _iter_fake_debit_ops_all {path}: {e}")
-            continue
-        for op in data.get("fake_history") or []:
-            if not isinstance(op, dict) or op.get("type") != "Debit":
-                continue
-            oid = op.get("id")
-            oid_s = str(oid).strip() if oid is not None and str(oid).strip() else ""
-            if oid_s:
-                if oid_s in seen_ids or oid_s in hidden_operations:
-                    continue
-                seen_ids.add(oid_s)
-            amt = op.get("amount")
-            if isinstance(amt, dict):
-                amt = amt.get("value", 0)
-            yield oid_s, float(amt or 0), op
+    """Все Debit из fake_history."""
+    yield from _iter_fake_ops("Debit", False)
 
 
 def _iter_fake_credit_ops_all():
-    """Все Credit из fake_history (не только текущий месяц)."""
-    seen_ids = set()
-    for path in _last_transfer_json_paths():
-        if not os.path.isfile(path):
-            continue
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception as e:
-            if bank_debug_enabled():
-                print(f"[history] _iter_fake_credit_ops_all {path}: {e}")
-            continue
-        for op in data.get("fake_history") or []:
-            if not isinstance(op, dict) or op.get("type") != "Credit":
-                continue
-            oid = op.get("id")
-            oid_s = str(oid).strip() if oid is not None and str(oid).strip() else ""
-            if oid_s:
-                if oid_s in seen_ids or oid_s in hidden_operations:
-                    continue
-                seen_ids.add(oid_s)
-            amt = op.get("amount")
-            if isinstance(amt, dict):
-                amt = amt.get("value", 0)
-            yield oid_s, float(amt or 0), op
+    """Все Credit из fake_history."""
+    yield from _iter_fake_ops("Credit", False)
 
 
 def _fake_credit_month_total() -> float:
@@ -2373,6 +2304,19 @@ def _fake_debit_extra_not_in_cache_all() -> tuple:
         if not oid_s:
             continue
         if oid_s in operations_cache or oid_s in manual_operations:
+            continue
+        total += amt
+        n += 1
+    return round(min(total, 1e15), 2), n
+
+
+def _fake_credit_extra_not_in_cache_all() -> tuple:
+    """Сумма и число mock Credit, которых нет в cache/manual (все даты)."""
+    ensure_manual_operations_fresh()
+    total = 0.0
+    n = 0
+    for oid_s, amt, _op in _iter_fake_credit_ops_all():
+        if oid_s and (oid_s in operations_cache or oid_s in manual_operations):
             continue
         total += amt
         n += 1
@@ -2522,17 +2466,9 @@ def _fake_history_record_by_id(op_id: str) -> Optional[dict]:
     """Первая запись fake_history с данным id (для слияния с operations_cache в панели)."""
     if not op_id:
         return None
-    for path in _last_transfer_json_paths():
-        if not os.path.isfile(path):
-            continue
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception:
-            continue
-        for op in data.get("fake_history") or []:
-            if isinstance(op, dict) and str(op.get("id") or "") == str(op_id):
-                return op
+    for op in _fake_history_records():
+        if str(op.get("id") or "") == str(op_id):
+            return op
     return None
 
 
@@ -2952,12 +2888,22 @@ def calculate_stats(restrict_month: bool = True):
             exp_cnt += _count_fake_debit_ops_not_in_cache()
         else:
             expense = round(expense + extra_out, 2)
+        fake_credit_extra = get_fake_credit_not_in_manual_or_cache()
+        income = round(income + fake_credit_extra, 2)
+        inc_cnt += sum(
+            1
+            for oid_s, _amt, _op in _iter_fake_credit_ops_month()
+            if not oid_s or (oid_s not in operations_cache and oid_s not in manual_operations)
+        )
     else:
         fake_extra, fake_n = _fake_debit_extra_not_in_cache_all()
         expense = round(expense + fake_extra, 2)
         exp_cnt += fake_n
         if fake_extra <= 0 and fake_n <= 0:
             expense = round(expense + extra_out, 2)
+        fake_credit_extra, fake_credit_n = _fake_credit_extra_not_in_cache_all()
+        income = round(income + fake_credit_extra, 2)
+        inc_cnt += fake_credit_n
     return round(income, 2), expense, inc_cnt, exp_cnt
 
 
@@ -3955,7 +3901,10 @@ def request(flow: http.HTTPFlow) -> None:
         return
 
     if path_only == "/api/panel_income_expense" and flow.request.method == "GET":
-        di, de, _, _ = get_panel_chart_display_totals()
+        # Те же операции и тот же month filter, что в ленте истории.
+        di, de, _, _ = calculate_stats(
+            restrict_month=not panel_include_all_cached_operations()
+        )
         flow.response = http.Response.make(
             200,
             json.dumps({"income": di, "expense": de}, ensure_ascii=False).encode("utf-8"),
@@ -4003,19 +3952,6 @@ def request(flow: http.HTTPFlow) -> None:
             json.dumps(response_data, ensure_ascii=False).encode('utf-8'),
             cors_json,
         )
-        # #region agent log
-        try:
-            from _agent_debug_log import dbg
-            st = (response_data or {}).get("stats") or {}
-            dbg("H2", "history.GET /api/operations", "ops list", {
-                "has_cors": "Access-Control-Allow-Origin" in cors_json,
-                "expense": st.get("expense"),
-                "income": st.get("income"),
-                "ops_count": len((response_data or {}).get("operations") or []),
-            })
-        except Exception:
-            pass
-        # #endregion
         if bank_debug_enabled():
             print(f"[history] Панель: {len(response_data.get('operations') or [])} операций")
         return
@@ -4085,31 +4021,8 @@ def request(flow: http.HTTPFlow) -> None:
                 json.dumps({"status": "ok", "id": op_id, "receipt_path": receipt_path}, ensure_ascii=False).encode("utf-8"),
                 {"Content-Type": "application/json"}
             )
-            # #region agent log
-            try:
-                from _agent_debug_log import dbg
-                dbg("H3", "history.POST /api/operations/add", "add ok", {
-                    "status": 200,
-                    "has_receipt": bool(receipt_path),
-                    "op_type": op_type,
-                    "amount": amount,
-                    "saved_in_manual": op_id in manual_operations,
-                })
-            except Exception:
-                pass
-            # #endregion
             print(f"[history] Добавлена ручная операция {op_id} ({op_type}, {amount}), receipt: {receipt_path}")
         except Exception as e:
-            # #region agent log
-            try:
-                from _agent_debug_log import dbg
-                dbg("H3", "history.POST /api/operations/add", "add failed", {
-                    "status": 400,
-                    "error_type": type(e).__name__,
-                })
-            except Exception:
-                pass
-            # #endregion
             flow.response = http.Response.make(
                 400,
                 json.dumps({"error": str(e)}, ensure_ascii=False).encode("utf-8"),

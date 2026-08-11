@@ -158,28 +158,92 @@ def _preset_payload():
     return out
 
 
-def _read_html_sidecar(filename: str) -> str:
+def _read_html_sidecar(filename: str, default: str = "") -> str:
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
-    with open(path, encoding="utf-8") as f:
-        return f.read().strip()
+    try:
+        with open(path, encoding="utf-8") as f:
+            return f.read().strip()
+    except OSError:
+        return default
 
 
-# Снимок DOM Т‑Банка (карточка «Перевод» / Black) — `_reference_account_molecule.html` + оболочка mobile-pumba.
-_ACCOUNT_CARD_MANUAL_INNER_HTML = (
-    '<div data-qa-type="mobile-pumba-account-operation" data-guid="manual-operation-card">'
-    + _read_html_sidecar("_reference_account_molecule.html")
-    + '<div data-qa-type="uikit/NotificationStack" class="abhURjxRW" data-component-type="platform-ui"></div></div><div><div class="abeiuVKPb"></div></div>'
+# Точные DOM-снимки из присланного эталона. Старые `_reference_*` содержат
+# устаревшие hashed-классы и больше не совпадают с текущим T‑Bank UI.
+_ACCOUNT_CARD_DEBIT_INNER_HTML = _read_html_sidecar(
+    os.path.join("_extract_parts", "CLEAN_perevod.html")
+)
+if not _ACCOUNT_CARD_DEBIT_INNER_HTML:
+    _legacy_molecule = _read_html_sidecar("_reference_account_molecule.html")
+    if _legacy_molecule:
+        _ACCOUNT_CARD_DEBIT_INNER_HTML = (
+            '<div data-component-type="platform-ui" style="--gaps: 20px;">'
+            '<div data-qa-type="mobile-pumba-account-operation">'
+            + _legacy_molecule
+            + "</div></div>"
+        )
+_ACCOUNT_CARD_CREDIT_INNER_HTML = _read_html_sidecar(
+    os.path.join("_extract_parts", "CLEAN_popolnenie.html"),
+    _ACCOUNT_CARD_DEBIT_INNER_HTML,
 )
 
-_BANK_DETAILS_MANUAL_INNER_HTML = _read_html_sidecar("_reference_bank_details_inner.html")
 
-# Как на витрине: сначала accountCardsShown-wrapper, внутри — ряд с --gaps и mobile-pumba-account-operation.
-_ACCOUNT_CARDS_MANUAL_SHELL_HTML = (
+def _mark_manual_account_template(html: str) -> str:
+    return html.replace(
+        'data-qa-type="mobile-pumba-account-operation"',
+        'data-qa-type="mobile-pumba-account-operation" data-manual-pumba-operation="1"',
+        1,
+    )
+
+
+_ACCOUNT_CARD_DEBIT_INNER_HTML = _mark_manual_account_template(
+    _ACCOUNT_CARD_DEBIT_INNER_HTML
+)
+_ACCOUNT_CARD_CREDIT_INNER_HTML = _mark_manual_account_template(
+    _ACCOUNT_CARD_CREDIT_INNER_HTML
+)
+_ACCOUNT_CARD_MANUAL_INNER_HTML = _ACCOUNT_CARD_DEBIT_INNER_HTML
+
+_BANK_DETAILS_DEBIT_INNER_HTML = _read_html_sidecar(
+    os.path.join("_extract_parts", "CLEAN_rekvizity_transfer.html")
+)
+if not _BANK_DETAILS_DEBIT_INNER_HTML:
+    _BANK_DETAILS_DEBIT_INNER_HTML = _read_html_sidecar(
+        "_reference_bank_details_inner.html"
+    )
+_BANK_DETAILS_CREDIT_INNER_HTML = _read_html_sidecar(
+    os.path.join("_extract_parts", "CLEAN_rekvizity.html"),
+    _BANK_DETAILS_DEBIT_INNER_HTML,
+)
+
+
+def _mark_manual_requisites_template(html: str) -> str:
+    return html.replace(
+        'data-qa-type="mobile-pumba-requisites-operation"',
+        'data-qa-type="mobile-pumba-requisites-operation" data-manual-requisites-panel="1"',
+        1,
+    )
+
+
+_BANK_DETAILS_DEBIT_INNER_HTML = _mark_manual_requisites_template(
+    _BANK_DETAILS_DEBIT_INNER_HTML
+)
+_BANK_DETAILS_CREDIT_INNER_HTML = _mark_manual_requisites_template(
+    _BANK_DETAILS_CREDIT_INNER_HTML
+)
+_BANK_DETAILS_MANUAL_INNER_HTML = _BANK_DETAILS_DEBIT_INNER_HTML
+
+# Как в эталоне: accountCardsShown-wrapper, внутри точный gaps-row.
+_ACCOUNT_CARDS_DEBIT_SHELL_HTML = (
     '<div data-qa-type="accountCardsShown-wrapper" class="abVXAIVX5" data-component-type="platform-ui">'
-    '<div class="abXrZFFIQ dbXrZFFIQ gbXrZFFIQ pbXrZFFIQ cbXrZFFIQ" data-component-type="platform-ui" style="--gaps: 20px;">'
-    + _ACCOUNT_CARD_MANUAL_INNER_HTML
-    + "</div></div>"
+    + _ACCOUNT_CARD_DEBIT_INNER_HTML
+    + "</div>"
 )
+_ACCOUNT_CARDS_CREDIT_SHELL_HTML = (
+    '<div data-qa-type="accountCardsShown-wrapper" class="abVXAIVX5" data-component-type="platform-ui">'
+    + _ACCOUNT_CARD_CREDIT_INNER_HTML
+    + "</div>"
+)
+_ACCOUNT_CARDS_MANUAL_SHELL_HTML = _ACCOUNT_CARDS_DEBIT_SHELL_HTML
 
 
 def _action_buttons_row_inner_html() -> str:
@@ -211,8 +275,15 @@ def _injector_cache_key() -> tuple:
         os.path.join(base, "manual_operations.json"),
         os.path.join(base, "config.json"),
         os.path.join(base, "browser_ops_injector.py"),
+        os.path.join(base, "bank_merchants_presets.json"),
         os.path.join(base, "_action_buttons_row_inner.html"),
         os.path.join(base, "_action_buttons_disallow_only_inner.html"),
+        os.path.join(base, "_reference_account_molecule.html"),
+        os.path.join(base, "_reference_bank_details_inner.html"),
+        os.path.join(base, "_extract_parts", "CLEAN_perevod.html"),
+        os.path.join(base, "_extract_parts", "CLEAN_popolnenie.html"),
+        os.path.join(base, "_extract_parts", "CLEAN_rekvizity.html"),
+        os.path.join(base, "_extract_parts", "CLEAN_rekvizity_transfer.html"),
         os.path.join(base, "last_transfer.json"),
         os.path.join(base, "last_transfer2.json"),
     )
@@ -228,7 +299,13 @@ def _injector_cache_key() -> tuple:
         bal = 0.0
     origin = _panel_fetch_origin()
     fin_dom = bool((controller.config or {}).get("browser_finanalytics_dom_patch"))
-    return (tuple(mtimes), bal, origin, fin_dom)
+    return (
+        tuple(mtimes),
+        tuple(sorted(str(x) for x in history.hidden_operations)),
+        bal,
+        origin,
+        fin_dom,
+    )
 
 
 def _build_script() -> str:
@@ -249,9 +326,10 @@ def _build_script_uncached() -> str:
     balance_value = _effective_balance_for_display()
     whole, frac = f"{balance_value:,.2f}".replace(",", "X").replace(".", ",").replace("X", " ").split(",")
     balance_text = f"{whole},{frac}\u00a0₽"
-    manual_account_card_inner = json.dumps(_ACCOUNT_CARD_MANUAL_INNER_HTML, ensure_ascii=False)
-    manual_account_cards_shell = json.dumps(_ACCOUNT_CARDS_MANUAL_SHELL_HTML, ensure_ascii=False)
-    manual_bank_details_inner = json.dumps(_BANK_DETAILS_MANUAL_INNER_HTML, ensure_ascii=False)
+    manual_account_debit_shell = json.dumps(_ACCOUNT_CARDS_DEBIT_SHELL_HTML, ensure_ascii=False)
+    manual_account_credit_shell = json.dumps(_ACCOUNT_CARDS_CREDIT_SHELL_HTML, ensure_ascii=False)
+    manual_bank_debit_inner = json.dumps(_BANK_DETAILS_DEBIT_INNER_HTML, ensure_ascii=False)
+    manual_bank_credit_inner = json.dumps(_BANK_DETAILS_CREDIT_INNER_HTML, ensure_ascii=False)
     manual_actions_row_inner = json.dumps(_action_buttons_row_inner_html(), ensure_ascii=False)
     manual_actions_disallow_only = json.dumps(_action_buttons_disallow_only_inner_html(), ensure_ascii=False)
     panel_origin_js = json.dumps(_panel_fetch_origin(), ensure_ascii=False)
@@ -267,21 +345,22 @@ def _build_script_uncached() -> str:
     return f"""
 <script>
 (function () {{
-  if (window.__manualOpsBrowserInjectorV26) return;
-  window.__manualOpsBrowserInjectorV26 = true;
+  if (window.__manualOpsBrowserInjectorV31) return;
+  window.__manualOpsBrowserInjectorV31 = true;
   window.__manualOpsBrowserInjector = true;
 
   const ENABLE_BROWSER_FIN_DOM_PATCH = {fin_dom_js};
-  const INJECTOR_BUILD = 'v26-fix-native-detail-receipt';
+  const INJECTOR_BUILD = 'v31-exact-fast-stable';
   try {{ console.info('[tbank-mitm] injector', INJECTOR_BUILD); }} catch (eLog) {{}}
 
   const MANUAL_OPS = {manual_json};
   const DETAIL_OPS_BY_ID = {detail_ops_json};
   const PRESETS = {presets_json};
   const BALANCE_TEXT = {json.dumps(balance_text, ensure_ascii=False)};
-  const MANUAL_ACCOUNT_CARD_INNER_HTML = {manual_account_card_inner};
-  const MANUAL_ACCOUNT_CARDS_SHELL_HTML = {manual_account_cards_shell};
-  const MANUAL_BANK_DETAILS_INNER_HTML = {manual_bank_details_inner};
+  const MANUAL_ACCOUNT_CARDS_DEBIT_SHELL_HTML = {manual_account_debit_shell};
+  const MANUAL_ACCOUNT_CARDS_CREDIT_SHELL_HTML = {manual_account_credit_shell};
+  const MANUAL_BANK_DETAILS_DEBIT_INNER_HTML = {manual_bank_debit_inner};
+  const MANUAL_BANK_DETAILS_CREDIT_INNER_HTML = {manual_bank_credit_inner};
   const MANUAL_ACTIONS_ROW_INNER_HTML = {manual_actions_row_inner};
   const MANUAL_ACTIONS_DISALLOW_ONLY_INNER_HTML = {manual_actions_disallow_only};
   const PANEL_ORIGIN = {panel_origin_js};
@@ -310,37 +389,16 @@ def _build_script_uncached() -> str:
   function fetchJsonFirstOk(urls) {{
     const list = (urls || []).filter(Boolean);
     if (!list.length) return Promise.reject(new Error('all failed'));
-    if (typeof Promise.any === 'function') {{
-      return Promise.any(
-        list.map(function (url) {{
-          return fetch(url, {{ cache: 'no-store', credentials: 'omit', mode: 'cors' }}).then(function (r) {{
-            if (!r.ok) throw new Error('bad status');
-            return r.json();
-          }});
+    const attempt = function (index) {{
+      if (index >= list.length) return Promise.reject(new Error('all failed'));
+      return fetch(list[index], {{ cache: 'no-store', credentials: 'omit', mode: 'cors' }})
+        .then(function (r) {{
+          if (!r.ok) throw new Error('bad status');
+          return r.json();
         }})
-      );
-    }}
-    return new Promise(function (resolve, reject) {{
-      let settled = false;
-      let failed = 0;
-      list.forEach(function (url) {{
-        fetch(url, {{ cache: 'no-store', credentials: 'omit', mode: 'cors' }})
-          .then(function (r) {{
-            if (!r.ok) throw new Error('bad status');
-            return r.json();
-          }})
-          .then(function (data) {{
-            if (!settled) {{
-              settled = true;
-              resolve(data);
-            }}
-          }})
-          .catch(function () {{
-            failed += 1;
-            if (!settled && failed >= list.length) reject(new Error('all failed'));
-          }});
-      }});
-    }});
+        .catch(function () {{ return attempt(index + 1); }});
+    }};
+    return attempt(0);
   }}
 
   function formatBalanceRubRu(value) {{
@@ -919,7 +977,7 @@ def _build_script_uncached() -> str:
 
   function ensurePaymentHistorySubtitleStyles() {{
     /* Стили пишем один раз — постоянный rewrite textContent = layout thrash */
-    if (document.getElementById('manual-payment-history-styles-v26')) return;
+    if (document.getElementById('manual-payment-history-styles-v31')) return;
     let st = document.getElementById('manual-payment-history-subtitle-styles');
     if (!st) {{
       st = document.createElement('style');
@@ -955,20 +1013,20 @@ def _build_script_uncached() -> str:
       '[data-manual-debit-account-ph="1"] [data-qa-type="lineChart"] [class*="Mee5y"] [data-qa-type="lineChart.bar"] {{ opacity: 1 !important; border-radius: 9999px; }}' +
       '[data-manual-debit-account-ph="1"] [data-manual-ph-line] {{ color: rgba(0,0,0,0.78) !important; }}' +
       '[data-manual-debit-account-ph="1"] [data-manual-ph-amt] {{ color: rgba(0,0,0,0.92) !important; font-weight: 600; }}' +
-      /* Главная «Все операции»: эталон — title 17 bold; «Трат» 15/600; сумма 16 bold; ближе к полоске */
+      /* Главная «Все операции»: белый текст; Трат regular 14; сумма 15 semi; title 16 bold */
       '[data-manual-home-allops-tile="1"] [data-qa-type="title"],' +
       '[data-manual-home-allops-tile="1"] h2[data-qa-type="tui/header.title"],' +
-      '[data-manual-home-allops-tile="1"] [data-qa-type="tui/header.title"] {{ font: 700 17px/1.2 var(--tui-font-text, Roboto), system-ui, sans-serif !important; color: #F6F7F8 !important; -webkit-text-fill-color: #F6F7F8 !important; margin: 0 0 10px !important; opacity: 1 !important; }}' +
+      '[data-manual-home-allops-tile="1"] [data-qa-type="tui/header.title"] {{ font: 700 16px/1.2 var(--tui-font-text, Roboto), system-ui, sans-serif !important; color: #F6F7F8 !important; -webkit-text-fill-color: #F6F7F8 !important; margin: 0 0 10px !important; opacity: 1 !important; }}' +
       '[data-manual-home-allops-tile="1"] [data-qa-type="subtitleWrapper"] {{ display: flex !important; flex-direction: column !important; align-items: flex-start !important; gap: 1px !important; margin-top: 0 !important; }}' +
       '[data-manual-home-allops-tile="1"] [data-qa-type="subtitleWrapper"] [data-qa-type="subtitle"],' +
-      '[data-manual-home-allops-tile="1"] [data-qa-type="subtitle"] {{ font: 600 15px/1.3 var(--tui-font-text, Roboto), system-ui, sans-serif !important; font-weight: 600 !important; color: #F6F7F8 !important; -webkit-text-fill-color: #F6F7F8 !important; opacity: 1 !important; margin: 0 !important; display: block !important; }}' +
+      '[data-manual-home-allops-tile="1"] [data-qa-type="subtitle"] {{ font: 400 14px/1.3 var(--tui-font-text, Roboto), system-ui, sans-serif !important; font-weight: 400 !important; color: #F6F7F8 !important; -webkit-text-fill-color: #F6F7F8 !important; opacity: 1 !important; margin: 0 !important; display: block !important; }}' +
       '[data-manual-home-allops-tile="1"] [data-qa-type="moneyAmount"],' +
       '[data-manual-home-allops-tile="1"] [data-manual-home-spend-amt="1"],' +
       '[data-manual-home-allops-tile="1"] [data-qa-type="moneyAmount"] [data-qa-type="atom-sensitive"],' +
       '[data-manual-home-allops-tile="1"] [data-qa-type="moneyAmount"] [data-qa-type="uikit/money"],' +
-      '[data-manual-home-allops-tile="1"] [data-qa-type="moneyAmount"] [data-qa-type="uikit/money"] span {{ font: 700 16px/1.25 var(--tui-font-text, Roboto), system-ui, sans-serif !important; font-weight: 700 !important; color: #F6F7F8 !important; -webkit-text-fill-color: #F6F7F8 !important; margin: 0 !important; display: block !important; line-height: 1.25 !important; opacity: 1 !important; }}' +
-      '[data-manual-home-allops-tile="1"] [data-manual-ph-line] {{ display: block !important; font: 600 15px/1.3 var(--tui-font-text, Roboto), system-ui, sans-serif !important; font-weight: 600 !important; color: #F6F7F8 !important; -webkit-text-fill-color: #F6F7F8 !important; margin: 0 !important; opacity: 1 !important; }}' +
-      '[data-manual-home-allops-tile="1"] [data-manual-ph-amt] {{ display: block !important; margin-top: 1px !important; font: 700 16px/1.25 var(--tui-font-text, Roboto), system-ui, sans-serif !important; font-weight: 700 !important; color: #F6F7F8 !important; -webkit-text-fill-color: #F6F7F8 !important; font-size: 16px !important; line-height: 1.25 !important; opacity: 1 !important; }}' +
+      '[data-manual-home-allops-tile="1"] [data-qa-type="moneyAmount"] [data-qa-type="uikit/money"] span {{ font: 600 15px/1.25 var(--tui-font-text, Roboto), system-ui, sans-serif !important; font-weight: 600 !important; color: #F6F7F8 !important; -webkit-text-fill-color: #F6F7F8 !important; margin: 0 !important; display: block !important; line-height: 1.25 !important; opacity: 1 !important; }}' +
+      '[data-manual-home-allops-tile="1"] [data-manual-ph-line] {{ display: block !important; font: 400 14px/1.3 var(--tui-font-text, Roboto), system-ui, sans-serif !important; font-weight: 400 !important; color: #F6F7F8 !important; -webkit-text-fill-color: #F6F7F8 !important; margin: 0 !important; opacity: 1 !important; }}' +
+      '[data-manual-home-allops-tile="1"] [data-manual-ph-amt] {{ display: block !important; margin-top: 1px !important; font: 600 15px/1.25 var(--tui-font-text, Roboto), system-ui, sans-serif !important; font-weight: 600 !important; color: #F6F7F8 !important; -webkit-text-fill-color: #F6F7F8 !important; font-size: 15px !important; line-height: 1.25 !important; opacity: 1 !important; }}' +
       '[data-manual-home-allops-tile="1"] [data-qa-type="lineChart"] {{ margin-top: 8px !important; width: 100%; }}';
     let st4 = document.getElementById('manual-luca-account-blocks-styles');
     if (!st4) {{
@@ -992,7 +1050,7 @@ def _build_script_uncached() -> str:
       '[data-manual-debit-tail-section="1"] .manual-debit-tail-chevron {{ flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; color: var(--tui-text-tertiary, rgba(0,16,36,0.22)); width: 18px; height: 18px; }}' +
       '[data-manual-debit-tail-section="1"] .manual-debit-tail-chevron svg {{ display: block; }}';
     const marker = document.createElement('meta');
-    marker.id = 'manual-payment-history-styles-v26';
+    marker.id = 'manual-payment-history-styles-v31';
     (document.head || document.documentElement).appendChild(marker);
   }}
 
@@ -1392,15 +1450,15 @@ def _build_script_uncached() -> str:
     scope.querySelectorAll('[data-qa-type="title"], h2[data-qa-type="tui/header.title"], [data-qa-type="tui/header.title"]').forEach(function (el) {{
       const tx = normalizeUiText(el.textContent || '');
       if (tx.indexOf('Все операции') === -1) return;
-      paint(el, 700, '17px', '10px');
+      paint(el, 700, '16px', '10px');
     }});
     scope.querySelectorAll('[data-qa-type="subtitle"], [data-manual-ph-line]').forEach(function (el) {{
-      paint(el, 600, '15px', '0');
+      paint(el, 400, '14px', '0');
     }});
     scope.querySelectorAll('[data-qa-type="moneyAmount"], [data-manual-ph-amt], [data-manual-home-spend-amt="1"], [data-qa-type="uikit/money"], [data-qa-type="atom-sensitive"]').forEach(function (el) {{
       if (el.closest('[data-qa-type="lineChart"]')) return;
-      paint(el, 700, '16px', '0');
-      el.querySelectorAll('span').forEach(function (sp) {{ paint(sp, 700, '16px', '0'); }});
+      paint(el, 600, '15px', '0');
+      el.querySelectorAll('span').forEach(function (sp) {{ paint(sp, 600, '15px', '0'); }});
     }});
     const chart = scope.querySelector('[data-qa-type="lineChart"]');
     if (chart && chart.style) {{
@@ -1636,7 +1694,6 @@ def _build_script_uncached() -> str:
       if (isFinite(inc) && isFinite(exp)) window.__HOME_LAST_FIN = {{ income: inc, expense: exp }};
       patchHomeAllOperationsSpendingBlock(exp);
       window.__HOME_SUPPRESS_MO_UNTIL = Date.now() + 1200;
-      try {{ ensureHomeFinReassertObserver(); }} catch (eHf) {{}}
     }}
     const onHome = isMybankRootPath();
     if (!onHome && !ENABLE_BROWSER_FIN_DOM_PATCH) return;
@@ -1655,8 +1712,7 @@ def _build_script_uncached() -> str:
   function finTotalsForMybankHomeFromOperationsApi(d) {{
     const st = d && d.stats;
     if (!st) return null;
-    /* Главная /mybank/: сумма по операциям ленты (home_mybank_* / list_*),
-       НЕ bank+manual aggregate из stats.income/expense — иначе двойной учёт и завышенные «Траты». */
+    /* Главная и история считают ровно видимые операции, без bank histogram + manual double-add. */
     if (st.home_mybank_income != null && st.home_mybank_expense != null) {{
       const hi = Number(st.home_mybank_income);
       const he = Number(st.home_mybank_expense);
@@ -1667,7 +1723,6 @@ def _build_script_uncached() -> str:
       const le = Number(st.list_expense);
       if (isFinite(li) && isFinite(le)) return {{ income: li, expense: le }};
     }}
-    /* Без fallback на stats.income/expense (bank aggregate) — лучше null, чем завышение. */
     return null;
   }}
 
@@ -1761,6 +1816,8 @@ def _build_script_uncached() -> str:
     if (location.pathname.indexOf('/mybank') === -1) return false;
     const q = new URLSearchParams(location.search || '');
     if (q.get('operationId') || q.get('operation_id') || q.get('id')) return true;
+    if (location.hash && /(?:operationId|operation_id|[?&]id)=/i.test(location.hash)) return true;
+    if ((new RegExp('^/mybank/operations/[^/?#]+', 'i')).test(location.pathname || '')) return true;
     return !!document.querySelector('[data-qa-type="mobile-pumba-detail-sheet"], [data-qa-type="independent-pumba-operation-details-container"]');
   }}
 
@@ -1801,7 +1858,12 @@ def _build_script_uncached() -> str:
 
   function touchManualDetailStylesOrder() {{
     const st =
-      document.getElementById('manual-detail-pumba-cards-v26')
+      document.getElementById('manual-detail-pumba-cards-v31')
+      || document.getElementById('manual-detail-pumba-cards-v30')
+      || document.getElementById('manual-detail-pumba-cards-v29')
+      || document.getElementById('manual-detail-pumba-cards-v28')
+      || document.getElementById('manual-detail-pumba-cards-v27')
+      || document.getElementById('manual-detail-pumba-cards-v26')
       || document.getElementById('manual-detail-pumba-cards-v25')
       || document.getElementById('manual-detail-pumba-cards-v24')
       || document.getElementById('manual-detail-pumba-cards-v23');
@@ -1811,15 +1873,15 @@ def _build_script_uncached() -> str:
   }}
 
   function injectManualDetailStyles() {{
-    if (document.getElementById('manual-detail-pumba-cards-v26')) return;
-    ['manual-detail-pumba-cards-v3', 'manual-detail-pumba-cards-v4', 'manual-detail-pumba-cards-v5', 'manual-detail-pumba-cards-v6', 'manual-detail-pumba-cards-v7', 'manual-detail-pumba-cards-v8', 'manual-detail-pumba-cards-v9', 'manual-detail-pumba-cards-v10', 'manual-detail-pumba-cards-v11', 'manual-detail-pumba-cards-v12', 'manual-detail-pumba-cards-v13', 'manual-detail-pumba-cards-v14', 'manual-detail-pumba-cards-v15', 'manual-detail-pumba-cards-v16', 'manual-detail-pumba-cards-v17', 'manual-detail-pumba-cards-v18', 'manual-detail-pumba-cards-v19', 'manual-detail-pumba-cards-v20', 'manual-detail-pumba-cards-v21', 'manual-detail-pumba-cards-v22', 'manual-detail-pumba-cards-v23', 'manual-detail-pumba-cards-v24', 'manual-detail-pumba-cards-v25'].forEach(function (lid) {{
+    if (document.getElementById('manual-detail-pumba-cards-v31')) return;
+    ['manual-detail-pumba-cards-v3', 'manual-detail-pumba-cards-v4', 'manual-detail-pumba-cards-v5', 'manual-detail-pumba-cards-v6', 'manual-detail-pumba-cards-v7', 'manual-detail-pumba-cards-v8', 'manual-detail-pumba-cards-v9', 'manual-detail-pumba-cards-v10', 'manual-detail-pumba-cards-v11', 'manual-detail-pumba-cards-v12', 'manual-detail-pumba-cards-v13', 'manual-detail-pumba-cards-v14', 'manual-detail-pumba-cards-v15', 'manual-detail-pumba-cards-v16', 'manual-detail-pumba-cards-v17', 'manual-detail-pumba-cards-v18', 'manual-detail-pumba-cards-v19', 'manual-detail-pumba-cards-v20', 'manual-detail-pumba-cards-v21', 'manual-detail-pumba-cards-v22', 'manual-detail-pumba-cards-v23', 'manual-detail-pumba-cards-v24', 'manual-detail-pumba-cards-v25', 'manual-detail-pumba-cards-v26', 'manual-detail-pumba-cards-v27', 'manual-detail-pumba-cards-v28', 'manual-detail-pumba-cards-v29', 'manual-detail-pumba-cards-v30'].forEach(function (lid) {{
       const legacy = document.getElementById(lid);
       if (legacy) {{
         try {{ legacy.remove(); }} catch (eL) {{}}
       }}
     }});
     const st = document.createElement('style');
-    st.id = 'manual-detail-pumba-cards-v26';
+    st.id = 'manual-detail-pumba-cards-v31';
     st.textContent = `
 /* Инжект: ширина; горизонтальный padding даёт independent-pumba-operation-details-container — не дублировать */
 [data-manual-injected-account-cards="1"][data-qa-type="accountCardsShown-wrapper"],
@@ -2432,6 +2494,10 @@ def _build_script_uncached() -> str:
         const m = href.match(/(?:[?&#])(?:operationId|operation_id)=([^&#'"\\s]+)/i);
         if (m) opId = m[1];
       }}
+      if (!opId) {{
+        const pm = String(location.pathname || '').match(new RegExp('/mybank/operations/([^/?#]+)', 'i'));
+        if (pm) opId = pm[1];
+      }}
       if (!opId) return '';
       try {{
         opId = decodeURIComponent(opId);
@@ -2514,6 +2580,7 @@ def _build_script_uncached() -> str:
           DETAIL_OPS_BY_ID[opId] = {{
             source_id: row.id,
             type: row.type || 'Debit',
+            amount: Number(row.amount || 0),
             title: String(row.title || row.desc || '').trim(),
             description: String(row.description || '').trim(),
             requisite_phone: String(row.requisite_phone || row.phone || '').trim(),
@@ -2541,7 +2608,7 @@ def _build_script_uncached() -> str:
 
   function resolveDetailOp() {{
     const opId = getDetailUrlOperationId();
-    if (!opId) return null;
+    if (!opId) return matchManualOpByDomHeuristic();
     const fromList = MANUAL_OPS.find(function (o) {{ return o && String(o.id) === String(opId); }});
     if (fromList) return fromList;
     const snap = DETAIL_OPS_BY_ID[opId];
@@ -2621,18 +2688,15 @@ def _build_script_uncached() -> str:
         );
         if (!t) return;
         if (!shouldPatchOperationsDetail()) return;
-        /* Нативный elevated chrome: не перехватывать — банк сам откроет mobile-ib-pdf-bottomSheet; MITM подменит PDF. */
-        if (hasNativeElevatedDetailChrome() && t.getAttribute('data-manual-cert') !== '1') {{
-          return;
-        }}
         const op = currentManualOp();
         const opId = (op && op.id) || getDetailUrlOperationId();
         if (!opId) return;
+        /* Ручные/моки — наш sheet «Документ по операции»; натив банка не трогаем. */
         if (!isManualLikeDetailOp(op || {{ id: opId }})) return;
         ev.preventDefault();
         ev.stopPropagation();
         if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
-        openManualPdfDocumentSheet(opId);
+        openManualPdfDocumentSheet(String(opId));
       }},
       true
     );
@@ -2651,9 +2715,10 @@ def _build_script_uncached() -> str:
 
   function detectOperationTitleFromPage() {{
     const block = document.querySelector('[data-qa-type="tui/block-details"]');
-    const node = block
-      ? block.querySelector('div[data-style-layer="primary"] span.bbnRJ7Txo, div[data-style-layer="primary"] span')
-      : document.querySelector('.bbbXSKdZE .bbnFC5Q_W, [data-qa-type="tui/block-details"] .bbnFC5Q_W');
+    const node = block && (
+      block.querySelector('[data-style-layer="primary"] span')
+      || block.querySelector('[data-style-layer="primary"]')
+    );
     return String(node && node.textContent || '').trim();
   }}
 
@@ -2661,8 +2726,9 @@ def _build_script_uncached() -> str:
     const type = detectOperationTypeFromPage();
     const title = detectOperationTitleFromPage();
     let phone = '';
-    const reqValue = document.querySelector('[data-qa-type="visible-requisites"] .ebQgksk7i, [data-qa-type="visible-requisites"] .ebw2AqQYk, [data-qa-type="visible-requisites"] .ebTpecb88, [data-qa-type="visible-requisites"] .ebKtz2I68');
-    if (reqValue) phone = String(reqValue.textContent || '').trim();
+    const req = document.querySelector('[data-qa-type="visible-requisites"] [data-qa-type="requisite"]');
+    const reqParts = getRequisiteParts(req);
+    if (reqParts.valueEl) phone = String(reqParts.valueEl.textContent || '').trim();
     return {{
       id: '',
       type: type,
@@ -2876,12 +2942,20 @@ def _build_script_uncached() -> str:
   }}
 
   function ensureInjectedTopOperationCard(op) {{
-    if (!op || !MANUAL_ACCOUNT_CARDS_SHELL_HTML) return false;
+    const templateKind = op && op.type === 'Credit' ? 'credit' : 'debit';
+    const templateHtml = templateKind === 'credit'
+      ? MANUAL_ACCOUNT_CARDS_CREDIT_SHELL_HTML
+      : MANUAL_ACCOUNT_CARDS_DEBIT_SHELL_HTML;
+    if (!op || !templateHtml) return false;
     const details = getOperationDetailsContainer();
     if (!details) return false;
     if (hasNativeDetailAccountCardForInjectGate()) return false;
 
     let shell = details.querySelector('[data-manual-injected-account-cards="1"]');
+    if (shell && shell.getAttribute('data-manual-template-kind') !== templateKind) {{
+      try {{ shell.remove(); }} catch (eOld) {{}}
+      shell = null;
+    }}
     if (!shell) {{
       details.querySelectorAll('[data-qa-type="accountCardsShown-wrapper"]').forEach(function (w) {{
         if (w.getAttribute('data-manual-injected-account-cards') === '1') return;
@@ -2891,10 +2965,11 @@ def _build_script_uncached() -> str:
         }}
       }});
       const tmp = document.createElement('div');
-      tmp.innerHTML = MANUAL_ACCOUNT_CARDS_SHELL_HTML;
+      tmp.innerHTML = templateHtml;
       shell = tmp.firstElementChild;
       if (!shell) return false;
       shell.setAttribute('data-manual-injected-account-cards', '1');
+      shell.setAttribute('data-manual-template-kind', templateKind);
       const bankW = details.querySelector('[data-qa-type="bankDetailsShown-wrapper"]');
       if (bankW && bankW.parentElement) {{
         bankW.parentElement.insertBefore(shell, bankW);
@@ -2983,8 +3058,15 @@ def _build_script_uncached() -> str:
     return true;
   }}
 
-  function makeManualRequisiteRow(label, value) {{
-    const wrap = document.createElement('div');
+  function makeManualRequisiteRow(label, value, sourceRow) {{
+    const wrap = sourceRow && sourceRow.cloneNode ? sourceRow.cloneNode(true) : document.createElement('div');
+    if (sourceRow) {{
+      const parts = getRequisiteParts(wrap);
+      if (parts.labelEl) parts.labelEl.textContent = label;
+      if (parts.valueEl) parts.valueEl.textContent = value;
+      wrap.setAttribute('data-manual-requisite-row', '1');
+      return wrap;
+    }}
     wrap.setAttribute('data-manual-requisite-row', '1');
     wrap.setAttribute('data-qa-type', 'requisite');
     wrap.setAttribute('data-interactive', 'false');
@@ -2993,14 +3075,14 @@ def _build_script_uncached() -> str:
     wrap.setAttribute('data-vertical-spacing', 'default');
     wrap.setAttribute('data-connected', 'false');
     wrap.setAttribute('data-component-type', 'tui-react');
-    wrap.className = 'hbQgksk7i';
+    wrap.className = 'hbcyj_3fc';
     const inner = document.createElement('div');
-    inner.className = 'gbQgksk7i';
+    inner.className = 'gbcyj_3fc';
     const p = document.createElement('p');
-    p.className = 'dbQgksk7i';
+    p.className = 'dbcyj_3fc';
     p.textContent = label;
     const val = document.createElement('div');
-    val.className = 'ebQgksk7i abhFnGE_2';
+    val.className = 'ebcyj_3fc abcK4hjge';
     val.textContent = value;
     inner.appendChild(p);
     inner.appendChild(val);
@@ -3117,6 +3199,10 @@ def _build_script_uncached() -> str:
 
   function ensureManualRequisitesPanel(op) {{
     if (!op) return false;
+    const templateKind = op.type === 'Credit' ? 'credit' : 'debit';
+    const templateHtml = templateKind === 'credit'
+      ? MANUAL_BANK_DETAILS_CREDIT_INNER_HTML
+      : MANUAL_BANK_DETAILS_DEBIT_INNER_HTML;
     const phoneFmt = formatPhoneRu(op.requisite_phone || op.phone || '');
     const senderText = String(op.requisite_sender_name || op.sender_name || op.title || '').trim();
 
@@ -3132,14 +3218,16 @@ def _build_script_uncached() -> str:
         if (label.indexOf('отправител') !== -1) hasSenderLabel = true;
       }});
       if (op.type === 'Credit' && senderText && (needFill || !hasSenderLabel)) {{
+        const sourceRow = nativeVr.querySelector('[data-qa-type="requisite"]');
         nativeVr.innerHTML = '';
-        nativeVr.appendChild(makeManualRequisiteRow('Отправитель', senderText));
+        nativeVr.appendChild(makeManualRequisiteRow('Отправитель', senderText, sourceRow));
         elevateRequisitesPanels();
         return true;
       }}
       if (op.type === 'Debit' && phoneFmt && (needFill || !hasPhoneLabel)) {{
+        const sourceRow = nativeVr.querySelector('[data-qa-type="requisite"]');
         nativeVr.innerHTML = '';
-        nativeVr.appendChild(makeManualRequisiteRow('Номер телефона', phoneFmt));
+        nativeVr.appendChild(makeManualRequisiteRow('Номер телефона', phoneFmt, sourceRow));
         elevateRequisitesPanels();
         return true;
       }}
@@ -3156,18 +3244,20 @@ def _build_script_uncached() -> str:
       host = document.createElement('div');
       host.setAttribute('data-qa-type', 'bankDetailsShown-wrapper');
       host.setAttribute('data-manual-bank-wrapper', '1');
+      host.setAttribute('data-manual-template-kind', templateKind);
       host.className = 'abVXAIVX5';
       host.setAttribute('data-component-type', 'platform-ui');
-      host.innerHTML = MANUAL_BANK_DETAILS_INNER_HTML;
+      host.innerHTML = templateHtml;
       detailsContainer.appendChild(host);
     }}
 
     let panel = host.querySelector('[data-manual-requisites-panel="1"]');
     if (!panel) {{
       if (host.getAttribute('data-manual-bank-wrapper') === '1') {{
+        host.setAttribute('data-manual-template-kind', templateKind);
         host.className = 'abVXAIVX5';
         host.setAttribute('data-component-type', 'platform-ui');
-        host.innerHTML = MANUAL_BANK_DETAILS_INNER_HTML;
+        host.innerHTML = templateHtml;
       }} else {{
         const gapsRows = Array.from(host.querySelectorAll('div[data-component-type="platform-ui"][style*="--gaps: 20px"]'));
         let gap = null;
@@ -3185,13 +3275,13 @@ def _build_script_uncached() -> str:
         }}
         if (gap) {{
           const tmp = document.createElement('div');
-          tmp.innerHTML = MANUAL_BANK_DETAILS_INNER_HTML;
+          tmp.innerHTML = templateHtml;
           const outer = tmp.firstElementChild;
           if (outer) {{
             while (outer.firstChild) gap.appendChild(outer.firstChild);
           }}
         }} else {{
-          host.insertAdjacentHTML('beforeend', MANUAL_BANK_DETAILS_INNER_HTML);
+          host.insertAdjacentHTML('beforeend', templateHtml);
         }}
       }}
       panel = host.querySelector('[data-manual-requisites-panel="1"]');
@@ -3203,15 +3293,17 @@ def _build_script_uncached() -> str:
 
     if (op.type === 'Credit') {{
       if (!senderText) return false;
+      const sourceRow = vr.querySelector('[data-qa-type="requisite"]');
       vr.innerHTML = '';
-      vr.appendChild(makeManualRequisiteRow('Отправитель', senderText));
+      vr.appendChild(makeManualRequisiteRow('Отправитель', senderText, sourceRow));
       return true;
     }}
 
     if (op.type === 'Debit') {{
       if (!phoneFmt) return false;
+    const sourceRow = vr.querySelector('[data-qa-type="requisite"]');
       vr.innerHTML = '';
-      vr.appendChild(makeManualRequisiteRow('Номер телефона', phoneFmt));
+    vr.appendChild(makeManualRequisiteRow('Номер телефона', phoneFmt, sourceRow));
       return true;
     }}
 
@@ -3220,53 +3312,20 @@ def _build_script_uncached() -> str:
 
   function patchDetailDom() {{
     if (!shouldPatchOperationsDetail()) return;
-    /* Нативный elevated chrome (чужой банк / SBP уже с Пополнение|Перевод + Реквизиты) — не ломать. */
-    if (hasNativeElevatedDetailChrome()) {{
-      applyBalanceTextToBlackAccountRows(BALANCE_TEXT);
-      syncBlackAccountBalanceFromPanel();
-      return;
-    }}
     const opId = getDetailUrlOperationId();
     let op = resolveDetailOp();
-    const transferPage = pageLooksLikeTransferDetail();
-    if (opId) {{
-      if (!op) {{
-        if (!(DETAIL_OPS_BY_ID[opId] && DETAIL_OPS_BY_ID[opId]._notFound)) {{
-          maybeFetchDetailOpFromPanel(opId);
-        }}
-        if (isManualLikeDetailOp({{ id: opId }}) || (DETAIL_OPS_BY_ID[opId] && DETAIL_OPS_BY_ID[opId]._notFound && transferPage)) {{
-          op = Object.assign(
-            {{ id: opId, _from_page_transfer: true, category: 'Переводы', subtitle: 'Переводы' }},
-            fallbackOpFromScopedPage()
-          );
-        }} else {{
-          return;
-        }}
+    if (!op && opId) {{
+      if (!(DETAIL_OPS_BY_ID[opId] && DETAIL_OPS_BY_ID[opId]._notFound)) {{
+        maybeFetchDetailOpFromPanel(opId);
       }}
-    }} else {{
-      if (!op && transferPage) {{
-        /* Без opId — full chrome только если уже есть manual artifacts или нет native card */
-        if (hasNativeDetailAccountCardForInjectGate()) {{
-          applyBalanceTextToBlackAccountRows(BALANCE_TEXT);
-          syncBlackAccountBalanceFromPanel();
-          return;
-        }}
-        op = Object.assign(
-          {{ id: 'page', _from_page_transfer: true, category: 'Переводы', subtitle: 'Переводы' }},
-          fallbackOpFromPage()
-        );
-      }} else {{
-        op = op || fallbackOpFromPage();
-      }}
+      op = resolveDetailOp();
     }}
-    if (!op) return;
-    if (!op.type) op.type = detectOperationTypeFromPage();
-    if (!isManualLikeDetailOp(op)) {{
-      removeManualDetailArtifacts();
-      applyBalanceTextToBlackAccountRows(BALANCE_TEXT);
-      syncBlackAccountBalanceFromPanel();
+    if (!op || !isManualLikeDetailOp(op)) {{
       return;
     }}
+    /* Нативные детали не-manual не трогаются выше; manual всегда доводим до
+       его данных, даже если reference API уже отрисовал готовую оболочку. */
+    if (!op.type) op.type = detectOperationTypeFromPage() || 'Debit';
     injectManualDetailStyles();
     dedupeDetailAccountCards();
     dedupeDetailRequisitesBlocks();
@@ -3279,31 +3338,19 @@ def _build_script_uncached() -> str:
         const label = String(parts.labelEl && parts.labelEl.textContent || '').trim().toLowerCase();
         if (!label || !parts.valueEl) return;
         if (op.type === 'Debit' && phoneText) {{
-          if (label.indexOf('отправител') !== -1 || label.indexOf('sender') !== -1) {{
+          if (label.indexOf('отправител') !== -1 || label.indexOf('sender') !== -1 || label.indexOf('телефон') !== -1 || label.indexOf('phone') !== -1) {{
             parts.labelEl.textContent = 'Номер телефона';
             parts.valueEl.textContent = phoneText;
-            return;
-          }}
-          if (label.indexOf('номер телефона') !== -1 || label.indexOf('phone') !== -1 || label.indexOf('телефон') !== -1) {{
-            parts.labelEl.textContent = 'Номер телефона';
-            parts.valueEl.textContent = phoneText;
-            return;
           }}
         }}
         if (op.type === 'Credit' && senderText) {{
-          if (label.indexOf('номер телефона') !== -1 || label.indexOf('phone') !== -1 || label.indexOf('телефон') !== -1) {{
+          if (label.indexOf('телефон') !== -1 || label.indexOf('phone') !== -1 || label.indexOf('отправител') !== -1 || label.indexOf('sender') !== -1) {{
             parts.labelEl.textContent = 'Отправитель';
             parts.valueEl.textContent = senderText;
-            return;
-          }}
-          if (label.indexOf('отправител') !== -1 || label.indexOf('sender') !== -1) {{
-            parts.labelEl.textContent = 'Отправитель';
-            parts.valueEl.textContent = senderText;
-            return;
           }}
         }}
         if (op.type === 'Debit' && label.indexOf('получател') !== -1) {{
-          req.remove();
+          try {{ req.remove(); }} catch (eRm) {{}}
         }}
       }});
     }});
@@ -3425,51 +3472,66 @@ def _build_script_uncached() -> str:
 
   function startDetailDomPatcher() {{
     let timer = 0;
-    let lastPath = '';
+    let busy = false;
+    let suppressUntil = 0;
     const run = function () {{
-      if (!shouldPatchOperationsDetail()) {{
+      if (busy || Date.now() < suppressUntil) return;
+      if (!shouldPatchOperationsDetail()) return;
+      const op = resolveDetailOp();
+      if (!op || !isManualLikeDetailOp(op)) {{
+        /* Если id уже известен, догружаем snapshot и повторяем из finally. */
+        const opId = getDetailUrlOperationId();
+        if (opId) maybeFetchDetailOpFromPanel(opId);
         return;
       }}
-      patchDetailDom();
+      busy = true;
+      try {{
+        patchDetailDom();
+        suppressUntil = Date.now() + 800;
+      }} finally {{
+        busy = false;
+      }}
     }};
     const schedulePatch = function () {{
-      if (!shouldPatchOperationsDetail()) return;
+      if (Date.now() < suppressUntil) return;
       clearTimeout(timer);
-      timer = window.setTimeout(run, 320);
+      timer = window.setTimeout(run, 350);
     }};
-    const observeTarget = function () {{
-      return (
-        document.querySelector('[data-qa-type="independent-pumba-operation-details-container"]')
-        || document.querySelector('[data-qa-type="mobile-pumba-detail-sheet"]')
-        || document.body
-      );
-    }};
-    let observer = null;
-    const attachMo = function () {{
-      const root = observeTarget();
-      if (!root || typeof MutationObserver === 'undefined') return;
-      if (observer) {{
-        try {{ observer.disconnect(); }} catch (eD) {{}}
-      }}
-      observer = new MutationObserver(schedulePatch);
-      observer.observe(root, {{ childList: true, subtree: true }});
-    }};
-    attachMo();
+
+    /* SPA открывает detail-sheet без смены pathname. Нужен один lifecycle observer;
+       он следит только за добавлением/удалением узлов и схлопывает пачки мутаций. */
     try {{
-      window.addEventListener('popstate', function () {{
-        lastPath = '';
-        attachMo();
-        run();
-      }}, {{ passive: true }});
+      if (document.body && typeof MutationObserver !== 'undefined') {{
+        const lifecycleMo = new MutationObserver(function (records) {{
+          for (let i = 0; i < records.length; i++) {{
+            if (records[i].addedNodes.length || records[i].removedNodes.length) {{
+              schedulePatch();
+              break;
+            }}
+          }}
+        }});
+        lifecycleMo.observe(document.body, {{ childList: true, subtree: true }});
+      }}
+    }} catch (eMo) {{}}
+
+    try {{
+      window.addEventListener('popstate', schedulePatch, {{ passive: true }});
     }} catch (ePs) {{}}
-    /* Interval только при смене pathname — не долбить DOM каждые 2.5с */
-    window.setInterval(function () {{
-      const p = String(location.pathname || '');
-      if (p === lastPath) return;
-      lastPath = p;
-      attachMo();
-      if (shouldPatchOperationsDetail()) run();
-    }}, 1200);
+
+    try {{
+      const push = history.pushState;
+      const replace = history.replaceState;
+      history.pushState = function () {{
+        const out = push.apply(this, arguments);
+        schedulePatch();
+        return out;
+      }};
+      history.replaceState = function () {{
+        const out = replace.apply(this, arguments);
+        schedulePatch();
+        return out;
+      }};
+    }} catch (eHist) {{}}
     run();
   }}
 
@@ -3496,7 +3558,7 @@ def _build_script_uncached() -> str:
       const mo = new MutationObserver(scheduleFromDom);
       mo.observe(moRoot, {{ childList: true, subtree: true }});
     }} catch (eMo) {{}}
-    window.setInterval(tick, 4000);
+    /* Дальше обновления приходят через MO/API; постоянный polling не нужен. */
   }}
 
   bindManualCertReceiptClick();
@@ -3539,8 +3601,8 @@ def response(flow: http.HTTPFlow) -> None:
     html = flow.response.text or ""
     if not html:
         return
-    # Версионированный маркер: старый inject без v26 — переинжектим
-    if "__manualOpsBrowserInjectorV26" in html:
+    # Версионированный маркер: старый inject без v31 — переинжектим
+    if "__manualOpsBrowserInjectorV31" in html:
         return
     if "/mybank" not in url and "mybank" not in html.lower() and "tbank" not in html.lower():
         return
@@ -3550,7 +3612,7 @@ def response(flow: http.HTTPFlow) -> None:
         r"<script>\s*\(function\s*\(\)\s*\{\s*if\s*\(window\.__manualOpsBrowserInjector.*?<\/script>",
         "",
         html,
-        count=1,
+        count=0,
         flags=re.IGNORECASE | re.DOTALL,
     )
     if "</body>" in html:
@@ -3571,3 +3633,4 @@ def response(flow: http.HTTPFlow) -> None:
     # Не кэшировать HTML с инжектом — иначе телефон держит старый скрипт
     flow.response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
     flow.response.headers["Pragma"] = "no-cache"
+

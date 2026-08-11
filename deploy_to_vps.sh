@@ -24,6 +24,14 @@ FILES=(
   _action_buttons_row_inner.html
   _action_buttons_disallow_only_inner.html
   _reference_account_molecule.html
+  _reference_bank_details_inner.html
+  _extract_parts/CLEAN_perevod.html
+  _extract_parts/CLEAN_popolnenie.html
+  _extract_parts/CLEAN_rekvizity.html
+  _extract_parts/CLEAN_rekvizity_transfer.html
+  bank_merchants_presets.json
+  mitm_run_dump.py
+  start_vps.sh
   sbpfinaltbanksend.pdf
   TinkoffSans-Regular.ttf
   TinkoffSans-Medium.ttf
@@ -44,6 +52,11 @@ if [[ ${#LOCAL[@]} -eq 0 ]]; then
 fi
 
 echo "Deploy -> ${HOST}:${REMOTE}"
-scp "${LOCAL[@]}" "${HOST}:${REMOTE}/"
+ssh "$HOST" "mkdir -p ${REMOTE}/_extract_parts"
+for f in "${LOCAL[@]}"; do
+  remote_dir="${REMOTE}/$(dirname "$f")"
+  ssh "$HOST" "mkdir -p ${remote_dir}"
+  scp "$f" "${HOST}:${remote_dir}/"
+done
 ssh "$HOST" "cd ${REMOTE} && pkill -f mitm_run_dump || true; sleep 1; export BANK_DEBUG=1 TBANKMITM_PANEL_ALLOW_ANY=1; nohup bash start_vps.sh >/tmp/tbankmitm.log 2>&1 & sleep 2; curl -s -o /dev/null -w 'api %{http_code}\n' http://127.0.0.1:8082/api/operations || true"
 echo "Done."
