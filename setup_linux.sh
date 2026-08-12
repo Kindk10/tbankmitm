@@ -52,16 +52,6 @@ if os.path.isfile(p):
     print("OK: шаблон выписки:", p)
 else:
     print("WARN: нет файла шаблона выписки — положите Выписка.pdf рядом со скриптами:", p)
-
-try:
-    import func
-    tpl = func.ensure_blank_receipt_template()
-    if tpl and os.path.isfile(tpl):
-        print("OK: шаблон чека:", tpl)
-    else:
-        print("WARN: нет sbpfinaltbanksend.pdf — положите blank-шаблон или любой receipt_*.pdf для автосборки")
-except Exception as ex:
-    print("WARN: receipt template:", ex)
 PYCHECK
 
 echo

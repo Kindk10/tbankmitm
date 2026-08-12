@@ -80,19 +80,11 @@ def _extract_ids_from_flow(flow: http.HTTPFlow) -> set:
 def _pick_reference_operation() -> tuple[str | None, int | None]:
     best_id = None
     best_ts = -1
-    best_score = (-1, -1)
     for op_id, op in (history.operations_cache or {}).items():
         if not op_id or str(op_id).startswith("m_"):
             continue
         ts = history.date_str_to_millis(op.get("date", "")) if isinstance(op, dict) else 0
-        text = " ".join(
-            str(op.get(k) or "")
-            for k in ("op_group", "subgroup_name", "description", "title")
-        ).lower() if isinstance(op, dict) else ""
-        transfer_like = 1 if ("transfer" in text or "перевод" in text) else 0
-        score = (transfer_like, ts)
-        if score > best_score:
-            best_score = score
+        if ts > best_ts:
             best_ts = ts
             best_id = str(op_id)
     return best_id, (best_ts if best_ts > 0 else None)
@@ -172,6 +164,11 @@ def request(flow: http.HTTPFlow) -> None:
     if not is_bank_flow(flow):
         return
     _url0 = flow.request.pretty_url or ""
+    _url0_lower = _url0.lower()
+    # PDF должен формироваться по исходному id выбранной операции. Подмена m_* на
+    # reference-id нужна только API детализации и ломает выбор конкретного чека.
+    if "payment_receipt_pdf" in _url0_lower or "operation_statement_pdf" in _url0_lower:
+        return
     if url_prohibit_proxy_json_mutation(_url0):
         return
     if flow_statements_spravki_context(flow):

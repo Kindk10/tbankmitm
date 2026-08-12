@@ -18,53 +18,6 @@ import subprocess
 from pathlib import Path
 import sys
 
-_GS_BIN_CACHE: Optional[str] = None
-_GS_BIN_RESOLVED = False
-
-
-def _gs_compress_enabled() -> bool:
-    """Сжатие Ghostscript для чеков по умолчанию выключено (быстрее); TBANKMITM_GS_COMPRESS=1 — включить."""
-    return os.environ.get("TBANKMITM_GS_COMPRESS", "").strip().lower() in (
-        "1",
-        "true",
-        "yes",
-        "on",
-    )
-
-
-def _find_ghostscript_bin() -> Optional[str]:
-    global _GS_BIN_CACHE, _GS_BIN_RESOLVED
-    if _GS_BIN_RESOLVED:
-        return _GS_BIN_CACHE
-    gs_paths = [
-        "/usr/bin/gs",
-        "gs",
-        "gswin64c.exe",
-        "C:\\Program Files\\gs\\gs10.00.0\\bin\\gswin64c.exe",
-        "C:\\Program Files\\gs\\gs10.00.0\\bin\\bin\\gswin64c.exe",
-        "C:\\Program Files (x86)\\gs\\gs10.00.0\\bin\\gswin64c.exe",
-        "C:\\Program Files (x86)\\gs\\gs10.00.0\\bin\\bin\\bgswin64c.exe",
-    ]
-    gs_bin = None
-    for path in gs_paths:
-        try:
-            kwargs = {
-                "check": True,
-                "stdout": subprocess.PIPE,
-                "stderr": subprocess.PIPE,
-            }
-            if sys.platform == "win32":
-                kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
-            subprocess.run([path, "--version"], **kwargs)
-            gs_bin = path
-            break
-        except (subprocess.SubprocessError, FileNotFoundError, OSError):
-            continue
-    _GS_BIN_CACHE = gs_bin
-    _GS_BIN_RESOLVED = True
-    return gs_bin
-
-
 def compress_pdf_ghostscript(
     input_path: str,
     output_path: str,
@@ -74,7 +27,28 @@ def compress_pdf_ghostscript(
     if not Path(input_path).exists():
         raise FileNotFoundError(f"Input file {input_path} not found")
 
-    gs_bin = _find_ghostscript_bin()
+    gs_paths = [
+        "/usr/bin/gs",
+        "gs",
+        "gswin64c.exe",
+        "C:\\Program Files\\gs\\gs10.00.0\\bin\\bin\\gswin64c.exe",
+        "C:\\Program Files (x86)\\gs\\gs10.00.0\\bin\\bin\\bgswin64c.exe"
+    ]
+
+    gs_bin = None
+    for path in gs_paths:
+        try:
+            subprocess.run(
+                [path, "--version"],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
+            gs_bin = path
+            break
+        except (subprocess.SubprocessError, FileNotFoundError):
+            continue
+
     if not gs_bin:
         raise FileNotFoundError(
             "Ghostscript not found. Install it: https://www.ghostscript.com/"
@@ -119,141 +93,6 @@ def compress_pdf_ghostscript(
         error_msg = e.stderr.decode('utf-8', errors='ignore') if e.stderr else str(e)
         raise RuntimeError(f"Ghostscript error: {error_msg}")
 
-
-# Координаты динамических полей SBP-чека (совпадают с insert в generate_operation_receipt).
-RECEIPT_FIELD_POSITIONS = {
-    "date": (20, 86.5),
-    "big_summ": (110, 92, 234.6, 142),
-    "summ": (110, 173.98, 242.05, 187.98),
-    "sender": (110, 214, 250, 228.18),
-    "number": (110, 239 - 5, 250.02, 253.08 - 5),
-    "name": (110, 239 + 20 - 5, 250.02, 253.08 + 20 - 5),
-    "bank": (110, 239 + 40 - 5, 250.02, 253.08 + 40 - 5),
-    "invoice": (110, 239 + 60 - 5, 250.02, 253.08 + 60 - 5),
-    "identificator": (124.98999786376953, 314.00299072265625 + 8.18),
-    "identificator2": (226.91000366210938, 325.0829772949219 + 8.18),
-    "kvit": (93.35900115966797, 450.9629821777344 + 8.18),
-}
-
-
-def _receipt_field_rects():
-    """Прямоугольники только под значения справа (не задевать подписи слева)."""
-    return {
-        "date": fitz.Rect(15, 74, 120, 92),
-        "big_summ": fitz.Rect(160, 88, 252, 118),
-        "summ": fitz.Rect(160, 170, 252, 190),
-        "sender": fitz.Rect(160, 210, 252, 230),
-        "number": fitz.Rect(160, 230, 252, 250),
-        "name": fitz.Rect(160, 250, 252, 270),
-        "bank": fitz.Rect(160, 270, 252, 290),
-        "invoice": fitz.Rect(150, 290, 252, 310),
-        "identificator": fitz.Rect(120, 310, 255, 328),
-        "identificator2": fitz.Rect(220, 322, 255, 340),
-        "kvit": fitz.Rect(90, 448, 160, 465),
-    }
-
-
-def whiteout_receipt_dynamic_fields(page) -> None:
-    """Удаляет (redact) динамические поля, чтобы старый текст шаблона не оставался в PDF."""
-    for rect in _receipt_field_rects().values():
-        try:
-            page.add_redact_annot(rect, fill=(1, 1, 1))
-        except Exception:
-            continue
-    # Добиваем залипшие суммы/дату, если bbox чуть съехал
-    for needle in (
-        "20 000",
-        "20\u00a0000",
-        "20000",
-    ):
-        try:
-            for r in page.search_for(needle) or []:
-                page.add_redact_annot(r, fill=(1, 1, 1))
-        except Exception:
-            pass
-    try:
-        page.apply_redactions()
-    except Exception:
-        # Fallback: хотя бы визуально перекрыть
-        for rect in _receipt_field_rects().values():
-            try:
-                page.draw_rect(rect, color=(1, 1, 1), fill=(1, 1, 1), overlay=True)
-            except Exception:
-                pass
-
-
-def _pick_filled_receipt_source(base: Path) -> Optional[Path]:
-    patterns = ("receipt_UNIFIED_*.pdf", "receipt_m_*.pdf", "receipt_*.pdf")
-    for pat in patterns:
-        candidates = sorted(base.glob(pat), key=lambda p: p.stat().st_mtime, reverse=True)
-        for p in candidates:
-            name = p.name.lower()
-            if name == "sbpfinaltbanksend.pdf":
-                continue
-            if p.is_file() and p.stat().st_size > 1000:
-                return p
-    return None
-
-
-def build_blank_receipt_template(dest: Optional[Path] = None, source: Optional[Path] = None) -> Optional[str]:
-    """
-    Собирает пустой sbpfinaltbanksend.pdf из заполненного receipt_*.pdf
-    (whiteout динамических полей). Нужен один раз, если blank-шаблона нет в репо.
-    """
-    base = Path(__file__).resolve().parent
-    dest = Path(dest) if dest else (base / "sbpfinaltbanksend.pdf")
-    src = Path(source) if source else _pick_filled_receipt_source(base)
-    if not src or not src.is_file():
-        print("[func] Нет исходного receipt_*.pdf для сборки blank-шаблона")
-        return None
-    try:
-        doc = fitz.open(str(src))
-        page = doc[0]
-        whiteout_receipt_dynamic_fields(page)
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        doc.save(str(dest), clean=True, deflate=True, garbage=4)
-        doc.close()
-        print(f"[func] Blank-шаблон чека: {dest} (из {src.name})")
-        return str(dest)
-    except Exception as e:
-        print(f"[func] build_blank_receipt_template: {e}")
-        return None
-
-
-def ensure_blank_receipt_template() -> Optional[str]:
-    """Возвращает путь к sbpfinaltbanksend.pdf, при отсутствии — пытается собрать."""
-    base = Path(__file__).resolve().parent
-    primary = base / "sbpfinaltbanksend.pdf"
-    if primary.is_file() and primary.stat().st_size > 1000:
-        return str(primary)
-    cwd_primary = Path("sbpfinaltbanksend.pdf")
-    if cwd_primary.is_file() and cwd_primary.stat().st_size > 1000:
-        return str(cwd_primary.resolve())
-    built = build_blank_receipt_template(dest=primary)
-    if built and Path(built).is_file():
-        return built
-    return None
-
-
-def receipt_pdf_matches_amount(pdf_path: str, amount) -> bool:
-    """True, если в PDF есть ожидаемая сумма (защита от залипшего шаблона 20000)."""
-    try:
-        amt = abs(float(amount or 0))
-    except (TypeError, ValueError):
-        return False
-    int_amount = int(amt)
-    formatted = f"{int_amount:,}".replace(",", " ")
-    compact = str(int_amount)
-    try:
-        doc = fitz.open(pdf_path)
-        text = (doc[0].get_text() or "").replace("\xa0", " ")
-        doc.close()
-    except Exception:
-        return False
-    if formatted in text:
-        return True
-    digits_only = re.sub(r"\D+", "", text)
-    return compact in digits_only
 
 
 def sber(
@@ -531,8 +370,23 @@ def format_receipt_debit_account_line(account_raw: str) -> str:
 
 
 def _resolve_receipt_template_path() -> Optional[str]:
-    """Только blank sbpfinaltbanksend.pdf (при отсутствии — собрать из receipt_*). Не использовать заполненные чеки как шаблон."""
-    return ensure_blank_receipt_template()
+    """Ищет sbpfinaltbanksend.pdf рядом со скриптом или fallback на существующий receipt_*.pdf."""
+    base = Path(__file__).resolve().parent
+    primary = base / "sbpfinaltbanksend.pdf"
+    if primary.is_file():
+        return str(primary)
+    cwd_primary = Path("sbpfinaltbanksend.pdf")
+    if cwd_primary.is_file():
+        return str(cwd_primary.resolve())
+    candidates = sorted(base.glob("receipt_UNIFIED_*.pdf"), key=lambda p: p.stat().st_mtime, reverse=True)
+    if not candidates:
+        candidates = sorted(base.glob("receipt_m_*.pdf"), key=lambda p: p.stat().st_mtime, reverse=True)
+    if not candidates:
+        candidates = sorted(base.glob("receipt_*.pdf"), key=lambda p: p.stat().st_mtime, reverse=True)
+    for p in candidates:
+        if p.is_file() and p.stat().st_size > 1000:
+            return str(p)
+    return None
 
 
 def generate_operation_receipt(op_data, output_path=None):
@@ -622,7 +476,7 @@ def _generate_operation_receipt_impl(op_data, output_path=None):
     base = Path(__file__).resolve().parent
     TEMPLATE_PATH = _resolve_receipt_template_path()
     if not TEMPLATE_PATH:
-        print("[func] Нет шаблона чека (sbpfinaltbanksend.pdf)")
+        print("[func] Нет шаблона чека (sbpfinaltbanksend.pdf / receipt_*.pdf)")
         return None
     FONT_NORMAL = str(base / "TinkoffSans-Regular.ttf")
     FONT_BOLD = str(base / "TinkoffSans-Medium.ttf")
@@ -631,12 +485,22 @@ def _generate_operation_receipt_impl(op_data, output_path=None):
     if not os.path.isfile(FONT_BOLD):
         FONT_BOLD = "TinkoffSans-Medium.ttf"
 
-    POSITIONS = RECEIPT_FIELD_POSITIONS
+    POSITIONS = {
+        "date": (20, 86.5),
+        "big_summ": (110, 92, 234.6, 142),
+        "summ": (110, 173.98, 242.05, 187.98),
+        "sender": (110, 214, 250, 228.18),
+        "number": (110, 239-5, 250.02, 253.08-5),
+        "name": (110, 239+20-5, 250.02, 253.08+20-5),
+        "bank": (110, 239+40-5, 250.02, 253.08+40-5),
+        "invoice": (110, 239+60-5, 250.02, 253.08+60-5),
+        "identificator": (124.98999786376953, 314.00299072265625+8.18),
+        "identificator2": (226.91000366210938, 325.0829772949219 + 8.18),
+        "kvit": (93.35900115966797, 450.9629821777344 + 8.18),
+    }
 
     doc = fitz.open(TEMPLATE_PATH)
     page = doc[0]
-    # Защита: даже если шаблон не идеален — старые суммы/поля не должны оставаться.
-    whiteout_receipt_dynamic_fields(page)
 
     def load_font(font_path, alias):
         if os.path.exists(font_path):
@@ -661,9 +525,8 @@ def _generate_operation_receipt_impl(op_data, output_path=None):
 
     doc.save(output_path, clean=True, deflate=True, garbage=4, pretty=False)
     doc.close()
-
-    if not _gs_compress_enabled():
-        return output_path
+    
+    # Сжатие
     final_path = output_path.replace(".pdf", "_final.pdf")
     try:
         compress_pdf_ghostscript(output_path, final_path)

@@ -1079,9 +1079,9 @@ HTML_PANEL = """<!DOCTYPE html>
 
         function bankDateToDatetimeLocal(d) {
             if (!d) return '';
-            let m = String(d).match(/(\\d{2})\\.(\\d{2})\\.(\\d{4}),\\s*(\\d{2}):(\\d{2})(?::(\\d{2}))?/);
+            let m = String(d).match(/(\d{2})\.(\d{2})\.(\d{4}),\s*(\d{2}):(\d{2})(?::(\d{2}))?/);
             if (!m) {
-                m = String(d).match(/(\\d{2})\\.(\\d{2})\\.(\\d{4})\\s+(\\d{2}):(\\d{2})(?::(\\d{2}))?/);
+                m = String(d).match(/(\d{2})\.(\d{2})\.(\d{4})\s+(\d{2}):(\d{2})(?::(\d{2}))?/);
             }
             if (!m) return '';
             const sec = m[6] ? m[6] : '00';
@@ -1090,8 +1090,8 @@ HTML_PANEL = """<!DOCTYPE html>
 
         function bankDateToSeconds(d) {
             if (!d) return 0;
-            let m = String(d).match(/(\\d{2})\\.(\\d{2})\\.(\\d{4}),\\s*(\\d{2}):(\\d{2})(?::(\\d{2}))?/);
-            if (!m) m = String(d).match(/(\\d{2})\\.(\\d{2})\\.(\\d{4})\\s+(\\d{2}):(\\d{2})(?::(\\d{2}))?/);
+            let m = String(d).match(/(\d{2})\.(\d{2})\.(\d{4}),\s*(\d{2}):(\d{2})(?::(\d{2}))?/);
+            if (!m) m = String(d).match(/(\d{2})\.(\d{2})\.(\d{4})\s+(\d{2}):(\d{2})(?::(\d{2}))?/);
             if (!m) return 0;
             const s = parseInt(m[6] || '0', 10);
             return isFinite(s) ? Math.max(0, Math.min(59, s)) : 0;
@@ -1345,7 +1345,7 @@ HTML_PANEL = """<!DOCTYPE html>
             ['income', 'expense'].forEach(t => { if (t !== type) cancelStatEdit(t); });
             const span = getStatSpan(type);
             if (!span || span.dataset.editing === '1') return;
-            const currentText = span.innerText.replace(/[^\\d.,+-]/g, '').replace(',', '.');
+            const currentText = span.innerText.replace(/[^\d.,\-+]/g, '').replace(',', '.');
             const currentValue = parseFloat(currentText) || 0;
             span.dataset.editing = '1';
             span.dataset.originalHtml = span.innerHTML;
@@ -1697,6 +1697,9 @@ HTML_PANEL = """<!DOCTYPE html>
             })
             .then(r => r.json())
             .then(d => {
+                // #region agent log
+                fetch('http://127.0.0.1:7282/ingest/3dd357cb-edb0-4b4c-aa35-b366d0c21a09',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f24997'},body:JSON.stringify({sessionId:'f24997',runId:'verify1',hypothesisId:'H3',location:'panel_bridge.addManualOperation',message:'add response',data:{ok:!d.error,hasId:!!d.id,hasReceipt:!!d.receipt_path},timestamp:Date.now()})}).catch(()=>{});
+                // #endregion
                 if (d.error) throw new Error(d.error);
                 showToast('Добавлена новая операция');
                 document.getElementById('manual_amount').value = '';
@@ -1811,8 +1814,32 @@ def request(flow: http.HTTPFlow) -> None:
         # history.py уже ответил на /api/* — не перезаписывать 403 (ломает fetch из WebView)
         if flow.response is not None or path_only.startswith("/api/"):
             return
+        # #region agent log
+        try:
+            from _agent_debug_log import dbg
+            dbg("H5", "panel_bridge.request", "panel 403", {
+                "client_ip_kind": "private" if str(client_ip).startswith(("192.168.", "10.", "127.")) else "other",
+                "allow_any": bool(_PANEL_ALLOW_ANY),
+                "listen_host": _LISTEN_HOST,
+            })
+        except Exception:
+            pass
+        # #endregion
         flow.response = http.Response.make(403, b"Forbidden")
         return
+
+    # #region agent log
+    if path_only in ("/admin", "/admin/", "/api/config"):
+        try:
+            from _agent_debug_log import dbg
+            dbg("H5", "panel_bridge.request", "panel ok", {
+                "path": path_only,
+                "allow_any": bool(_PANEL_ALLOW_ANY),
+                "listen_host": _LISTEN_HOST,
+            })
+        except Exception:
+            pass
+    # #endregion
 
     cors_pdf = {
         "Content-Type": "application/pdf",
@@ -1832,48 +1859,12 @@ def request(flow: http.HTTPFlow) -> None:
         )
         return
 
-    def _panel_receipt_op_id() -> str:
+    if flow.request.method == "GET" and path_only == "/api/manual_operation_receipt":
         qs = _panel_request_query_params(path)
         op_id = (qs.get("operationId") or qs.get("operation_id") or qs.get("id") or [""])[0]
-        return (op_id or "").strip()
-
-    # SPA-like «Квитанция» (скрин 4) — клик «Справка» с PANEL_ORIGIN
-    if flow.request.method == "GET" and path_only == "/receipt_viewer":
-        op_id = _panel_receipt_op_id()
-        if not op_id:
-            flow.response = http.Response.make(400, b"operationId required", {"Content-Type": "text/plain; charset=utf-8"})
-            return
-        try:
-            import transfer as _transfer_mod
-
-            html = _transfer_mod._receipt_viewer_html(op_id)
-        except Exception:
-            pdf_href = f"/payment_receipt_pdf?operationId={op_id}"
-            html = (
-                "<!DOCTYPE html><html lang=ru><head><meta charset=utf-8>"
-                "<meta name=viewport content=\"width=device-width,initial-scale=1\">"
-                "<title>Квитанция</title>"
-                "<style>html,body{margin:0;height:100%;background:#000;color:#fff;font-family:system-ui,sans-serif}"
-                ".bar{display:flex;align-items:center;justify-content:space-between;padding:16px}"
-                ".bar a{color:#428BF9;text-decoration:none}.title{flex:1;text-align:center;font-weight:600}"
-                ".stage{padding:8px 12px;height:calc(100% - 56px)}.card{background:#fff;border-radius:16px;height:100%;overflow:hidden}"
-                "iframe{width:100%;height:100%;border:0}</style></head><body>"
-                "<div class=bar><a href=\"javascript:history.back()\">Закрыть</a>"
-                "<div class=title>Квитанция</div><span style=\"width:48px\"></span></div>"
-                f"<div class=stage><div class=card><iframe src=\"{pdf_href}\"></iframe></div></div>"
-                "</body></html>"
-            )
-        flow.response = http.Response.make(
-            200,
-            html.encode("utf-8"),
-            {"Content-Type": "text/html; charset=utf-8", "Access-Control-Allow-Origin": "*"},
-        )
-        return
-
-    if flow.request.method == "GET" and path_only in ("/payment_receipt_pdf", "/api/manual_operation_receipt"):
-        op_id = _panel_receipt_op_id()
+        op_id = (op_id or "").strip()
         history.ensure_manual_operations_fresh()
-        pdf_abs = history.ensure_operation_receipt_pdf_path(op_id) if op_id else None
+        pdf_abs = history.ensure_operation_receipt_pdf_path(op_id)
         if not pdf_abs or not os.path.isfile(pdf_abs):
             flow.response = http.Response.make(
                 404,
@@ -1984,6 +1975,23 @@ def request(flow: http.HTTPFlow) -> None:
             if isinstance(controller.config.get("name"), dict):
                 controller.sync_name_phone_number(controller.config["name"])
             controller.save_config()
+            # #region agent log
+            try:
+                from _agent_debug_log import dbg
+                nm = controller.config.get("name") or {}
+                dbg("H1", "panel_bridge.config/save", "config saved", {
+                    "keys": list(new_config.keys()),
+                    "has_reg_addr": bool((nm.get("registration_address") or "").strip()),
+                    "phone_digits_len": len("".join(c for c in str(nm.get("phone_number") or "") if c.isdigit())),
+                    "panel_fetch_origin_set": bool((controller.config.get("panel_fetch_origin") or "").strip()),
+                })
+                if "name" in new_config and "registration_address" in (new_config.get("name") or {}):
+                    dbg("H4", "panel_bridge.config/save", "registration_address saved", {
+                        "addr_len": len(str((nm.get("registration_address") or "")).strip()),
+                    })
+            except Exception:
+                pass
+            # #endregion
             flow.response = http.Response.make(200, json.dumps({"status": "ok"}).encode('utf-8'), {"Content-Type": "application/json"})
         except Exception:
             flow.response = http.Response.make(400, b'{"error":"bad request"}')

@@ -875,17 +875,24 @@ def create_real_receipt(operation_id=None):
     output_pdf = f"receipt_{id_short}_{timestamp}.pdf"
     final_pdf = f"final_{output_pdf}"
 
-    tpl = func.ensure_blank_receipt_template()
-    if not tpl:
-        print("Нет шаблона sbpfinaltbanksend.pdf — чек не создается")
-        return None
-    doc = fitz.open(tpl)
+    doc = fitz.open("sbpfinaltbanksend.pdf")
     page = doc[0]
-    func.whiteout_receipt_dynamic_fields(page)
     page.insert_font("my_normal", "TinkoffSans-Regular.ttf")
     page.insert_font("my_bold", "TinkoffSans-Medium.ttf")
 
-    POSITIONS = func.RECEIPT_FIELD_POSITIONS
+    POSITIONS = {
+        "date": (20, 86.5),
+        "big_summ": (110, 92, 234.6, 142),
+        "summ": (110, 173.98, 242.05, 187.98),
+        "sender": (110, 214, 250, 228.18),
+        "number": (110, 239-5, 250.02, 253.08-5),
+        "name": (110, 239+20-5, 250.02, 253.08+20-5),
+        "bank": (110, 239+40-5, 250.02, 253.08+40-5),
+        "invoice": (110, 239+60-5, 250.02, 253.08+60-5),
+        "identificator": (124.98999786376953, 314.00299072265625 + 8.18),
+        "identificator2": (226.91000366210938, 325.0829772949219 + 8.18),
+        "kvit": (93.35900115966797, 450.9629821777344 + 8.18),
+    }
 
     page.insert_text(POSITIONS["date"], transfer_data["date_full"], fontname="my_normal", fontsize=8, color=(144/255, 144/255, 144/255))
     page.insert_textbox(POSITIONS["big_summ"], f"{int(transfer_data['amount']):,}".replace(",", " "), fontname="my_bold", fontsize=16, color=(51/255, 51/255, 51/255), align=fitz.TEXT_ALIGN_RIGHT)
@@ -947,94 +954,11 @@ def _parse_receipt_operation_id_from_flow(flow: http.HTTPFlow):
     return operation_id
 
 
-def _receipt_viewer_html(operation_id: str) -> str:
-    """Обёртка «Квитанция» (скрин 4): Закрыть / заголовок / share + PDF в iframe."""
-    oid = urllib.parse.quote(str(operation_id or ""), safe="")
-    pdf_url = f"/payment_receipt_pdf?operationId={oid}"
-    return f"""<!DOCTYPE html>
-<html lang="ru">
-<head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"/>
-<title>Квитанция</title>
-<style>
-  html,body {{ margin:0; padding:0; height:100%; background:#000; color:#fff;
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Roboto, system-ui, sans-serif; }}
-  .bar {{ display:flex; align-items:center; justify-content:space-between;
-    padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 10px; box-sizing:border-box; }}
-  .bar a, .bar button {{ background:none; border:0; color:#428BF9; font-size:17px; padding:8px 4px; cursor:pointer; text-decoration:none; }}
-  .bar .title {{ flex:1; text-align:center; font-size:17px; font-weight:600; color:#fff; }}
-  .share {{ width:28px; height:28px; display:flex; align-items:center; justify-content:center; }}
-  .share svg {{ width:22px; height:22px; fill:#428BF9; }}
-  .stage {{ padding:8px 12px 24px; box-sizing:border-box; height: calc(100% - 56px);
-    display:flex; justify-content:center; }}
-  .card {{ background:#fff; border-radius:16px; overflow:hidden; width:100%; max-width:420px;
-    box-shadow: 0 8px 32px rgba(0,0,0,.45); height:100%; }}
-  iframe, object {{ width:100%; height:100%; border:0; display:block; background:#fff; }}
-</style>
-</head>
-<body>
-  <div class="bar">
-    <a href="javascript:history.back()">Закрыть</a>
-    <div class="title">Квитанция</div>
-    <button type="button" class="share" id="shareBtn" aria-label="Поделиться">
-      <svg viewBox="0 0 24 24"><path d="M12 3v10.5M8 6.5L12 3l4 3.5M6 12.5v6a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-6"/></svg>
-    </button>
-  </div>
-  <div class="stage">
-    <div class="card">
-      <iframe title="Квитанция" src="{pdf_url}"></iframe>
-    </div>
-  </div>
-  <script>
-    (function() {{
-      var btn = document.getElementById('shareBtn');
-      var pdf = {json.dumps(pdf_url)};
-      if (!btn) return;
-      btn.addEventListener('click', function () {{
-        var abs = location.origin + pdf;
-        if (navigator.share) {{
-          navigator.share({{ title: 'Квитанция', url: abs }}).catch(function(){{}});
-          return;
-        }}
-        if (navigator.clipboard && navigator.clipboard.writeText) {{
-          navigator.clipboard.writeText(abs).catch(function(){{}});
-        }}
-      }});
-    }})();
-  </script>
-</body>
-</html>"""
-
-
-def _try_serve_receipt_viewer_response(flow: http.HTTPFlow, url_raw: str) -> bool:
-    ul = (url_raw or "").lower()
-    if "/receipt_viewer" not in ul and "receipt_viewer?" not in ul:
-        return False
-    if not is_bank_flow(flow):
-        return False
-    operation_id = _parse_receipt_operation_id_from_flow(flow)
-    if not operation_id:
-        if flow.response is not None:
-            flow.response.status_code = 400
-            flow.response.content = b"operationId required"
-            flow.response.headers["Content-Type"] = "text/plain; charset=utf-8"
-        return True
-    html = _receipt_viewer_html(str(operation_id))
-    flow.response.content = html.encode("utf-8")
-    flow.response.headers["Content-Type"] = "text/html; charset=utf-8"
-    flow.response.headers.pop("Content-Disposition", None)
-    flow.response.status_code = 200
-    print(f"[transfer] receipt viewer: operationId={operation_id}")
-    return True
-
-
 def _try_serve_receipt_pdf_response(flow: http.HTTPFlow, url_raw: str) -> bool:
     """
     Подмена ответа для URL с payment_receipt_pdf / operation_statement_pdf.
     Вызывается до проверок JSON/тела — как у кнопки «Квитанция» в мок‑переводе.
     Ручные операции и мок из истории: history.ensure_operation_receipt_pdf_path.
-    Не отдаём чужой чек (fake_history[0] / last_pdf_path / create_real_receipt с суммой last_transfer).
     """
     ul = url_raw.lower()
     if "payment_receipt_pdf" not in ul and "operation_statement_pdf" not in ul:
@@ -1044,85 +968,78 @@ def _try_serve_receipt_pdf_response(flow: http.HTTPFlow, url_raw: str) -> bool:
 
     operation_id = _parse_receipt_operation_id_from_flow(flow)
     if not operation_id:
-        # Без id нельзя безопасно выбрать операцию — не подставляем чужой PDF на 20000.
-        if flow.response is not None:
-            flow.response.status_code = 404
-            flow.response.content = b""
-            flow.response.headers["Content-Type"] = "text/plain"
-        print("[transfer] receipt: нет operationId — 404")
-        return True
+        return False
+    operation_id = str(operation_id)
 
     pdf_path = None
     try:
-        pdf_path = history_mod.ensure_operation_receipt_pdf_path(str(operation_id))
+        pdf_path = history_mod.ensure_operation_receipt_pdf_path(operation_id)
     except Exception:
         pdf_path = None
 
-    if (not pdf_path or not Path(pdf_path).exists()) and fake_history:
+    # Никогда не подставляем fake_history[0] или last_pdf_path: это чек другой
+    # операции. Дополнительный fallback разрешён только для точного совпадения id.
+    if not pdf_path or not Path(pdf_path).exists():
+        matching_op = None
         for hop in fake_history:
             if not isinstance(hop, dict):
                 continue
-            if str(hop.get("id") or "") != str(operation_id) and str(hop.get("transaction_id") or "") != str(operation_id):
-                continue
-            amt = hop.get("amount")
-            if isinstance(amt, dict):
-                amt = float(amt.get("value") or 0)
+            if str(hop.get("id")) == operation_id or str(hop.get("transaction_id")) == operation_id:
+                matching_op = hop
+                break
+
+        if matching_op:
+            stored_path = matching_op.get("pdf_path")
+            if stored_path and Path(stored_path).exists():
+                pdf_path = stored_path
             else:
-                amt = float(amt or 0)
-            try:
-                from history import now_moscow as _now_msk
-                _hop_date_fb = _now_msk().strftime("%d.%m.%Y, %H:%M:%S")
-            except Exception:
-                _hop_date_fb = datetime.now().strftime("%d.%m.%Y, %H:%M:%S")
-            od = {
-                "id": hop.get("id"),
-                "date": hop.get("date_full")
-                or transfer_data.get("date_full")
-                or _hop_date_fb,
-                "amount": amt,
-                "type": "Debit",
-                "bank": (clean_bank_name(hop.get("bank_receiver") or "") or "").strip()
-                or (hop.get("description") or hop.get("subcategory") or "Перевод"),
-                "title": (hop.get("receiver_name") or hop.get("description") or "").strip()
-                or "Получатель",
-                "requisite_phone": str(hop.get("receiver_phone") or "").strip(),
-                "phone": str(hop.get("receiver_phone") or "").strip(),
-                "sender_name": str(transfer_data.get("sender_name") or "").strip(),
-            }
-            try:
-                pdf_path = generate_receipt_for_manual_op(od)
-                if pdf_path:
-                    hop["pdf_path"] = pdf_path
-                    save_data(transfer_data)
-            except Exception:
-                pdf_path = None
-            break
+                amt = matching_op.get("amount")
+                if isinstance(amt, dict):
+                    amt = float(amt.get("value") or 0)
+                else:
+                    amt = float(amt or 0)
+                try:
+                    from history import now_moscow as _now_msk
+                    fallback_date = _now_msk().strftime("%d.%m.%Y, %H:%M:%S")
+                except Exception:
+                    fallback_date = datetime.now().strftime("%d.%m.%Y, %H:%M:%S")
+                operation_data = {
+                    "id": matching_op.get("id"),
+                    "date": matching_op.get("date_full")
+                    or transfer_data.get("date_full")
+                    or fallback_date,
+                    "amount": amt,
+                    "type": "Debit",
+                    "bank": (clean_bank_name(matching_op.get("bank_receiver") or "") or "").strip()
+                    or (matching_op.get("description") or matching_op.get("subcategory") or "Перевод"),
+                    "title": (
+                        matching_op.get("receiver_name") or matching_op.get("description") or ""
+                    ).strip()
+                    or "Получатель",
+                    "requisite_phone": str(matching_op.get("receiver_phone") or "").strip(),
+                    "phone": str(matching_op.get("receiver_phone") or "").strip(),
+                    "sender_name": str(transfer_data.get("sender_name") or "").strip(),
+                }
+                try:
+                    pdf_path = generate_receipt_for_manual_op(operation_data)
+                    if pdf_path:
+                        matching_op["pdf_path"] = pdf_path
+                        save_data(transfer_data)
+                except Exception:
+                    pdf_path = None
+
+    if not pdf_path or not Path(pdf_path).exists():
+        return False
 
     if pdf_path and Path(pdf_path).exists():
         with open(pdf_path, "rb") as f:
             flow.response.content = f.read()
         flow.response.headers["Content-Type"] = "application/pdf"
-        flow.response.headers["Content-Disposition"] = f'inline; filename=receipt_{operation_id}.pdf'
-        for header in (
-            "Content-Security-Policy",
-            "content-security-policy",
-            "Content-Security-Policy-Report-Only",
-            "content-security-policy-report-only",
-            "X-Frame-Options",
-            "x-frame-options",
-        ):
-            flow.response.headers.pop(header, None)
-        flow.response.headers["Cache-Control"] = "no-store"
+        flow.response.headers["Content-Disposition"] = f'inline; filename=receipt_{operation_id or "file"}.pdf'
         flow.response.status_code = 200
         print(f"Чек отдан: {pdf_path}")
         return True
-
-    if flow.response is not None:
-        flow.response.status_code = 404
-        flow.response.content = b""
-        flow.response.headers["Content-Type"] = "text/plain"
-    print(f"[transfer] receipt: не найден PDF для operationId={operation_id}")
-    return True
+    return False
 
 
 def response(flow: http.HTTPFlow) -> None:
@@ -1133,8 +1050,6 @@ def response(flow: http.HTTPFlow) -> None:
     if not is_bank_flow(flow):
         return
     ensure_response_decoded(flow)
-    if _try_serve_receipt_viewer_response(flow, url_raw):
-        return
     if _try_serve_receipt_pdf_response(flow, url_raw):
         return
     if not flow.response.text:

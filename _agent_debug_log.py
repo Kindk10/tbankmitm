@@ -1,16 +1,15 @@
-"""Tiny NDJSON debug logger for session 3b3112. Do not log secrets/PII."""
+"""Tiny NDJSON debug logger for session f24997. Do not log secrets/PII."""
 from __future__ import annotations
 
 import json
 import time
 from pathlib import Path
 
-_ROOT = Path(__file__).resolve().parent
-_LOG = _ROOT / "debug-3b3112.log"
-_SESSION = "3b3112"
+_LOG = Path(__file__).resolve().parent / "debug-f24997.log"
+_SESSION = "f24997"
 
 
-def dbg(hypothesis_id: str, location: str, message: str, data=None, run_id: str = "pre"):
+def dbg(hypothesis_id: str, location: str, message: str, data=None, run_id: str = "verify1"):
     try:
         payload = {
             "sessionId": _SESSION,
@@ -21,8 +20,7 @@ def dbg(hypothesis_id: str, location: str, message: str, data=None, run_id: str 
             "data": data or {},
             "timestamp": int(time.time() * 1000),
         }
-        line = json.dumps(payload, ensure_ascii=False) + "\n"
         with open(_LOG, "a", encoding="utf-8") as f:
-            f.write(line)
+            f.write(json.dumps(payload, ensure_ascii=False) + "\n")
     except Exception:
         pass

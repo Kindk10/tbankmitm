@@ -101,6 +101,17 @@ def response(flow: http.HTTPFlow) -> None:
                     # innerCode = код оператора (3 цифры), number = остальные 7
                     pi["mobilePhoneNumber"]["innerCode"] = pn[0:3] if len(pn) >= 3 else pn
                     pi["mobilePhoneNumber"]["number"] = pn[-7:] if len(pn) >= 7 else pn
+                    # #region agent log
+                    try:
+                        from _agent_debug_log import dbg
+                        dbg("H1", "name.short_personal_info", "patched mobilePhoneNumber", {
+                            "pn_len": len(pn),
+                            "inner_len": len(str(pi["mobilePhoneNumber"].get("innerCode") or "")),
+                            "number_len": len(str(pi["mobilePhoneNumber"].get("number") or "")),
+                        })
+                    except Exception:
+                        pass
+                    # #endregion
             
             flow.response.text = json.dumps(data, ensure_ascii=False)
         except:
