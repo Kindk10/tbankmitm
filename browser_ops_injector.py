@@ -250,13 +250,19 @@ def _build_script() -> str:
   const PANEL_EFFECTIVE_BALANCE_URL = PANEL_ORIGIN + '/api/effective_balance';
   const PANEL_INCOME_EXPENSE_URL = PANEL_ORIGIN + '/api/panel_income_expense';
   const PANEL_OPERATIONS_URL = PANEL_ORIGIN + '/api/operations';
+  const PANEL_STATE_REVISION_URL = PANEL_ORIGIN + '/api/state_revision';
   const PANEL_TOTALS_SNAPSHOT = {panel_totals_json};
   let __blackBalanceLastFetch = 0;
   let __blackBalanceInFlight = false;
   let __finCardLastFetch = 0;
   let __finCardInFlight = false;
+  let __panelStateRevision = '';
+  let __panelRevisionInFlight = false;
+  let __panelRevisionSupported = true;
+  let __forceFinRefresh = false;
   let __homeFinMoLock = 0;
   let __homeFinPatchBusy = false;
+  const __panelFetchesInFlight = new Map();
   window.__HOME_FIN_SEEDED_FROM_API = false;
 
   function _panelUrlVariants(baseUrl) {{
@@ -272,37 +278,25 @@ def _build_script() -> str:
   function fetchJsonFirstOk(urls) {{
     const list = (urls || []).filter(Boolean);
     if (!list.length) return Promise.reject(new Error('all failed'));
-    if (typeof Promise.any === 'function') {{
-      return Promise.any(
-        list.map(function (url) {{
-          return fetch(url, {{ cache: 'no-store', credentials: 'omit', mode: 'cors' }}).then(function (r) {{
-            if (!r.ok) throw new Error('bad status');
-            return r.json();
-          }});
+    const key = list.join('\\n');
+    const existing = __panelFetchesInFlight.get(key);
+    if (existing) return existing;
+    let index = 0;
+    function tryNext() {{
+      if (index >= list.length) return Promise.reject(new Error('all failed'));
+      const url = list[index++];
+      return fetch(url, {{ cache: 'no-store', credentials: 'omit', mode: 'cors' }})
+        .then(function (r) {{
+          if (!r.ok) throw new Error('bad status');
+          return r.json();
         }})
-      );
+        .catch(function () {{ return tryNext(); }});
     }}
-    return new Promise(function (resolve, reject) {{
-      let settled = false;
-      let failed = 0;
-      list.forEach(function (url) {{
-        fetch(url, {{ cache: 'no-store', credentials: 'omit', mode: 'cors' }})
-          .then(function (r) {{
-            if (!r.ok) throw new Error('bad status');
-            return r.json();
-          }})
-          .then(function (data) {{
-            if (!settled) {{
-              settled = true;
-              resolve(data);
-            }}
-          }})
-          .catch(function () {{
-            failed += 1;
-            if (!settled && failed >= list.length) reject(new Error('all failed'));
-          }});
-      }});
+    const request = tryNext().finally(function () {{
+      if (__panelFetchesInFlight.get(key) === request) __panelFetchesInFlight.delete(key);
     }});
+    __panelFetchesInFlight.set(key, request);
+    return request;
   }}
 
   function formatBalanceRubRu(value) {{
@@ -311,6 +305,10 @@ def _build_script() -> str:
     const parts = n.toFixed(2).split('.');
     const whole = parts[0].replace(/\\B(?=(\\d{{3}})+(?!\\d))/g, ' ');
     return whole + ',' + parts[1] + '\\u00a0₽';
+  }}
+
+  function setTextIfChanged(el, value) {{
+    if (el && el.textContent !== value) el.textContent = value;
   }}
 
   function formatFinanalyticsRubRu(value) {{
@@ -405,7 +403,7 @@ def _build_script() -> str:
       const cell = root.querySelector('[data-qa-type="tui/cell"]');
       if (!cell) return;
       const bal = cell.querySelector('[data-qa-type="molecule-account-operation-balance"] [data-qa-type="atom-sensitive"]');
-      if (bal) bal.textContent = text;
+      setTextIfChanged(bal, text);
     }});
   }}
 
@@ -838,16 +836,19 @@ def _build_script() -> str:
       st.id = 'manual-payment-history-subtitle-styles';
       (document.head || document.documentElement).appendChild(st);
     }}
-    st.textContent =
-      '[data-qa-type="mobile-pumba-payment-history"] [data-manual-ph-line] {{ display: block; line-height: 1.25; }}' +
-      '[data-qa-type="mobile-pumba-payment-history"] [data-manual-ph-amt] {{ display: block; margin-top: 4px; line-height: 1.35; font-weight: 400; color: rgba(0,0,0,0.55); font-size: 14px; }}';
+    if (!st.textContent) {{
+      st.textContent =
+        '[data-qa-type="mobile-pumba-payment-history"] [data-manual-ph-line] {{ display: block; line-height: 1.25; }}' +
+        '[data-qa-type="mobile-pumba-payment-history"] [data-manual-ph-amt] {{ display: block; margin-top: 4px; line-height: 1.35; font-weight: 400; color: rgba(0,0,0,0.55); font-size: 14px; }}';
+    }}
     let st2 = document.getElementById('manual-payment-history-ext-styles-v2');
     if (!st2) {{
       st2 = document.createElement('style');
       st2.id = 'manual-payment-history-ext-styles-v2';
       (document.head || document.documentElement).appendChild(st2);
     }}
-    st2.textContent =
+    if (!st2.textContent) {{
+      st2.textContent =
       '[data-manual-debit-account-ph="1"] [data-qa-type="click-area"][data-appearance="elevated"],' +
       '[data-manual-debit-account-ph="1"] [data-qa-type="click-area"][data-surface="true"],' +
       '[data-manual-debit-account-ph="1"] > [data-qa-type="click-area"] {{ border-radius: 20px; box-sizing: border-box; box-shadow: var(--tui-shadow-small, 0px 5px 20px 0px #0000001A); }}' +
@@ -876,14 +877,16 @@ def _build_script() -> str:
       '[data-manual-home-allops-tile="1"] [data-qa-type="moneyAmount"] [data-qa-type="uikit/money"] span {{ font: var(--tui-font-text-mobile-m-bold, 600 15px/1.43 var(--tui-font-text, Roboto), system-ui, sans-serif); color: var(--tui-text-primary, #F6F7F8) !important; -webkit-text-fill-color: var(--tui-text-primary, #F6F7F8) !important; margin: 0 !important; display: block !important; line-height: 1.43 !important; }}' +
       '[data-manual-home-allops-tile="1"] [data-manual-ph-line] {{ display: block; font: var(--pumba-payment-history-subtitle-font, var(--tui-font-text-mobile-m, 400 15px/1.43 var(--tui-font-text, Roboto), system-ui, sans-serif)); color: var(--tui-text-secondary, #9299A2) !important; -webkit-text-fill-color: var(--tui-text-secondary, #9299A2) !important; margin: 0; }}' +
       '[data-manual-home-allops-tile="1"] [data-manual-ph-amt] {{ display: block; margin-top: 2px; font: var(--tui-font-text-mobile-m-bold, 600 15px/1.43 var(--tui-font-text, Roboto), system-ui, sans-serif); color: var(--tui-text-primary, #F6F7F8) !important; -webkit-text-fill-color: var(--tui-text-primary, #F6F7F8) !important; line-height: 1.43; }}' +
-      '[data-manual-home-allops-tile="1"] [data-qa-type="lineChart"] {{ margin-top: var(--pumba-payment-history-progressLine-padding-top, 12px); width: 100%; }}';
+        '[data-manual-home-allops-tile="1"] [data-qa-type="lineChart"] {{ margin-top: var(--pumba-payment-history-progressLine-padding-top, 12px); width: 100%; }}';
+    }}
     let st4 = document.getElementById('manual-luca-account-blocks-styles');
     if (!st4) {{
       st4 = document.createElement('style');
       st4.id = 'manual-luca-account-blocks-styles';
       (document.head || document.documentElement).appendChild(st4);
     }}
-    st4.textContent =
+    if (!st4.textContent) {{
+      st4.textContent =
       '[data-manual-qr-link-row="1"] {{ display: flex; flex-direction: row; gap: 12px; margin-top: 12px; margin-bottom: 0; width: 100%; box-sizing: border-box; }}' +
       '[data-manual-qr-link-row="1"] .manual-qr-link-cell {{ flex: 1; min-width: 0; background: var(--tui-background-elevation-1, #fff); border-radius: 16px; box-shadow: var(--tui-shadow-small, 0 5px 20px rgba(0,0,0,0.1)); padding: 16px 14px 14px; position: relative; box-sizing: border-box; }}' +
       '[data-manual-qr-link-row="1"] .manual-qr-link-title {{ font: 700 17px/1.2 var(--tui-font-text, Roboto), system-ui, sans-serif; color: var(--tui-text-primary, #333); margin: 0 0 4px; padding-right: 28px; }}' +
@@ -897,7 +900,8 @@ def _build_script() -> str:
       '[data-manual-debit-tail-section="1"] .manual-debit-tail-row .manual-debit-tail-row-text {{ flex: 1; min-width: 0; }}' +
       '[data-manual-debit-tail-section="1"] .manual-debit-tail-row[data-manual-statements-nav="1"] {{ cursor: pointer; -webkit-tap-highlight-color: transparent; }}' +
       '[data-manual-debit-tail-section="1"] .manual-debit-tail-chevron {{ flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; color: var(--tui-text-tertiary, rgba(0,16,36,0.22)); width: 18px; height: 18px; }}' +
-      '[data-manual-debit-tail-section="1"] .manual-debit-tail-chevron svg {{ display: block; }}';
+        '[data-manual-debit-tail-section="1"] .manual-debit-tail-chevron svg {{ display: block; }}';
+    }}
   }}
 
   function ensurePumbaLineChartLikeHome(lineChart) {{
@@ -1534,45 +1538,81 @@ def _build_script() -> str:
   }}
 
   function ensureHomeFinReassertObserver() {{
-    if (window.__homeFinReassertMo || typeof MutationObserver === 'undefined') return;
-    const reapply = function () {{
-      if (!isMybankRootPath() || !window.__HOME_LAST_FIN) return;
-      if (__homeFinPatchBusy) return;
-      __homeFinPatchBusy = true;
-      try {{
-        const x = window.__HOME_LAST_FIN;
-        syncMobilePumbaPaymentHistory(x.income, x.expense);
-        patchHomeAllOperationsSpendingBlock(x.expense);
-        window.__HOME_SUPPRESS_MO_UNTIL = Date.now() + 500;
-      }} finally {{
-        __homeFinPatchBusy = false;
-      }}
-    }};
-    window.__homeFinReassertMo = new MutationObserver(function () {{
-      if (!isMybankRootPath() || !window.__HOME_LAST_FIN) return;
-      if (window.__HOME_SUPPRESS_MO_UNTIL && Date.now() < window.__HOME_SUPPRESS_MO_UNTIL) return;
-      window.clearTimeout(__homeFinMoLock);
-      __homeFinMoLock = window.setTimeout(reapply, 140);
-    }});
-    const r = document.body || document.documentElement;
-    if (r) window.__homeFinReassertMo.observe(r, {{ childList: true, subtree: true, characterData: true }});
+    /* startFinanalyticsCardSync уже наблюдает текущий main. Второй body-wide
+       observer с characterData создавал feedback loop на собственных textContent. */
+    if (window.__homeFinReassertMo) {{
+      window.__homeFinReassertMo.disconnect();
+      window.__homeFinReassertMo = null;
+    }}
   }}
 
   function syncFinanalyticsCards() {{
     if (!shouldSyncFinanalyticsCards()) return;
     if (!isMybankRootPath()) {{
+      if (window.__homeFinReassertMo) {{
+        window.__homeFinReassertMo.disconnect();
+        window.__homeFinReassertMo = null;
+      }}
       window.__HOME_FIN_SEEDED_FROM_API = false;
       try {{ delete window.__HOME_LAST_FIN; }} catch (eCl) {{}}
     }}
     if (!isMybankRootPath() || !window.__HOME_FIN_SEEDED_FROM_API) {{
       applyFinanalyticsFromTotals(PANEL_TOTALS_SNAPSHOT);
     }}
+    if (isMybankRootPath() && window.__HOME_LAST_FIN && !__homeFinPatchBusy) {{
+      __homeFinPatchBusy = true;
+      try {{
+        const cached = window.__HOME_LAST_FIN;
+        syncMobilePumbaPaymentHistory(cached.income, cached.expense);
+        patchHomeAllOperationsSpendingBlock(cached.expense);
+      }} finally {{
+        __homeFinPatchBusy = false;
+      }}
+    }}
     const now = Date.now();
-    const minWait = isMybankRootPath() ? 120 : 480;
+    const minWait = isMybankRootPath() ? 450 : 480;
+    if (
+      isMybankRootPath()
+      && window.__HOME_FIN_SEEDED_FROM_API
+      && !__forceFinRefresh
+      && __panelRevisionSupported
+    ) {{
+      if (__panelRevisionInFlight || now - __finCardLastFetch < minWait) return;
+      __finCardLastFetch = now;
+      __panelRevisionInFlight = true;
+      fetchJsonFirstOk(_panelUrlVariants(PANEL_STATE_REVISION_URL))
+        .then(function (data) {{
+          const revision = String(data && data.revision || '');
+          if (!revision) throw new Error('empty revision');
+          if (!__panelStateRevision) {{
+            __panelStateRevision = revision;
+            return;
+          }}
+          if (revision !== __panelStateRevision) {{
+            __panelStateRevision = revision;
+            __forceFinRefresh = true;
+            __finCardLastFetch = 0;
+            window.setTimeout(syncFinanalyticsCards, 0);
+          }}
+        }})
+        .catch(function () {{
+          /* Старый/внешний panel server без revision endpoint: сохраняем
+             прежнее обновление тяжёлых данных раз в активный tick. */
+          __panelRevisionSupported = false;
+          __forceFinRefresh = true;
+          __finCardLastFetch = 0;
+          window.setTimeout(syncFinanalyticsCards, 0);
+        }})
+        .finally(function () {{ __panelRevisionInFlight = false; }});
+      return;
+    }}
     if (now - __finCardLastFetch < minWait || __finCardInFlight) return;
     __finCardLastFetch = now;
     __finCardInFlight = true;
-    const done = function () {{ __finCardInFlight = false; }};
+    const done = function () {{
+      __finCardInFlight = false;
+      __forceFinRefresh = false;
+    }};
     if (isMybankRootPath()) {{
       fetchJsonFirstOk(_panelUrlVariants(PANEL_OPERATIONS_URL))
         .then(function (d) {{
@@ -1616,9 +1656,11 @@ def _build_script() -> str:
 <span data-component-type="platform-ui" data-qa-type="uikit/icon" data-manual-rub-icon="1" style="width:40px;height:40px;color:var(--tui-text-primary-on-dark,#fff);"><span data-manual-rub-icon-bg="1"></span><span data-qa-type="uikit/icon.content" role="presentation" style="width:24px;height:24px;"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" focusable="false"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 .5C5.649.5.5 5.649.5 12S5.649 23.5 12 23.5 23.5 18.351 23.5 12 18.351.5 12 .5ZM9 11V6h3.96c1.017 0 2.072.154 2.821.841C16.396 7.405 17 8.271 17 9.5c0 1.229-.604 2.095-1.218 2.659-.75.688-1.805.841-2.823.841H11.5v1.041H15A1.959 1.959 0 0 1 13.041 16H11.5v.063a2 2 0 0 1-2 2H9V16l-1.5-.041V15.5A1.46 1.46 0 0 1 9 14.041V13l-1.5-.041v-.5A1.46 1.46 0 0 1 9 11Zm4-3h-1.5v3H13s1.5.106 1.5-1.447C14.5 8 13 8 13 8Z" fill="currentColor"></path></svg></span></span>`;
 
   function isOperationsDetailPage() {{
-    if (location.pathname.indexOf('/mybank') === -1) return false;
+    const p = location.pathname || '';
+    if (p.indexOf('/mybank') === -1) return false;
     const q = new URLSearchParams(location.search || '');
     if (q.get('operationId') || q.get('operation_id') || q.get('id')) return true;
+    if (p.indexOf('/mybank/operations') === -1) return false;
     return !!document.querySelector('[data-qa-type="mobile-pumba-detail-sheet"], [data-qa-type="independent-pumba-operation-details-container"]');
   }}
 
@@ -1655,42 +1697,6 @@ def _build_script() -> str:
       return true;
     }}
     return false;
-  }}
-
-  function touchManualDetailStylesOrder() {{
-    const st =
-      document.getElementById('manual-detail-pumba-cards-v34')
-      || document.getElementById('manual-detail-pumba-cards-v33')
-      || document.getElementById('manual-detail-pumba-cards-v32')
-      || document.getElementById('manual-detail-pumba-cards-v31')
-      || document.getElementById('manual-detail-pumba-cards-v30')
-      || document.getElementById('manual-detail-pumba-cards-v29')
-      || document.getElementById('manual-detail-pumba-cards-v28')
-      || document.getElementById('manual-detail-pumba-cards-v27')
-      || document.getElementById('manual-detail-pumba-cards-v26')
-      || document.getElementById('manual-detail-pumba-cards-v25')
-      || document.getElementById('manual-detail-pumba-cards-v24')
-      || document.getElementById('manual-detail-pumba-cards-v23')
-      || document.getElementById('manual-detail-pumba-cards-v22')
-      || document.getElementById('manual-detail-pumba-cards-v21')
-      || document.getElementById('manual-detail-pumba-cards-v20')
-      || document.getElementById('manual-detail-pumba-cards-v19')
-      || document.getElementById('manual-detail-pumba-cards-v18')
-      || document.getElementById('manual-detail-pumba-cards-v17')
-      || document.getElementById('manual-detail-pumba-cards-v16')
-      || document.getElementById('manual-detail-pumba-cards-v15')
-      || document.getElementById('manual-detail-pumba-cards-v14')
-      || document.getElementById('manual-detail-pumba-cards-v13')
-      || document.getElementById('manual-detail-pumba-cards-v12')
-      || document.getElementById('manual-detail-pumba-cards-v11')
-      || document.getElementById('manual-detail-pumba-cards-v10')
-      || document.getElementById('manual-detail-pumba-cards-v9')
-      || document.getElementById('manual-detail-pumba-cards-v8')
-      || document.getElementById('manual-detail-pumba-cards-v7')
-      || document.getElementById('manual-detail-pumba-cards-v6');
-    if (st && st.parentNode === document.head && document.head.lastElementChild !== st) {{
-      try {{ document.head.appendChild(st); }} catch (eOrd) {{}}
-    }}
   }}
 
   function injectManualDetailStyles() {{
@@ -3298,8 +3304,8 @@ def _build_script() -> str:
     if (!template) return false;
     const badge = existing || template.cloneNode(true);
     const parts = getRequisiteParts(badge);
-    if (parts.labelEl) parts.labelEl.textContent = kindLabel;
-    if (parts.valueEl) parts.valueEl.textContent = 'Black';
+    setTextIfChanged(parts.labelEl, kindLabel);
+    setTextIfChanged(parts.valueEl, 'Black');
     badge.setAttribute('data-manual-black-badge', '1');
     if (!existing) container.insertBefore(badge, container.firstChild);
     return true;
@@ -3308,12 +3314,21 @@ def _build_script() -> str:
   function applyAccountCardBlackPatch(root, op) {{
     if (!root || !op) return false;
     const title = op.type === 'Credit' ? 'Пополнение' : 'Перевод';
+    const patchFingerprint = String(op.id || '') + '|' + String(op.type || '') + '|' + title;
+    if (
+      root.getAttribute('data-manual-black-fingerprint') === patchFingerprint
+      && root.querySelector('[data-manual-rub-icon="1"]')
+      && root.querySelector('[data-manual-black-name="1"]')
+    ) {{
+      syncBlackAccountBalanceFromPanel();
+      return true;
+    }}
     const titleWrap = root.querySelector('[data-qa-type="molecule-account-operation-title-text"]');
     if (titleWrap) {{
       titleWrap.setAttribute('data-manual-account-title', '1');
       const titleNode = findDetailAccountOperationTitleTextNode(titleWrap);
       if (titleNode) {{
-        titleNode.textContent = title;
+        setTextIfChanged(titleNode, title);
         titleNode.setAttribute('data-manual-account-title-node', '1');
       }}
     }}
@@ -3460,7 +3475,10 @@ def _build_script() -> str:
             iconColumn.style.setProperty('overflow', 'visible', 'important');
           }} catch (eIconColumn) {{}}
         }}
-        iconHost.innerHTML = RUB_ICON_HTML;
+        if (iconHost.getAttribute('data-manual-rub-icon-host') !== '1') {{
+          iconHost.innerHTML = RUB_ICON_HTML;
+          iconHost.setAttribute('data-manual-rub-icon-host', '1');
+        }}
         try {{
           iconHost.style.setProperty('display', 'inline-flex', 'important');
           iconHost.style.setProperty('align-items', 'center', 'important');
@@ -3477,7 +3495,7 @@ def _build_script() -> str:
       }}
       const blackNode = findAccountCellCounterpartyNameNode(accountCell);
       if (blackNode) {{
-        blackNode.textContent = 'Black';
+        setTextIfChanged(blackNode, 'Black');
         blackNode.setAttribute('data-manual-black-name', '1');
         if (blackNode.parentElement) blackNode.parentElement.setAttribute('data-manual-black-name', '1');
         try {{
@@ -3489,6 +3507,7 @@ def _build_script() -> str:
       }}
     }}
     root.setAttribute('data-panel-manual-black-card', '1');
+    root.setAttribute('data-manual-black-fingerprint', patchFingerprint);
     applyBalanceTextToBlackAccountRows(BALANCE_TEXT);
     syncBlackAccountBalanceFromPanel();
     return true;
@@ -4037,25 +4056,25 @@ def _build_script() -> str:
         if (!label || !parts.valueEl) return;
         if (op.type === 'Debit' && phoneText) {{
           if (label.indexOf('отправител') !== -1 || label.indexOf('sender') !== -1) {{
-            parts.labelEl.textContent = 'Номер телефона';
-            parts.valueEl.textContent = phoneText;
+            setTextIfChanged(parts.labelEl, 'Номер телефона');
+            setTextIfChanged(parts.valueEl, phoneText);
             return;
           }}
           if (label.indexOf('номер телефона') !== -1 || label.indexOf('phone') !== -1 || label.indexOf('телефон') !== -1) {{
-            parts.labelEl.textContent = 'Номер телефона';
-            parts.valueEl.textContent = phoneText;
+            setTextIfChanged(parts.labelEl, 'Номер телефона');
+            setTextIfChanged(parts.valueEl, phoneText);
             return;
           }}
         }}
         if (op.type === 'Credit' && senderText) {{
           if (label.indexOf('номер телефона') !== -1 || label.indexOf('phone') !== -1 || label.indexOf('телефон') !== -1) {{
-            parts.labelEl.textContent = 'Отправитель';
-            parts.valueEl.textContent = senderText;
+            setTextIfChanged(parts.labelEl, 'Отправитель');
+            setTextIfChanged(parts.valueEl, senderText);
             return;
           }}
           if (label.indexOf('отправител') !== -1 || label.indexOf('sender') !== -1) {{
-            parts.labelEl.textContent = 'Отправитель';
-            parts.valueEl.textContent = senderText;
+            setTextIfChanged(parts.labelEl, 'Отправитель');
+            setTextIfChanged(parts.valueEl, senderText);
             return;
           }}
         }}
@@ -4075,7 +4094,6 @@ def _build_script() -> str:
     canonicalizeDetailActionHosts(op);
     applyBalanceTextToBlackAccountRows(BALANCE_TEXT);
     syncBlackAccountBalanceFromPanel();
-    try {{ touchManualDetailStylesOrder(); }} catch (eTouch) {{}}
   }}
 
   function patchDetailHeaderAmount(op) {{
@@ -4110,7 +4128,7 @@ def _build_script() -> str:
       if (!el) return false;
       const tx = el.textContent || '';
       if (!isHeaderAmountCandidate(el, tx)) return false;
-      el.textContent = want;
+      setTextIfChanged(el, want);
       try {{ el.setAttribute('data-manual-detail-amount', '1'); }} catch (eA) {{}}
       return true;
     }}
@@ -4177,43 +4195,134 @@ def _build_script() -> str:
   }}
 
   function startDetailDomPatcher() {{
-    injectManualDetailStyles();
-    patchDetailDom();
     let timer = 0;
+    let observer = null;
+    let observedRoot = null;
+    let lastRouteHref = '';
+    function stopObserver() {{
+      if (observer) observer.disconnect();
+      observer = null;
+      observedRoot = null;
+    }}
     const schedulePatch = function () {{
-      clearTimeout(timer);
-      timer = window.setTimeout(patchDetailDom, 42);
+      if (!shouldPatchOperationsDetail()) {{
+        stopObserver();
+        return;
+      }}
+      if (timer) return;
+      timer = window.setTimeout(function () {{
+        timer = 0;
+        patchDetailDom();
+        ensureObserver();
+      }}, 42);
     }};
-    const observer = new MutationObserver(schedulePatch);
-    if (document.body) {{
-      observer.observe(document.body, {{ childList: true, subtree: true }});
+    function ensureObserver() {{
+      if (!shouldPatchOperationsDetail() || typeof MutationObserver === 'undefined') {{
+        stopObserver();
+        return;
+      }}
+      const root =
+        getOperationDetailsContainer()
+        || document.querySelector('main[data-qa-type="mobile-ib-container"]')
+        || document.querySelector('main')
+        || document.body;
+      if (!root || (observer && observedRoot === root)) return;
+      stopObserver();
+      observer = new MutationObserver(schedulePatch);
+      observedRoot = root;
+      observer.observe(root, {{ childList: true, subtree: true }});
+    }}
+    function routeChanged() {{
+      lastRouteHref = String(location.href || '');
+      if (!shouldPatchOperationsDetail()) {{
+        if (timer) window.clearTimeout(timer);
+        timer = 0;
+        stopObserver();
+        return;
+      }}
+      injectManualDetailStyles();
+      schedulePatch();
+      ensureObserver();
     }}
     try {{
-      window.addEventListener('popstate', patchDetailDom, {{ passive: true }});
+      window.addEventListener('popstate', routeChanged, {{ passive: true }});
+      window.addEventListener('hashchange', routeChanged, {{ passive: true }});
     }} catch (ePs) {{}}
-    window.setInterval(patchDetailDom, 1100);
+    ['pushState', 'replaceState'].forEach(function (method) {{
+      try {{
+        const original = history[method];
+        if (!original || original.__manualDetailRouteWrapped) return;
+        const wrapped = function () {{
+          const result = original.apply(this, arguments);
+          window.setTimeout(routeChanged, 0);
+          return result;
+        }};
+        wrapped.__manualDetailRouteWrapped = true;
+        history[method] = wrapped;
+      }} catch (eHistory) {{}}
+    }});
+    routeChanged();
+    window.setInterval(function () {{
+      const href = String(location.href || '');
+      if (href !== lastRouteHref) {{
+        routeChanged();
+      }} else if (shouldPatchOperationsDetail()) {{
+        /* Баланс остаётся почти мгновенным, но полный DOM-патч без изменений
+           больше не запускается каждые 700 мс. */
+        syncBlackAccountBalanceFromPanel();
+        ensureObserver();
+      }}
+    }}, 700);
   }}
 
   function startFinanalyticsCardSync() {{
-    function tick() {{
-      syncFinanalyticsCards();
-      try {{ ensureDebitAccountLowerBlocks(); }} catch (eTail) {{}}
-    }}
-    tick();
+    let observer = null;
+    let observedRoot = null;
     let __finMoTimer = 0;
-    function scheduleFromDom() {{
-      window.clearTimeout(__finMoTimer);
-      __finMoTimer = window.setTimeout(tick, 140);
+    function shouldRun() {{
+      return isMybankRootPath() || isMybankAccountProductPage() || shouldPatchFinanalyticsDom();
     }}
-    try {{
-      const moRoot =
+    function stopObserver() {{
+      if (observer) observer.disconnect();
+      observer = null;
+      observedRoot = null;
+    }}
+    function ensureObserver() {{
+      if (!shouldRun() || typeof MutationObserver === 'undefined') {{
+        stopObserver();
+        return;
+      }}
+      const root =
         document.querySelector('main[data-qa-type="mobile-ib-container"]')
         || document.querySelector('main')
         || document.body;
-      const mo = new MutationObserver(scheduleFromDom);
-      mo.observe(moRoot, {{ childList: true, subtree: true }});
-    }} catch (eMo) {{}}
-    window.setInterval(tick, 900);
+      if (!root || (observer && observedRoot === root)) return;
+      stopObserver();
+      observer = new MutationObserver(scheduleFromDom);
+      observedRoot = root;
+      observer.observe(root, {{ childList: true, subtree: true }});
+    }}
+    function tick() {{
+      if (!shouldRun()) {{
+        if (__finMoTimer) window.clearTimeout(__finMoTimer);
+        __finMoTimer = 0;
+        stopObserver();
+        ensureHomeFinReassertObserver();
+        return;
+      }}
+      syncFinanalyticsCards();
+      try {{ ensureDebitAccountLowerBlocks(); }} catch (eTail) {{}}
+      ensureObserver();
+    }}
+    function scheduleFromDom() {{
+      if (__finMoTimer) return;
+      __finMoTimer = window.setTimeout(function () {{
+        __finMoTimer = 0;
+        tick();
+      }}, 140);
+    }}
+    tick();
+    window.setInterval(tick, 700);
   }}
 
   bindManualCertReceiptClick();
@@ -4233,13 +4342,44 @@ def _build_script() -> str:
 """
 
 
-def response(flow: http.HTTPFlow) -> None:
+_SCRIPT_CACHE_KEY = None
+_SCRIPT_CACHE_VALUE = None
+
+
+def _build_script_cached() -> str:
+    """Reuse the large injected payload until its actual data inputs change."""
+    global _SCRIPT_CACHE_KEY, _SCRIPT_CACHE_VALUE
     history.ensure_manual_operations_fresh()
+    try:
+        fake_revisions = []
+        for path in history._last_transfer_json_paths():
+            try:
+                stat = os.stat(path)
+                fake_revisions.append((path, stat.st_mtime_ns, stat.st_size))
+            except OSError:
+                fake_revisions.append((path, 0, 0))
+        key = (
+            json.dumps(controller.config, ensure_ascii=False, sort_keys=True, default=str),
+            json.dumps(history.manual_operations, ensure_ascii=False, sort_keys=True, default=str),
+            tuple(sorted(str(x) for x in history.hidden_operations)),
+            tuple(fake_revisions),
+            history.get_bank_histogram_totals(),
+            len(history.operations_cache),
+            str(history.last_sync_time or ""),
+        )
+    except Exception:
+        return _build_script()
+    if key != _SCRIPT_CACHE_KEY or _SCRIPT_CACHE_VALUE is None:
+        _SCRIPT_CACHE_VALUE = _build_script()
+        _SCRIPT_CACHE_KEY = key
+    return _SCRIPT_CACHE_VALUE
+
+
+def response(flow: http.HTTPFlow) -> None:
     if not is_bank_flow(flow):
         return
     if not flow.response:
         return
-    ensure_response_decoded(flow)
     url = (flow.request.pretty_url or "").lower()
     if "/mybank" not in url:
         return
@@ -4249,10 +4389,11 @@ def response(flow: http.HTTPFlow) -> None:
     content_type = (flow.response.headers.get("content-type") or "").lower()
     if "text/html" not in content_type:
         return
+    ensure_response_decoded(flow)
     html = flow.response.text or ""
     if not html or "__manualOpsBrowserInjector" in html:
         return
-    script = _build_script()
+    script = _build_script_cached()
     if "</body>" in html:
         html = html.replace("</body>", script + "\n</body>", 1)
     else:

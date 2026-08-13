@@ -103,6 +103,10 @@ class PanelHandler(BaseHTTPRequestHandler):
             self.send_json(self.get_operations())
             return
         
+        if self.path.split("?", 1)[0] == "/api/state_revision":
+            self.send_json_cors({"revision": history.panel_state_revision_token()})
+            return
+
         if self.path == "/api/config":
             self.send_json(config)
             return
@@ -470,16 +474,12 @@ class PanelHandler(BaseHTTPRequestHandler):
         history.hidden_operations.update(history.operations_cache.keys())
         history.hidden_operations.update(history.manual_operations.keys())
         for p in history._last_transfer_json_paths():
-            if not os.path.isfile(p):
+            td = history._load_last_transfer_json(p)
+            if td is None:
                 continue
-            try:
-                with open(p, "r", encoding="utf-8") as f:
-                    td = json.load(f)
-                for fo in td.get("fake_history") or []:
-                    if isinstance(fo, dict) and fo.get("id"):
-                        history.hidden_operations.add(str(fo.get("id")))
-            except Exception:
-                pass
+            for fo in td.get("fake_history") or []:
+                if isinstance(fo, dict) and fo.get("id"):
+                    history.hidden_operations.add(str(fo.get("id")))
         self.send_json_cors({"status": "ok", "count": len(history.hidden_operations)})
 
     def handle_show_all_operations(self):

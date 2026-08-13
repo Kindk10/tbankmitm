@@ -1,9 +1,10 @@
 from mitmproxy import http
 import json
-import os
 import sys
+import os
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import controller
 from bank_filter import (
     is_bank_flow,
     ensure_response_decoded,
@@ -12,9 +13,6 @@ from bank_filter import (
     flow_statements_spravki_context,
     url_prohibit_proxy_json_mutation,
 )
-
-CONFIG_FILE = os.path.join(os.path.dirname(__file__), "config.json")
-
 
 def _effective_balance(base: float) -> float:
     try:
@@ -26,9 +24,7 @@ def _effective_balance(base: float) -> float:
         return float(base)
 
 def get_config():
-    with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-        cfg = json.load(f)
-    return cfg["balance"]
+    return controller.config["balance"]
 
 
 def _strip_card_previews(node: dict) -> None:
@@ -95,19 +91,26 @@ def response(flow: http.HTTPFlow) -> None:
         return
     if not flow.response:
         return
+    if not is_jsonish_response(flow):
+        return
     ensure_response_decoded(flow)
     if not flow.response.text:
         if bank_debug_enabled():
             print(f"[balance] пустой ответ: {url[:120]}")
         return
 
-    if not is_jsonish_response(flow):
-        return
-
     if url_prohibit_proxy_json_mutation(url):
         return
 
     if flow_statements_spravki_context(flow):
+        return
+
+    text = flow.response.text
+    is_accounts = "moneyAmount" in text and "cards" in text
+    is_card_details = "account_cards" in url
+    is_accounts_light = "accounts_light_ib" in url
+    has_balance_node = "availableBalance" in text or "moneyAmount" in text
+    if not (is_accounts or is_card_details or is_accounts_light or has_balance_node):
         return
 
     try:
@@ -117,77 +120,64 @@ def response(flow: http.HTTPFlow) -> None:
             "new_card_number": balance_cfg["new_card_number"],
             "new_collect_sum": balance_cfg["new_collect_sum"],
         }
-    except:
+    except Exception:
         return
-    
+
+    try:
+        data = json.loads(text)
+    except Exception:
+        return
+
+    modified = False
+
     # ===== ОСНОВНОЙ СПИСОК СЧЕТОВ =====
     # Только первый расчётный счёт с картами — иначе все продукты получали один номер/баланс и плодились «лишние» карты в UI.
-    if "moneyAmount" in flow.response.text and "cards" in flow.response.text:
-        try:
-            data = json.loads(flow.response.text)
-            if "payload" in data:
-                primary_done = False
-                for account in data["payload"]:
-                    if not isinstance(account, dict):
-                        continue
-                    if not primary_done and "cards" in account and account.get("accountType") == "Current":
-                        if "moneyAmount" in account and "value" in account["moneyAmount"]:
-                            account["moneyAmount"]["value"] = TEST_DATA["new_balance"]
-                        if "collectSum" in account:
-                            account["collectSum"] = TEST_DATA["new_collect_sum"]
-                        _strip_card_previews(account)
-                        primary_done = True
-                        break
-                if primary_done:
-                    flow.response.text = json.dumps(data, ensure_ascii=False)
-        except Exception:
-            pass
+    if is_accounts and isinstance(data, dict) and isinstance(data.get("payload"), list):
+        for account in data["payload"]:
+            if not isinstance(account, dict):
+                continue
+            if "cards" in account and account.get("accountType") == "Current":
+                if "moneyAmount" in account and "value" in account["moneyAmount"]:
+                    account["moneyAmount"]["value"] = TEST_DATA["new_balance"]
+                if "collectSum" in account:
+                    account["collectSum"] = TEST_DATA["new_collect_sum"]
+                _strip_card_previews(account)
+                modified = True
+                break
     
     # ===== ДЕТАЛИ КАРТЫ =====
-    if "account_cards" in url:
-        try:
-            data = json.loads(flow.response.text)
-            if "payload" in data and isinstance(data["payload"], list) and len(data["payload"]) > 0:
-                card = data["payload"][0]
-                if isinstance(card, dict) and "availableBalance" in card:
-                    ab = card["availableBalance"]
-                    if isinstance(ab, dict) and "value" in ab:
-                        ab["value"] = TEST_DATA["new_balance"]
-                flow.response.text = json.dumps(data, ensure_ascii=False)
-        except Exception:
-            pass
+    if is_card_details and isinstance(data, dict) and isinstance(data.get("payload"), list) and data["payload"]:
+        card = data["payload"][0]
+        if isinstance(card, dict) and "availableBalance" in card:
+            ab = card["availableBalance"]
+            if isinstance(ab, dict) and "value" in ab:
+                ab["value"] = TEST_DATA["new_balance"]
+        modified = True
     
     # ===== ЛЕГКИЙ БАЛАНС (главная строка на mybank) =====
-    if "accounts_light_ib" in url:
-        try:
-            data = json.loads(flow.response.text)
-            if "payload" in data and isinstance(data["payload"], list) and len(data["payload"]) > 0:
-                # На главной оставляем одну карточку продукта — без «лишних» дублей в ленте mybank
-                pl = data["payload"]
-                first = pl[0]
-                if len(pl) > 1:
-                    data["payload"] = [first]
-                if isinstance(first, dict) and "availableBalance" in first:
-                    bal = first["availableBalance"]
-                    if isinstance(bal, dict) and "value" in bal:
-                        bal["value"] = TEST_DATA["new_balance"]
-                _strip_card_previews(first)
-                flow.response.text = json.dumps(data, ensure_ascii=False)
-        except Exception:
-            pass
+    if is_accounts_light and isinstance(data, dict) and isinstance(data.get("payload"), list) and data["payload"]:
+        # На главной оставляем одну карточку продукта — без «лишних» дублей в ленте mybank
+        pl = data["payload"]
+        first = pl[0]
+        if len(pl) > 1:
+            data["payload"] = [first]
+        if isinstance(first, dict) and "availableBalance" in first:
+            bal = first["availableBalance"]
+            if isinstance(bal, dict) and "value" in bal:
+                bal["value"] = TEST_DATA["new_balance"]
+        _strip_card_previews(first)
+        modified = True
 
     # ===== ФОЛБЭК ДЛЯ НОВЫХ JSON-ОТВЕТОВ mybank =====
-    if "availableBalance" in flow.response.text or "moneyAmount" in flow.response.text:
-        try:
-            data = json.loads(flow.response.text)
-            if _patch_first_balance_like_node(
-                data,
-                TEST_DATA["new_balance"],
-                TEST_DATA["new_collect_sum"],
-                TEST_DATA["new_card_number"],
-            ):
-                flow.response.text = json.dumps(data, ensure_ascii=False)
-        except Exception:
-            pass
+    if has_balance_node and _patch_first_balance_like_node(
+        data,
+        TEST_DATA["new_balance"],
+        TEST_DATA["new_collect_sum"],
+        TEST_DATA["new_card_number"],
+    ):
+        modified = True
+
+    if modified:
+        flow.response.text = json.dumps(data, ensure_ascii=False)
 
 print("[+] balance.py загружен (динамический конфиг)")

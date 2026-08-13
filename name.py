@@ -4,6 +4,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import controller
 from bank_filter import (
     is_bank_flow,
     ensure_response_decoded,
@@ -11,9 +12,6 @@ from bank_filter import (
     flow_statements_spravki_context,
     url_prohibit_proxy_json_mutation,
 )
-
-CONFIG_FILE = os.path.join(os.path.dirname(__file__), "config.json")
-
 
 def _digits_phone_number(phone: str, phone_number: str = "") -> str:
     """10 цифр для mobilePhoneNumber / msisdn; приоритет у нормализованного phone."""
@@ -34,16 +32,19 @@ def _digits_phone_number(phone: str, phone_number: str = "") -> str:
 
 
 def get_config():
-    with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-        cfg = json.load(f)
-    return cfg["name"]
+    return controller.config["name"]
 
 def response(flow: http.HTTPFlow) -> None:
     url = flow.request.pretty_url
+    is_short_info = "auth/short_personal_info" in url
+    is_documents = "document/all" in url
+    is_profile = any(x in url for x in ("userinfo", "personal_info", "profile", "messenger/userInfo", "contracts"))
 
     if not is_bank_flow(flow):
         return
     if not flow.response:
+        return
+    if not (is_short_info or is_documents or is_profile):
         return
     if url_prohibit_proxy_json_mutation(url):
         return
@@ -55,7 +56,6 @@ def response(flow: http.HTTPFlow) -> None:
             print(f"[name] пустой ответ: {url[:120]}")
         return
     
-    # Получаем свежий конфиг при каждом запросе
     try:
         name_cfg = get_config()
         phone = name_cfg.get("phone") or ""
@@ -82,7 +82,7 @@ def response(flow: http.HTTPFlow) -> None:
         return  # если файла нет — ничего не делаем
     
     # ===== ВЕБ =====
-    if "auth/short_personal_info" in url:
+    if is_short_info:
         try:
             data = json.loads(flow.response.text)
             if "payload" in data and "personalInfo" in data["payload"]:
@@ -118,7 +118,7 @@ def response(flow: http.HTTPFlow) -> None:
             pass
     
     # ===== ДОКУМЕНТЫ =====
-    if "document/all" in url:
+    if is_documents:
         try:
             data = json.loads(flow.response.text)
             if "payload" in data and "documents" in data["payload"]:
@@ -177,7 +177,7 @@ def response(flow: http.HTTPFlow) -> None:
             pass
     
     # ===== ЛК =====
-    if any(x in url for x in ["userinfo", "personal_info", "profile", "messenger/userInfo", "contracts"]):
+    if is_profile:
         try:
             data = json.loads(flow.response.text)
             if isinstance(data, dict):

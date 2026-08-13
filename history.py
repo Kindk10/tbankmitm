@@ -274,12 +274,8 @@ def pending_fake_history_ops(month_restrict: bool = None) -> list:
     out = []
     seen = set()
     for path in _last_transfer_json_paths():
-        if not os.path.isfile(path):
-            continue
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception:
+        data = _load_last_transfer_json(path)
+        if data is None:
             continue
         for op in data.get("fake_history") or []:
             if not isinstance(op, dict):
@@ -1777,7 +1773,6 @@ def inject_manual_into_response(
     referer: Optional[str] = None,
 ) -> bool:
     """Вставка ручных операций и fake_history по образцу реальных из того же ответа."""
-    ensure_manual_operations_fresh()
     if not isinstance(data, (dict, list)):
         return False
     if url_prohibit_proxy_json_mutation(url):
@@ -2115,6 +2110,7 @@ def is_current_month(date_str):
 
 
 _LAST_TRANSFER_DIR = os.path.dirname(os.path.abspath(__file__))
+_last_transfer_cache = {}
 
 
 def _last_transfer_json_paths():
@@ -2134,6 +2130,36 @@ def _last_transfer_json_paths():
             seen.add(p)
             paths.append(p)
     return paths
+
+
+def _load_last_transfer_json(path: str):
+    """Read last_transfer JSON once per file revision while detecting updates immediately."""
+    try:
+        stat = os.stat(path)
+        revision = (stat.st_mtime_ns, stat.st_size)
+    except OSError:
+        _last_transfer_cache.pop(path, None)
+        return None
+
+    cached = _last_transfer_cache.get(path)
+    if cached is not None and cached[0] == revision:
+        return cached[1]
+
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        _last_transfer_cache.pop(path, None)
+        return None
+
+    if not isinstance(data, dict):
+        data = {}
+    _last_transfer_cache[path] = (revision, data)
+    return data
+
+
+def _invalidate_last_transfer_cache(path: str) -> None:
+    _last_transfer_cache.pop(path, None)
 
 
 def _fake_op_in_current_month(op: dict) -> bool:
@@ -2156,14 +2182,8 @@ def _iter_fake_debit_ops_month():
     """Debit из fake_history за текущий месяц: (id_str или '', amount, op)."""
     seen_ids = set()
     for path in _last_transfer_json_paths():
-        if not os.path.isfile(path):
-            continue
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception as e:
-            if bank_debug_enabled():
-                print(f"[history] _iter_fake_debit_ops_month {path}: {e}")
+        data = _load_last_transfer_json(path)
+        if data is None:
             continue
         for op in data.get("fake_history") or []:
             if not isinstance(op, dict) or op.get("type") != "Debit":
@@ -2186,14 +2206,8 @@ def _iter_fake_credit_ops_month():
     """Credit из fake_history за текущий месяц: (id_str или '', amount, op)."""
     seen_ids = set()
     for path in _last_transfer_json_paths():
-        if not os.path.isfile(path):
-            continue
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception as e:
-            if bank_debug_enabled():
-                print(f"[history] _iter_fake_credit_ops_month {path}: {e}")
+        data = _load_last_transfer_json(path)
+        if data is None:
             continue
         for op in data.get("fake_history") or []:
             if not isinstance(op, dict) or op.get("type") != "Credit":
@@ -2216,14 +2230,8 @@ def _iter_fake_debit_ops_all():
     """Все Debit из fake_history (не только текущий месяц)."""
     seen_ids = set()
     for path in _last_transfer_json_paths():
-        if not os.path.isfile(path):
-            continue
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception as e:
-            if bank_debug_enabled():
-                print(f"[history] _iter_fake_debit_ops_all {path}: {e}")
+        data = _load_last_transfer_json(path)
+        if data is None:
             continue
         for op in data.get("fake_history") or []:
             if not isinstance(op, dict) or op.get("type") != "Debit":
@@ -2244,14 +2252,8 @@ def _iter_fake_credit_ops_all():
     """Все Credit из fake_history (не только текущий месяц)."""
     seen_ids = set()
     for path in _last_transfer_json_paths():
-        if not os.path.isfile(path):
-            continue
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception as e:
-            if bank_debug_enabled():
-                print(f"[history] _iter_fake_credit_ops_all {path}: {e}")
+        data = _load_last_transfer_json(path)
+        if data is None:
             continue
         for op in data.get("fake_history") or []:
             if not isinstance(op, dict) or op.get("type") != "Credit":
@@ -2344,12 +2346,8 @@ def _fake_transfer_ops_for_panel(skip_ids: set, month_only: bool = True) -> list
     seen_ids = set()
     out = []
     for path in _last_transfer_json_paths():
-        if not os.path.isfile(path):
-            continue
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception:
+        data = _load_last_transfer_json(path)
+        if data is None:
             continue
         for op in data.get("fake_history") or []:
             if not isinstance(op, dict):
@@ -2402,12 +2400,8 @@ def op_id_in_fake_history_files(op_id: str) -> bool:
     if not op_id:
         return False
     for path in _last_transfer_json_paths():
-        if not os.path.isfile(path):
-            continue
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception:
+        data = _load_last_transfer_json(path)
+        if data is None:
             continue
         for op in data.get("fake_history") or []:
             if isinstance(op, dict) and str(op.get("id") or "") == str(op_id):
@@ -2420,12 +2414,8 @@ def _fake_history_record_by_id(op_id: str) -> Optional[dict]:
     if not op_id:
         return None
     for path in _last_transfer_json_paths():
-        if not os.path.isfile(path):
-            continue
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception:
+        data = _load_last_transfer_json(path)
+        if data is None:
             continue
         for op in data.get("fake_history") or []:
             if isinstance(op, dict) and str(op.get("id") or "") == str(op_id):
@@ -2496,13 +2486,10 @@ def _fake_history_op_to_receipt_dict(hop: dict) -> dict:
 
 def _write_fake_op_pdf_path(op_id: str, pdf_path: str) -> None:
     for path in _last_transfer_json_paths():
-        if not os.path.isfile(path):
+        cached = _load_last_transfer_json(path)
+        if cached is None:
             continue
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception:
-            continue
+        data = copy.deepcopy(cached)
         fh = data.get("fake_history")
         if not isinstance(fh, list):
             continue
@@ -2516,6 +2503,7 @@ def _write_fake_op_pdf_path(op_id: str, pdf_path: str) -> None:
             try:
                 with open(path, "w", encoding="utf-8") as f:
                     json.dump(data, f, ensure_ascii=False, indent=2)
+                _invalidate_last_transfer_cache(path)
             except Exception as e:
                 if bank_debug_enabled():
                     print(f"[history] _write_fake_op_pdf_path {path}: {e}")
@@ -2585,13 +2573,10 @@ def remove_fake_transfer_operation(op_id: str) -> bool:
         return False
     changed = False
     for path in _last_transfer_json_paths():
-        if not os.path.isfile(path):
+        cached = _load_last_transfer_json(path)
+        if cached is None:
             continue
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception:
-            continue
+        data = copy.deepcopy(cached)
         fh = data.get("fake_history")
         if not isinstance(fh, list):
             continue
@@ -2601,6 +2586,7 @@ def remove_fake_transfer_operation(op_id: str) -> bool:
             try:
                 with open(path, "w", encoding="utf-8") as f:
                     json.dump(data, f, ensure_ascii=False, indent=2)
+                _invalidate_last_transfer_cache(path)
                 changed = True
             except Exception as e:
                 if bank_debug_enabled():
@@ -3473,12 +3459,8 @@ def gather_statement_movements(from_ms: int, to_ms: int) -> list[dict]:
         put_row(op_id, ms, ds or millis_to_bank_date_str(ms), _statement_cache_row_description(op), abs(amt), typ)
 
     for path in _last_transfer_json_paths():
-        if not os.path.isfile(path):
-            continue
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception:
+        data = _load_last_transfer_json(path)
+        if data is None:
             continue
         for fo in data.get("fake_history") or []:
             if not isinstance(fo, dict):
@@ -3539,6 +3521,25 @@ def generate_statement_pdf_for_period(date_from: str, date_to: str) -> Optional[
         statement_generation_error = "Файл выписки не создан после генерации."
         return None
     return path, fname
+
+
+def panel_state_revision_token() -> str:
+    """Cheap revision for browser polling; changes whenever visible panel data can change."""
+    revisions = []
+    for path in [controller.CONFIG_FILE, MANUAL_OPS_FILE] + _last_transfer_json_paths():
+        try:
+            stat = os.stat(path)
+            revisions.append((path, stat.st_mtime_ns, stat.st_size))
+        except OSError:
+            revisions.append((path, 0, 0))
+    memory_state = (
+        len(operations_cache),
+        str(last_sync_time or ""),
+        tuple(sorted(str(x) for x in hidden_operations)),
+        get_bank_histogram_totals(),
+    )
+    raw = repr((revisions, memory_state)).encode("utf-8", "replace")
+    return hashlib.sha1(raw).hexdigest()[:20]
 
 
 def build_operations_api_response():
@@ -3643,32 +3644,52 @@ def build_operations_api_response():
 def response(flow: http.HTTPFlow) -> None:
     global operations_cache, hidden_operations, last_sync_time
     url = flow.request.pretty_url
-    ensure_manual_operations_fresh()
 
     if not is_bank_flow(flow):
         return
     if not flow.response:
+        return
+    if not is_jsonish_response(flow):
         return
     ensure_response_decoded(flow)
     if not flow.response.text:
         if bank_debug_enabled():
             print(f"[history] пустой ответ: {url[:120]}")
         return
-    if not is_jsonish_response(flow):
-        return
 
     if url_prohibit_proxy_json_mutation(url):
         return
+
+    text = flow.response.text
+    if not url_allows_operation_inject(url) and not any(
+        marker in text
+        for marker in (
+            '"operation',
+            '"transaction',
+            '"amount"',
+            '"operationAmount"',
+            '"accountAmount"',
+            '"paymentAmount"',
+            '"totalAmount"',
+            '"signedAmount"',
+        )
+    ):
+        return
+
+    try:
+        req_text = flow.request.get_text(strict=False)
+    except Exception:
+        req_text = ""
+    if _graphql_manual_inject_noise_request(url, req_text):
+        return
+
+    ensure_manual_operations_fresh()
 
     if bank_debug_enabled():
         print(f"[history] Вижу запрос: {flow.request.method} {url}")
 
     try:
-        data = json.loads(flow.response.text)
-        try:
-            req_text = flow.request.get_text(strict=False)
-        except Exception:
-            req_text = ""
+        data = json.loads(text)
         ua_hdr = flow.request.headers.get("User-Agent", "")
         if isinstance(ua_hdr, bytes):
             ua = ua_hdr.decode("utf-8", "replace")
@@ -3746,10 +3767,11 @@ def response(flow: http.HTTPFlow) -> None:
 
 def request(flow: http.HTTPFlow) -> None:
     global hidden_operations, last_sync_time
-    ensure_manual_operations_fresh()
 
     if flow.request.port != 8082:
         return
+
+    ensure_manual_operations_fresh()
 
     path = flow.request.path
     path_only = path.split("?", 1)[0]
@@ -3759,6 +3781,7 @@ def request(flow: http.HTTPFlow) -> None:
     if flow.request.method == "OPTIONS" and path_only in (
         "/api/panel_income_expense",
         "/api/operations",
+        "/api/state_revision",
         "/api/hide_all_operations",
         "/api/show_all_operations",
         "/api/statement/generate",
@@ -3772,6 +3795,14 @@ def request(flow: http.HTTPFlow) -> None:
                 "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
                 "Access-Control-Allow-Headers": "Content-Type",
             },
+        )
+        return
+
+    if flow.request.method == "GET" and path_only == "/api/state_revision":
+        flow.response = http.Response.make(
+            200,
+            json.dumps({"revision": panel_state_revision_token()}, ensure_ascii=False).encode("utf-8"),
+            cors_json,
         )
         return
 
@@ -3850,16 +3881,12 @@ def request(flow: http.HTTPFlow) -> None:
         hidden_operations.update(operations_cache.keys())
         hidden_operations.update(manual_operations.keys())
         for p in _last_transfer_json_paths():
-            if not os.path.isfile(p):
+            td = _load_last_transfer_json(p)
+            if td is None:
                 continue
-            try:
-                with open(p, "r", encoding="utf-8") as f:
-                    td = json.load(f)
-                for fo in td.get("fake_history") or []:
-                    if isinstance(fo, dict) and fo.get("id"):
-                        hidden_operations.add(str(fo.get("id")))
-            except Exception:
-                pass
+            for fo in td.get("fake_history") or []:
+                if isinstance(fo, dict) and fo.get("id"):
+                    hidden_operations.add(str(fo.get("id")))
         flow.response = http.Response.make(
             200,
             json.dumps({"status": "ok", "count": len(hidden_operations)}, ensure_ascii=False).encode("utf-8"),
