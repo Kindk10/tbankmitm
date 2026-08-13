@@ -2481,15 +2481,20 @@ def _build_script() -> str:
   text-rendering: geometricPrecision;
 }}
 [data-panel-manual-black-card="1"] [data-manual-account-title-section="1"] {{
+  flex: 0 0 50px !important;
+  height: 50px !important;
   min-height: 50px !important;
-  padding: 20px 20px 6px !important;
+  max-height: 50px !important;
+  padding: 18px 20px 8px !important;
 }}
 [data-manual-injected-account-cards="1"] {{
   margin-bottom: 20px !important;
 }}
 [data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"],
 [data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] {{
+  height: 120px !important;
   min-height: 120px !important;
+  max-height: 120px !important;
 }}
 [data-panel-manual-black-card="1"] [data-manual-account-title-node="1"],
 [data-panel-manual-black-card="1"] [data-manual-account-title="1"],
@@ -2509,13 +2514,16 @@ def _build_script() -> str:
 }}
 [data-panel-manual-black-card="1"] [data-manual-account-cell="1"],
 [data-manual-injected-account-cards="1"] [data-manual-account-cell="1"] {{
+  flex: 0 0 70px !important;
+  height: 70px !important;
   min-height: 70px !important;
+  max-height: 70px !important;
   padding: 10px 20px 14px !important;
-  gap: 15px !important;
+  gap: 12px !important;
 }}
 [data-panel-manual-black-card="1"] [data-manual-account-content="1"],
 [data-manual-injected-account-cards="1"] [data-manual-account-content="1"] {{
-  column-gap: 15px !important;
+  column-gap: 12px !important;
 }}
 [data-panel-manual-black-card="1"] [data-manual-account-icon-column="1"],
 [data-manual-injected-account-cards="1"] [data-manual-account-icon-column="1"] {{
@@ -2569,7 +2577,7 @@ def _build_script() -> str:
 [data-manual-requisites-panel="1"] > [data-qa-type="atom-panel"] > div[data-hspacing="normal"] {{
   display: block !important;
   min-height: 50px !important;
-  padding: 20px 20px 6px !important;
+  padding: 18px 20px 8px !important;
   box-sizing: border-box !important;
 }}
 [data-manual-requisites-panel="1"] [data-qa-type="tui/header"],
@@ -2637,31 +2645,45 @@ def _build_script() -> str:
 }}
 [data-manual-tui-actions-mode="credit"] button[data-qa-type^="operation-action"],
 [data-manual-tui-actions-mode="debit"] button[data-qa-type^="operation-action"] {{
-  height: 72px !important;
-  min-height: 72px !important;
-  padding: 8px 3px !important;
+  height: 70px !important;
+  min-height: 70px !important;
+  max-height: 70px !important;
+  padding: 5px 3px !important;
+  background: #1c2534 !important;
+  background-color: #1c2534 !important;
 }}
 [data-manual-tui-actions-mode="credit"],
 [data-manual-tui-actions-mode="debit"],
 [data-manual-actions-row-owner="1"],
 [data-manual-actions-row-owner="1"] [data-qa-type="uikit/scroll"],
 [data-manual-actions-row-owner="1"] [data-qa-type="uikit/scroll.content"] {{
-  min-height: 72px !important;
+  min-height: 70px !important;
 }}
 [data-manual-tui-actions-mode="credit"] > *,
 [data-manual-tui-actions-mode="debit"] > * {{
-  height: 72px !important;
-  min-height: 72px !important;
+  height: 70px !important;
+  min-height: 70px !important;
+  max-height: 70px !important;
 }}
 [data-manual-tui-actions-mode="credit"] button[data-qa-type^="operation-action"] > span,
 [data-manual-tui-actions-mode="debit"] button[data-qa-type^="operation-action"] > span {{
-  min-height: 56px !important;
-  gap: 4px !important;
+  min-height: 60px !important;
+  gap: 10px !important;
 }}
 [data-manual-tui-actions-mode="credit"] button [data-qa-type$=".content"]:not([data-qa-type="uikit/icon.content"]),
 [data-manual-tui-actions-mode="debit"] button [data-qa-type$=".content"]:not([data-qa-type="uikit/icon.content"]) {{
-  font: 400 13px/15px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  font: 400 12px/14px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
   letter-spacing: 0 !important;
+}}
+[data-manual-tui-actions-mode="debit"] {{
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}}
+[data-manual-tui-actions-mode="credit"] {{
+  transform: translateX(16px) !important;
+}}
+[data-manual-actions-row-owner="1"][data-manual-actions-mode="credit"] {{
+  margin-bottom: 10px !important;
 }}
 `;
     (document.head || document.documentElement).appendChild(st);
@@ -3310,7 +3332,9 @@ def _build_script() -> str:
           titleSection.style.setProperty('width', '100%', 'important');
           titleSection.style.setProperty('height', 'auto', 'important');
           titleSection.style.setProperty('min-height', '50px', 'important');
-          titleSection.style.setProperty('padding', '20px 20px 6px', 'important');
+          titleSection.style.setProperty('height', '50px', 'important');
+          titleSection.style.setProperty('max-height', '50px', 'important');
+          titleSection.style.setProperty('padding', '18px 20px 8px', 'important');
           titleSection.style.setProperty('overflow', 'visible', 'important');
           titleSection.style.setProperty('box-sizing', 'border-box', 'important');
         }}
@@ -3345,7 +3369,10 @@ def _build_script() -> str:
         accountCell.style.setProperty('flex-direction', 'row', 'important');
         accountCell.style.setProperty('flex-wrap', 'nowrap', 'important');
         accountCell.style.setProperty('align-items', 'center', 'important');
-        accountCell.style.setProperty('gap', '15px', 'important');
+        accountCell.style.setProperty('height', '70px', 'important');
+        accountCell.style.setProperty('min-height', '70px', 'important');
+        accountCell.style.setProperty('max-height', '70px', 'important');
+        accountCell.style.setProperty('gap', '12px', 'important');
         accountCell.style.setProperty('width', '100%', 'important');
         accountCell.style.setProperty('box-sizing', 'border-box', 'important');
         const ch = accountCell.children;
@@ -3648,7 +3675,7 @@ def _build_script() -> str:
       gapsRow.style.flexFlow = 'row nowrap';
       gapsRow.style.alignItems = 'flex-start';
       gapsRow.style.width = '100%';
-      gapsRow.style.minHeight = '72px';
+      gapsRow.style.minHeight = '70px';
       gapsRow.style.padding = '0 16px';
       gapsRow.style.boxSizing = 'border-box';
       gapsRow.style.overflow = 'visible';
@@ -3685,12 +3712,13 @@ def _build_script() -> str:
           btn.style.setProperty('width', '92px', 'important');
           btn.style.setProperty('min-width', '92px', 'important');
           btn.style.setProperty('max-width', '92px', 'important');
-            btn.style.setProperty('height', '72px', 'important');
-            btn.style.setProperty('min-height', '72px', 'important');
-            btn.style.setProperty('padding', '8px 3px', 'important');
+            btn.style.setProperty('height', '70px', 'important');
+            btn.style.setProperty('min-height', '70px', 'important');
+            btn.style.setProperty('max-height', '70px', 'important');
+            btn.style.setProperty('padding', '5px 3px', 'important');
           btn.style.setProperty('border', '0', 'important');
           btn.style.setProperty('border-radius', '16px', 'important');
-          btn.style.setProperty('background', 'var(--tui-background-neutral-1, #ffffff1a)', 'important');
+            btn.style.setProperty('background', '#1c2534', 'important');
           btn.style.setProperty('color', 'var(--tui-text-action, #66a3ff)', 'important');
           btn.style.setProperty('box-sizing', 'border-box', 'important');
           const inner = btn.firstElementChild;
@@ -3699,7 +3727,7 @@ def _build_script() -> str:
             inner.style.setProperty('flex-direction', 'column', 'important');
             inner.style.setProperty('align-items', 'center', 'important');
             inner.style.setProperty('justify-content', 'flex-start', 'important');
-            inner.style.setProperty('gap', '4px', 'important');
+            inner.style.setProperty('gap', '10px', 'important');
             inner.style.setProperty('width', '100%', 'important');
           }}
           btn.querySelectorAll('[data-qa-type="uikit/icon"], [data-qa-type="uikit/icon.content"], svg').forEach(function (icon) {{
