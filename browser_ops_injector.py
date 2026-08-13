@@ -1659,7 +1659,8 @@ def _build_script() -> str:
 
   function touchManualDetailStylesOrder() {{
     const st =
-      document.getElementById('manual-detail-pumba-cards-v31')
+      document.getElementById('manual-detail-pumba-cards-v32')
+      || document.getElementById('manual-detail-pumba-cards-v31')
       || document.getElementById('manual-detail-pumba-cards-v30')
       || document.getElementById('manual-detail-pumba-cards-v29')
       || document.getElementById('manual-detail-pumba-cards-v28')
@@ -1691,15 +1692,15 @@ def _build_script() -> str:
   }}
 
   function injectManualDetailStyles() {{
-    if (document.getElementById('manual-detail-pumba-cards-v31')) return;
-    ['manual-detail-pumba-cards-v3', 'manual-detail-pumba-cards-v4', 'manual-detail-pumba-cards-v5', 'manual-detail-pumba-cards-v6', 'manual-detail-pumba-cards-v7', 'manual-detail-pumba-cards-v8', 'manual-detail-pumba-cards-v9', 'manual-detail-pumba-cards-v10', 'manual-detail-pumba-cards-v11', 'manual-detail-pumba-cards-v12', 'manual-detail-pumba-cards-v13', 'manual-detail-pumba-cards-v14', 'manual-detail-pumba-cards-v15', 'manual-detail-pumba-cards-v16', 'manual-detail-pumba-cards-v17', 'manual-detail-pumba-cards-v18', 'manual-detail-pumba-cards-v19', 'manual-detail-pumba-cards-v20', 'manual-detail-pumba-cards-v21', 'manual-detail-pumba-cards-v22', 'manual-detail-pumba-cards-v23', 'manual-detail-pumba-cards-v24', 'manual-detail-pumba-cards-v25', 'manual-detail-pumba-cards-v26', 'manual-detail-pumba-cards-v27', 'manual-detail-pumba-cards-v28', 'manual-detail-pumba-cards-v29', 'manual-detail-pumba-cards-v30'].forEach(function (lid) {{
+    if (document.getElementById('manual-detail-pumba-cards-v32')) return;
+    ['manual-detail-pumba-cards-v3', 'manual-detail-pumba-cards-v4', 'manual-detail-pumba-cards-v5', 'manual-detail-pumba-cards-v6', 'manual-detail-pumba-cards-v7', 'manual-detail-pumba-cards-v8', 'manual-detail-pumba-cards-v9', 'manual-detail-pumba-cards-v10', 'manual-detail-pumba-cards-v11', 'manual-detail-pumba-cards-v12', 'manual-detail-pumba-cards-v13', 'manual-detail-pumba-cards-v14', 'manual-detail-pumba-cards-v15', 'manual-detail-pumba-cards-v16', 'manual-detail-pumba-cards-v17', 'manual-detail-pumba-cards-v18', 'manual-detail-pumba-cards-v19', 'manual-detail-pumba-cards-v20', 'manual-detail-pumba-cards-v21', 'manual-detail-pumba-cards-v22', 'manual-detail-pumba-cards-v23', 'manual-detail-pumba-cards-v24', 'manual-detail-pumba-cards-v25', 'manual-detail-pumba-cards-v26', 'manual-detail-pumba-cards-v27', 'manual-detail-pumba-cards-v28', 'manual-detail-pumba-cards-v29', 'manual-detail-pumba-cards-v30', 'manual-detail-pumba-cards-v31'].forEach(function (lid) {{
       const legacy = document.getElementById(lid);
       if (legacy) {{
         try {{ legacy.remove(); }} catch (eL) {{}}
       }}
     }});
     const st = document.createElement('style');
-    st.id = 'manual-detail-pumba-cards-v31';
+    st.id = 'manual-detail-pumba-cards-v32';
     st.textContent = `
 /* Инжект: ширина; горизонтальный padding даёт independent-pumba-operation-details-container — не дублировать */
 [data-manual-injected-account-cards="1"][data-qa-type="accountCardsShown-wrapper"],
@@ -2467,6 +2468,201 @@ def _build_script() -> str:
 [data-manual-actions-row-owner="1"][data-manual-actions-mode="credit"] {{
   overflow: visible !important;
 }}
+/* v32: эталонная типографика и геометрия больше не зависят от хешей
+   классов очередной сборки Т-Банка. */
+[data-manual-detail-visual="1"],
+[data-manual-detail-visual="1"] button,
+[data-manual-detail-visual="1"] p,
+[data-manual-detail-visual="1"] h2,
+[data-manual-detail-visual="1"] span,
+[data-manual-detail-visual="1"] div {{
+  font-family: Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+}}
+[data-panel-manual-black-card="1"] [data-manual-account-title-section="1"] {{
+  min-height: 50px !important;
+  padding: 20px 20px 6px !important;
+}}
+[data-manual-injected-account-cards="1"] {{
+  margin-bottom: 20px !important;
+}}
+[data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"],
+[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] {{
+  min-height: 120px !important;
+}}
+[data-panel-manual-black-card="1"] [data-manual-account-title-node="1"],
+[data-panel-manual-black-card="1"] [data-manual-account-title="1"],
+[data-manual-injected-account-cards="1"] [data-manual-account-title-node="1"],
+[data-manual-injected-account-cards="1"] [data-manual-account-title="1"] {{
+  min-height: 24px !important;
+  font: 600 20px/24px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  letter-spacing: 0 !important;
+}}
+[data-panel-manual-black-card="1"] button[data-qa-type="molecule-account-operation-cert-btn"],
+[data-manual-injected-account-cards="1"] button[data-qa-type="molecule-account-operation-cert-btn"],
+[data-panel-manual-black-card="1"] button[data-qa-type="molecule-account-operation-cert-btn"] span,
+[data-manual-injected-account-cards="1"] button[data-qa-type="molecule-account-operation-cert-btn"] span {{
+  min-height: 20px !important;
+  font: 500 16px/20px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  letter-spacing: 0 !important;
+}}
+[data-panel-manual-black-card="1"] [data-manual-account-cell="1"],
+[data-manual-injected-account-cards="1"] [data-manual-account-cell="1"] {{
+  min-height: 70px !important;
+  padding: 10px 20px 14px !important;
+  gap: 15px !important;
+}}
+[data-panel-manual-black-card="1"] [data-manual-account-content="1"],
+[data-manual-injected-account-cards="1"] [data-manual-account-content="1"] {{
+  column-gap: 15px !important;
+}}
+[data-panel-manual-black-card="1"] [data-manual-account-icon-column="1"],
+[data-manual-injected-account-cards="1"] [data-manual-account-icon-column="1"] {{
+  margin: 0 !important;
+}}
+[data-panel-manual-black-card="1"] [data-manual-account-name-row="1"],
+[data-panel-manual-black-card="1"] [data-manual-black-name="1"],
+[data-manual-injected-account-cards="1"] [data-manual-account-name-row="1"],
+[data-manual-injected-account-cards="1"] [data-manual-black-name="1"] {{
+  font: 400 16px/23px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  letter-spacing: 0 !important;
+}}
+[data-panel-manual-black-card="1"] p[data-qa-type="molecule-account-operation-balance"],
+[data-manual-injected-account-cards="1"] p[data-qa-type="molecule-account-operation-balance"] {{
+  font: 400 13px/18px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  letter-spacing: 0 !important;
+}}
+[data-manual-requisites-panel="1"] {{
+  display: block !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+}}
+[data-manual-requisites-panel="1"] > [data-qa-type="atom-panel"] {{
+  position: relative !important;
+  display: block !important;
+  width: 100% !important;
+  min-height: 118px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  isolation: isolate !important;
+  border-radius: 24px !important;
+  box-sizing: border-box !important;
+  color: var(--tui-text-primary, #f6f7f8) !important;
+  background: var(--tui-background-elevation-2, #2c2c2e) !important;
+  box-shadow: var(--tui-shadow-medium, 0 6px 34px #0000001f) !important;
+}}
+[data-manual-requisites-panel="1"] > [data-qa-type="atom-panel"] > [data-qa-type="tui/surface-layer"] {{
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 0 !important;
+  display: block !important;
+  border-radius: inherit !important;
+  background: var(--tui-background-elevation-2, #2c2c2e) !important;
+}}
+[data-manual-requisites-panel="1"] > [data-qa-type="atom-panel"] > div:not([data-qa-type="tui/surface-layer"]) {{
+  position: relative !important;
+  z-index: 1 !important;
+}}
+[data-manual-requisites-panel="1"] > [data-qa-type="atom-panel"] > div[data-hspacing="normal"] {{
+  display: block !important;
+  min-height: 50px !important;
+  padding: 20px 20px 6px !important;
+  box-sizing: border-box !important;
+}}
+[data-manual-requisites-panel="1"] [data-qa-type="tui/header"],
+[data-manual-requisites-panel="1"] [data-qa-type="tui/header.wrapper"],
+[data-manual-requisites-panel="1"] [data-qa-type="tui/header.content"] {{
+  width: 100% !important;
+  min-height: 24px !important;
+  height: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+}}
+[data-manual-requisites-panel="1"] h2[data-qa-type="tui/header.title"],
+[data-manual-requisites-panel="1"] [data-qa-type="atom-panel-title-text"] {{
+  display: block !important;
+  min-height: 24px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  white-space: nowrap !important;
+  font: 600 20px/24px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  letter-spacing: 0 !important;
+  color: var(--tui-text-primary, #f6f7f8) !important;
+  -webkit-text-fill-color: var(--tui-text-primary, #f6f7f8) !important;
+}}
+[data-manual-requisites-panel="1"] > [data-qa-type="atom-panel"] > div:last-child {{
+  display: block !important;
+  min-height: 68px !important;
+  padding: 8px 20px 16px !important;
+  box-sizing: border-box !important;
+}}
+[data-manual-requisites-panel="1"] [data-qa-type="visible-requisites"] {{
+  display: block !important;
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
+}}
+[data-manual-requisites-panel="1"] [data-manual-requisite-row="1"],
+[data-manual-requisites-panel="1"] [data-manual-requisite-row="1"] > div {{
+  display: block !important;
+  width: 100% !important;
+  min-height: 44px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
+}}
+[data-manual-requisites-panel="1"] [data-manual-requisite-row="1"] p {{
+  display: block !important;
+  margin: 0 0 2px !important;
+  padding: 0 !important;
+  font: 400 13px/18px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  letter-spacing: 0 !important;
+  color: var(--tui-text-secondary, #9299a2) !important;
+  -webkit-text-fill-color: var(--tui-text-secondary, #9299a2) !important;
+}}
+[data-manual-requisites-panel="1"] [data-manual-requisite-row="1"] > div > div {{
+  display: block !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  font: 400 16px/23px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  letter-spacing: 0 !important;
+  color: var(--tui-text-primary, #f6f7f8) !important;
+  -webkit-text-fill-color: var(--tui-text-primary, #f6f7f8) !important;
+}}
+[data-manual-tui-actions-mode="credit"] button[data-qa-type^="operation-action"],
+[data-manual-tui-actions-mode="debit"] button[data-qa-type^="operation-action"] {{
+  height: 72px !important;
+  min-height: 72px !important;
+  padding: 8px 3px !important;
+}}
+[data-manual-tui-actions-mode="credit"],
+[data-manual-tui-actions-mode="debit"],
+[data-manual-actions-row-owner="1"],
+[data-manual-actions-row-owner="1"] [data-qa-type="uikit/scroll"],
+[data-manual-actions-row-owner="1"] [data-qa-type="uikit/scroll.content"] {{
+  min-height: 72px !important;
+}}
+[data-manual-tui-actions-mode="credit"] > *,
+[data-manual-tui-actions-mode="debit"] > * {{
+  height: 72px !important;
+  min-height: 72px !important;
+}}
+[data-manual-tui-actions-mode="credit"] button[data-qa-type^="operation-action"] > span,
+[data-manual-tui-actions-mode="debit"] button[data-qa-type^="operation-action"] > span {{
+  min-height: 56px !important;
+  gap: 4px !important;
+}}
+[data-manual-tui-actions-mode="credit"] button [data-qa-type$=".content"]:not([data-qa-type="uikit/icon.content"]),
+[data-manual-tui-actions-mode="debit"] button [data-qa-type$=".content"]:not([data-qa-type="uikit/icon.content"]) {{
+  font: 400 13px/15px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  letter-spacing: 0 !important;
+}}
 `;
     (document.head || document.documentElement).appendChild(st);
   }}
@@ -3054,7 +3250,10 @@ def _build_script() -> str:
     if (titleWrap) {{
       titleWrap.setAttribute('data-manual-account-title', '1');
       const titleNode = findDetailAccountOperationTitleTextNode(titleWrap);
-      if (titleNode) titleNode.textContent = title;
+      if (titleNode) {{
+        titleNode.textContent = title;
+        titleNode.setAttribute('data-manual-account-title-node', '1');
+      }}
     }}
     const molecule = root.querySelector('[data-qa-type="molecule-account-operation"]');
     if (molecule) {{
@@ -3096,13 +3295,13 @@ def _build_script() -> str:
         if (headerTitle) {{
           headerTitle.style.setProperty('display', 'block', 'important');
           headerTitle.style.setProperty('height', 'auto', 'important');
-          headerTitle.style.setProperty('min-height', '19px', 'important');
+          headerTitle.style.setProperty('min-height', '24px', 'important');
           headerTitle.style.setProperty('margin', '0', 'important');
           headerTitle.style.setProperty('padding', '0', 'important');
           headerTitle.style.setProperty('overflow', 'visible', 'important');
-          headerTitle.style.setProperty('font-size', '16px', 'important');
-          headerTitle.style.setProperty('font-weight', '500', 'important');
-          headerTitle.style.setProperty('line-height', '19px', 'important');
+          headerTitle.style.setProperty('font-size', '20px', 'important');
+          headerTitle.style.setProperty('font-weight', '600', 'important');
+          headerTitle.style.setProperty('line-height', '24px', 'important');
         }}
         const titleSection = titleWrap.closest('div[data-hspacing], div[data-horizontal-spacing]');
         if (titleSection) {{
@@ -3110,7 +3309,8 @@ def _build_script() -> str:
           titleSection.style.setProperty('display', 'block', 'important');
           titleSection.style.setProperty('width', '100%', 'important');
           titleSection.style.setProperty('height', 'auto', 'important');
-          titleSection.style.setProperty('padding', '16px 20px 0', 'important');
+          titleSection.style.setProperty('min-height', '50px', 'important');
+          titleSection.style.setProperty('padding', '20px 20px 6px', 'important');
           titleSection.style.setProperty('overflow', 'visible', 'important');
           titleSection.style.setProperty('box-sizing', 'border-box', 'important');
         }}
@@ -3145,6 +3345,7 @@ def _build_script() -> str:
         accountCell.style.setProperty('flex-direction', 'row', 'important');
         accountCell.style.setProperty('flex-wrap', 'nowrap', 'important');
         accountCell.style.setProperty('align-items', 'center', 'important');
+        accountCell.style.setProperty('gap', '15px', 'important');
         accountCell.style.setProperty('width', '100%', 'important');
         accountCell.style.setProperty('box-sizing', 'border-box', 'important');
         const ch = accountCell.children;
@@ -3187,7 +3388,7 @@ def _build_script() -> str:
             iconColumn.style.setProperty('flex', '0 0 40px', 'important');
             iconColumn.style.setProperty('width', '40px', 'important');
             iconColumn.style.setProperty('height', '40px', 'important');
-            iconColumn.style.setProperty('margin-right', '16px', 'important');
+            iconColumn.style.setProperty('margin-right', '0', 'important');
             iconColumn.style.setProperty('overflow', 'visible', 'important');
           }} catch (eIconColumn) {{}}
         }}
@@ -3447,7 +3648,7 @@ def _build_script() -> str:
       gapsRow.style.flexFlow = 'row nowrap';
       gapsRow.style.alignItems = 'flex-start';
       gapsRow.style.width = '100%';
-      gapsRow.style.minHeight = '80px';
+      gapsRow.style.minHeight = '72px';
       gapsRow.style.padding = '0 16px';
       gapsRow.style.boxSizing = 'border-box';
       gapsRow.style.overflow = 'visible';
@@ -3484,9 +3685,9 @@ def _build_script() -> str:
           btn.style.setProperty('width', '92px', 'important');
           btn.style.setProperty('min-width', '92px', 'important');
           btn.style.setProperty('max-width', '92px', 'important');
-          btn.style.setProperty('height', '80px', 'important');
-          btn.style.setProperty('min-height', '80px', 'important');
-          btn.style.setProperty('padding', '12px 3px', 'important');
+            btn.style.setProperty('height', '72px', 'important');
+            btn.style.setProperty('min-height', '72px', 'important');
+            btn.style.setProperty('padding', '8px 3px', 'important');
           btn.style.setProperty('border', '0', 'important');
           btn.style.setProperty('border-radius', '16px', 'important');
           btn.style.setProperty('background', 'var(--tui-background-neutral-1, #ffffff1a)', 'important');
@@ -3498,7 +3699,7 @@ def _build_script() -> str:
             inner.style.setProperty('flex-direction', 'column', 'important');
             inner.style.setProperty('align-items', 'center', 'important');
             inner.style.setProperty('justify-content', 'flex-start', 'important');
-            inner.style.setProperty('gap', '8px', 'important');
+            inner.style.setProperty('gap', '4px', 'important');
             inner.style.setProperty('width', '100%', 'important');
           }}
           btn.querySelectorAll('[data-qa-type="uikit/icon"], [data-qa-type="uikit/icon.content"], svg').forEach(function (icon) {{
@@ -3665,9 +3866,19 @@ def _build_script() -> str:
     const detailsContainer = getOperationDetailsContainer();
     if (!detailsContainer) return false;
     const allHosts = Array.from(document.querySelectorAll('[data-qa-type="bankDetailsShown-wrapper"]'));
-    let host = allHosts.find(function (candidate) {{
-      return candidate.getAttribute('data-manual-bank-wrapper') !== '1';
-    }}) || allHosts[0] || null;
+    function requisitesHostScore(candidate) {{
+      let score = 0;
+      if (detailsContainer.contains(candidate)) score += 8;
+      try {{
+        const rect = candidate.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) score += 4;
+      }} catch (eRect) {{}}
+      if (candidate.getAttribute('data-manual-bank-wrapper') !== '1') score += 2;
+      if (candidate.querySelector('[data-qa-type="atom-panel"][data-appearance="elevated"]')) score += 1;
+      return score;
+    }}
+    allHosts.sort(function (a, b) {{ return requisitesHostScore(b) - requisitesHostScore(a); }});
+    let host = allHosts[0] || null;
     allHosts.forEach(function (candidate) {{
       if (candidate === host) return;
       try {{ candidate.remove(); }} catch (eRemoveDuplicateRequisites) {{}}
@@ -3682,8 +3893,8 @@ def _build_script() -> str:
     }}
     if (createdHost || host.getAttribute('data-manual-bank-wrapper') === '1') {{
       host.setAttribute('data-manual-bank-wrapper', '1');
+      host.className = 'abVXAIVX5';
     }}
-    host.className = 'abVXAIVX5';
     host.setAttribute('data-component-type', 'platform-ui');
 
     let panel = host.querySelector('[data-manual-requisites-panel="1"]');
@@ -3730,6 +3941,8 @@ def _build_script() -> str:
       op = op || fallbackOpFromPage();
     }}
     if (!op) return;
+    const detailVisualRoot = getOperationDetailsContainer();
+    if (detailVisualRoot) detailVisualRoot.setAttribute('data-manual-detail-visual', '1');
     const manualLike = isManualLikeDetailOp(op);
     const externalCreditTransfer = !manualLike && pageLooksLikeExternalCreditTransfer(op);
     if (!manualLike && !externalCreditTransfer) {{
