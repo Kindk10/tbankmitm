@@ -1659,7 +1659,8 @@ def _build_script() -> str:
 
   function touchManualDetailStylesOrder() {{
     const st =
-      document.getElementById('manual-detail-pumba-cards-v29')
+      document.getElementById('manual-detail-pumba-cards-v30')
+      || document.getElementById('manual-detail-pumba-cards-v29')
       || document.getElementById('manual-detail-pumba-cards-v28')
       || document.getElementById('manual-detail-pumba-cards-v27')
       || document.getElementById('manual-detail-pumba-cards-v26')
@@ -1689,15 +1690,15 @@ def _build_script() -> str:
   }}
 
   function injectManualDetailStyles() {{
-    if (document.getElementById('manual-detail-pumba-cards-v29')) return;
-    ['manual-detail-pumba-cards-v3', 'manual-detail-pumba-cards-v4', 'manual-detail-pumba-cards-v5', 'manual-detail-pumba-cards-v6', 'manual-detail-pumba-cards-v7', 'manual-detail-pumba-cards-v8', 'manual-detail-pumba-cards-v9', 'manual-detail-pumba-cards-v10', 'manual-detail-pumba-cards-v11', 'manual-detail-pumba-cards-v12', 'manual-detail-pumba-cards-v13', 'manual-detail-pumba-cards-v14', 'manual-detail-pumba-cards-v15', 'manual-detail-pumba-cards-v16', 'manual-detail-pumba-cards-v17', 'manual-detail-pumba-cards-v18', 'manual-detail-pumba-cards-v19', 'manual-detail-pumba-cards-v20', 'manual-detail-pumba-cards-v21', 'manual-detail-pumba-cards-v22', 'manual-detail-pumba-cards-v23', 'manual-detail-pumba-cards-v24', 'manual-detail-pumba-cards-v25', 'manual-detail-pumba-cards-v26', 'manual-detail-pumba-cards-v27', 'manual-detail-pumba-cards-v28'].forEach(function (lid) {{
+    if (document.getElementById('manual-detail-pumba-cards-v30')) return;
+    ['manual-detail-pumba-cards-v3', 'manual-detail-pumba-cards-v4', 'manual-detail-pumba-cards-v5', 'manual-detail-pumba-cards-v6', 'manual-detail-pumba-cards-v7', 'manual-detail-pumba-cards-v8', 'manual-detail-pumba-cards-v9', 'manual-detail-pumba-cards-v10', 'manual-detail-pumba-cards-v11', 'manual-detail-pumba-cards-v12', 'manual-detail-pumba-cards-v13', 'manual-detail-pumba-cards-v14', 'manual-detail-pumba-cards-v15', 'manual-detail-pumba-cards-v16', 'manual-detail-pumba-cards-v17', 'manual-detail-pumba-cards-v18', 'manual-detail-pumba-cards-v19', 'manual-detail-pumba-cards-v20', 'manual-detail-pumba-cards-v21', 'manual-detail-pumba-cards-v22', 'manual-detail-pumba-cards-v23', 'manual-detail-pumba-cards-v24', 'manual-detail-pumba-cards-v25', 'manual-detail-pumba-cards-v26', 'manual-detail-pumba-cards-v27', 'manual-detail-pumba-cards-v28', 'manual-detail-pumba-cards-v29'].forEach(function (lid) {{
       const legacy = document.getElementById(lid);
       if (legacy) {{
         try {{ legacy.remove(); }} catch (eL) {{}}
       }}
     }});
     const st = document.createElement('style');
-    st.id = 'manual-detail-pumba-cards-v29';
+    st.id = 'manual-detail-pumba-cards-v30';
     st.textContent = `
 /* Инжект: ширина; горизонтальный padding даёт independent-pumba-operation-details-container — не дублировать */
 [data-manual-injected-account-cards="1"][data-qa-type="accountCardsShown-wrapper"],
@@ -2336,6 +2337,87 @@ def _build_script() -> str:
   padding: 0 16px !important;
   box-sizing: border-box !important;
   overflow: visible !important;
+}}
+/* v30: реальная разметка cell содержит общий content-блок, а не отдельную
+   icon-колонку первым прямым ребёнком button. Grid сохраняет ₽, Black и баланс. */
+[data-panel-manual-black-card="1"] [data-manual-account-content="1"] {{
+  display: grid !important;
+  grid-template-columns: 40px minmax(0, 1fr) !important;
+  grid-template-rows: auto auto !important;
+  column-gap: 12px !important;
+  row-gap: 2px !important;
+  align-items: center !important;
+  flex: 1 1 auto !important;
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  box-sizing: border-box !important;
+}}
+[data-panel-manual-black-card="1"] [data-manual-account-content="1"] [data-manual-account-icon-column="1"] {{
+  grid-column: 1 !important;
+  grid-row: 1 / span 2 !important;
+  margin: 0 !important;
+}}
+[data-panel-manual-black-card="1"] [data-manual-account-name-row="1"] {{
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+  display: block !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  font: var(--tui-typography-body-l, 400 16px/23px Roboto, system-ui, sans-serif) !important;
+  color: var(--tui-text-primary, #f6f7f8) !important;
+}}
+[data-panel-manual-black-card="1"] [data-manual-account-balance-row="1"] {{
+  grid-column: 2 !important;
+  grid-row: 2 !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  line-height: 18px !important;
+}}
+[data-panel-manual-black-card="1"] [data-manual-account-chevron-column="1"] {{
+  display: flex !important;
+  align-items: center !important;
+  flex: 0 0 8px !important;
+  width: 8px !important;
+  min-width: 8px !important;
+  margin: 0 0 0 8px !important;
+}}
+/* Компенсируем старое правило, ошибочно сжимавшее весь content до 40px. */
+[data-panel-manual-black-card="1"] [data-manual-account-cell="1"] > [data-manual-account-content="1"] {{
+  flex-basis: auto !important;
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+}}
+[data-panel-manual-black-card="1"] [data-manual-account-title-section="1"] {{
+  min-height: 39px !important;
+  padding: 16px 20px 0 !important;
+}}
+[data-panel-manual-black-card="1"] [data-manual-account-title-node="1"] {{
+  display: block !important;
+  height: auto !important;
+  min-height: 20px !important;
+  overflow: visible !important;
+  white-space: nowrap !important;
+  line-height: 20px !important;
+}}
+[data-manual-tui-actions-mode="credit"] > * {{
+  flex: 0 0 92px !important;
+  width: 92px !important;
+  height: 80px !important;
+  min-height: 80px !important;
+  margin: 0 !important;
+}}
+[data-manual-actions-row-owner="1"] [data-qa-type="uikit/scroll"] {{
+  transform: none !important;
 }}
 `;
     (document.head || document.documentElement).appendChild(st);
