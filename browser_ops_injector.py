@@ -1659,7 +1659,8 @@ def _build_script() -> str:
 
   function touchManualDetailStylesOrder() {{
     const st =
-      document.getElementById('manual-detail-pumba-cards-v32')
+      document.getElementById('manual-detail-pumba-cards-v33')
+      || document.getElementById('manual-detail-pumba-cards-v32')
       || document.getElementById('manual-detail-pumba-cards-v31')
       || document.getElementById('manual-detail-pumba-cards-v30')
       || document.getElementById('manual-detail-pumba-cards-v29')
@@ -1692,15 +1693,15 @@ def _build_script() -> str:
   }}
 
   function injectManualDetailStyles() {{
-    if (document.getElementById('manual-detail-pumba-cards-v32')) return;
-    ['manual-detail-pumba-cards-v3', 'manual-detail-pumba-cards-v4', 'manual-detail-pumba-cards-v5', 'manual-detail-pumba-cards-v6', 'manual-detail-pumba-cards-v7', 'manual-detail-pumba-cards-v8', 'manual-detail-pumba-cards-v9', 'manual-detail-pumba-cards-v10', 'manual-detail-pumba-cards-v11', 'manual-detail-pumba-cards-v12', 'manual-detail-pumba-cards-v13', 'manual-detail-pumba-cards-v14', 'manual-detail-pumba-cards-v15', 'manual-detail-pumba-cards-v16', 'manual-detail-pumba-cards-v17', 'manual-detail-pumba-cards-v18', 'manual-detail-pumba-cards-v19', 'manual-detail-pumba-cards-v20', 'manual-detail-pumba-cards-v21', 'manual-detail-pumba-cards-v22', 'manual-detail-pumba-cards-v23', 'manual-detail-pumba-cards-v24', 'manual-detail-pumba-cards-v25', 'manual-detail-pumba-cards-v26', 'manual-detail-pumba-cards-v27', 'manual-detail-pumba-cards-v28', 'manual-detail-pumba-cards-v29', 'manual-detail-pumba-cards-v30', 'manual-detail-pumba-cards-v31'].forEach(function (lid) {{
+    if (document.getElementById('manual-detail-pumba-cards-v33')) return;
+    ['manual-detail-pumba-cards-v3', 'manual-detail-pumba-cards-v4', 'manual-detail-pumba-cards-v5', 'manual-detail-pumba-cards-v6', 'manual-detail-pumba-cards-v7', 'manual-detail-pumba-cards-v8', 'manual-detail-pumba-cards-v9', 'manual-detail-pumba-cards-v10', 'manual-detail-pumba-cards-v11', 'manual-detail-pumba-cards-v12', 'manual-detail-pumba-cards-v13', 'manual-detail-pumba-cards-v14', 'manual-detail-pumba-cards-v15', 'manual-detail-pumba-cards-v16', 'manual-detail-pumba-cards-v17', 'manual-detail-pumba-cards-v18', 'manual-detail-pumba-cards-v19', 'manual-detail-pumba-cards-v20', 'manual-detail-pumba-cards-v21', 'manual-detail-pumba-cards-v22', 'manual-detail-pumba-cards-v23', 'manual-detail-pumba-cards-v24', 'manual-detail-pumba-cards-v25', 'manual-detail-pumba-cards-v26', 'manual-detail-pumba-cards-v27', 'manual-detail-pumba-cards-v28', 'manual-detail-pumba-cards-v29', 'manual-detail-pumba-cards-v30', 'manual-detail-pumba-cards-v31', 'manual-detail-pumba-cards-v32'].forEach(function (lid) {{
       const legacy = document.getElementById(lid);
       if (legacy) {{
         try {{ legacy.remove(); }} catch (eL) {{}}
       }}
     }});
     const st = document.createElement('style');
-    st.id = 'manual-detail-pumba-cards-v32';
+    st.id = 'manual-detail-pumba-cards-v33';
     st.textContent = `
 /* Инжект: ширина; горизонтальный padding даёт independent-pumba-operation-details-container — не дублировать */
 [data-manual-injected-account-cards="1"][data-qa-type="accountCardsShown-wrapper"],
@@ -2501,7 +2502,7 @@ def _build_script() -> str:
 [data-manual-injected-account-cards="1"] [data-manual-account-title-node="1"],
 [data-manual-injected-account-cards="1"] [data-manual-account-title="1"] {{
   min-height: 24px !important;
-  font: 600 20px/24px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  font: 700 20px/24px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
   letter-spacing: 0 !important;
 }}
 [data-panel-manual-black-card="1"] button[data-qa-type="molecule-account-operation-cert-btn"],
@@ -2509,8 +2510,21 @@ def _build_script() -> str:
 [data-panel-manual-black-card="1"] button[data-qa-type="molecule-account-operation-cert-btn"] span,
 [data-manual-injected-account-cards="1"] button[data-qa-type="molecule-account-operation-cert-btn"] span {{
   min-height: 20px !important;
-  font: 500 16px/20px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  font: 600 16px/20px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
   letter-spacing: 0 !important;
+}}
+[data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"] > div[data-hspacing="none"],
+[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] > div[data-hspacing="none"] {{
+  display: block !important;
+  flex: 0 0 70px !important;
+  width: 100% !important;
+  height: 70px !important;
+  min-height: 70px !important;
+  max-height: 70px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  box-sizing: border-box !important;
 }}
 [data-panel-manual-black-card="1"] [data-manual-account-cell="1"],
 [data-manual-injected-account-cards="1"] [data-manual-account-cell="1"] {{
@@ -2577,7 +2591,7 @@ def _build_script() -> str:
 [data-manual-requisites-panel="1"] > [data-qa-type="atom-panel"] > div[data-hspacing="normal"] {{
   display: block !important;
   min-height: 50px !important;
-  padding: 18px 20px 8px !important;
+  padding: 15px 20px 11px !important;
   box-sizing: border-box !important;
 }}
 [data-manual-requisites-panel="1"] [data-qa-type="tui/header"],
@@ -2598,7 +2612,7 @@ def _build_script() -> str:
   padding: 0 !important;
   overflow: visible !important;
   white-space: nowrap !important;
-  font: 600 20px/24px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  font: 700 20px/24px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
   letter-spacing: 0 !important;
   color: var(--tui-text-primary, #f6f7f8) !important;
   -webkit-text-fill-color: var(--tui-text-primary, #f6f7f8) !important;
@@ -2648,9 +2662,9 @@ def _build_script() -> str:
   height: 70px !important;
   min-height: 70px !important;
   max-height: 70px !important;
-  padding: 5px 3px !important;
-  background: #1c2534 !important;
-  background-color: #1c2534 !important;
+  padding: 10px 3px 0 !important;
+  background: #222e41 !important;
+  background-color: #222e41 !important;
 }}
 [data-manual-tui-actions-mode="credit"],
 [data-manual-tui-actions-mode="debit"],
@@ -2667,8 +2681,31 @@ def _build_script() -> str:
 }}
 [data-manual-tui-actions-mode="credit"] button[data-qa-type^="operation-action"] > span,
 [data-manual-tui-actions-mode="debit"] button[data-qa-type^="operation-action"] > span {{
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  width: 100% !important;
+  height: 60px !important;
   min-height: 60px !important;
   gap: 10px !important;
+}}
+[data-manual-tui-actions-mode="credit"] button [data-qa-type$=".icon"],
+[data-manual-tui-actions-mode="debit"] button [data-qa-type$=".icon"] {{
+  display: flex !important;
+  flex: 0 0 24px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 24px !important;
+  height: 24px !important;
+  margin: 0 auto !important;
+}}
+[data-manual-tui-actions-mode="credit"] button [data-qa-type$=".content-wrapper"],
+[data-manual-tui-actions-mode="debit"] button [data-qa-type$=".content-wrapper"] {{
+  display: block !important;
+  width: 100% !important;
+  margin: 0 !important;
+  text-align: center !important;
 }}
 [data-manual-tui-actions-mode="credit"] button [data-qa-type$=".content"]:not([data-qa-type="uikit/icon.content"]),
 [data-manual-tui-actions-mode="debit"] button [data-qa-type$=".content"]:not([data-qa-type="uikit/icon.content"]) {{
@@ -2683,7 +2720,7 @@ def _build_script() -> str:
   transform: translateX(16px) !important;
 }}
 [data-manual-actions-row-owner="1"][data-manual-actions-mode="credit"] {{
-  margin-bottom: 10px !important;
+  margin-bottom: 11px !important;
 }}
 `;
     (document.head || document.documentElement).appendChild(st);
@@ -3322,7 +3359,7 @@ def _build_script() -> str:
           headerTitle.style.setProperty('padding', '0', 'important');
           headerTitle.style.setProperty('overflow', 'visible', 'important');
           headerTitle.style.setProperty('font-size', '20px', 'important');
-          headerTitle.style.setProperty('font-weight', '600', 'important');
+          headerTitle.style.setProperty('font-weight', '700', 'important');
           headerTitle.style.setProperty('line-height', '24px', 'important');
         }}
         const titleSection = titleWrap.closest('div[data-hspacing], div[data-horizontal-spacing]');
@@ -3715,10 +3752,10 @@ def _build_script() -> str:
             btn.style.setProperty('height', '70px', 'important');
             btn.style.setProperty('min-height', '70px', 'important');
             btn.style.setProperty('max-height', '70px', 'important');
-            btn.style.setProperty('padding', '5px 3px', 'important');
+            btn.style.setProperty('padding', '10px 3px 0', 'important');
           btn.style.setProperty('border', '0', 'important');
           btn.style.setProperty('border-radius', '16px', 'important');
-            btn.style.setProperty('background', '#1c2534', 'important');
+            btn.style.setProperty('background', '#222e41', 'important');
           btn.style.setProperty('color', 'var(--tui-text-action, #66a3ff)', 'important');
           btn.style.setProperty('box-sizing', 'border-box', 'important');
           const inner = btn.firstElementChild;
