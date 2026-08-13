@@ -3137,11 +3137,14 @@ def _build_script() -> str:
     return resolveDetailOp();
   }}
 
-  function receiptOpenUrlForOperationId(opId) {{
+  function receiptOpenUrlForOperationId(opId, opType) {{
     if (!opId) return '';
     const origin = (typeof location !== 'undefined' && location.origin) ? String(location.origin).replace(/\\/$/, '') : '';
     if (origin) {{
-      return origin + '/payment_receipt_pdf?operationId=' + encodeURIComponent(opId);
+      const endpoint = String(opType || 'Debit') === 'Credit'
+        ? '/operation_statement_pdf'
+        : '/payment_receipt_pdf';
+      return origin + endpoint + '?operationId=' + encodeURIComponent(opId);
     }}
     return PANEL_ORIGIN + '/api/manual_operation_receipt?operationId=' + encodeURIComponent(opId);
   }}
@@ -3155,14 +3158,16 @@ def _build_script() -> str:
     }}
     st.textContent =
       '#manual-operation-document-viewer {{ position: fixed; inset: 0; z-index: 2147483646; background: #000; font-family: Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }}' +
-      '#manual-operation-document-viewer .manual-operation-document-sheet {{ position: absolute; inset: 74px 0 0; display: flex; flex-direction: column; overflow: hidden; border-radius: 14px 14px 0 0; background: #8a8a8a; }}' +
+      '#manual-operation-document-viewer .manual-operation-document-sheet {{ position: absolute; inset: 0; display: flex; flex-direction: column; overflow: hidden; border-radius: 14px 14px 0 0; background: #8a8a8a; }}' +
       '#manual-operation-document-viewer .manual-operation-document-header {{ position: relative; flex: 0 0 56px; height: 56px; box-sizing: border-box; background: #202023; color: #f6f7f8; }}' +
       '#manual-operation-document-viewer .manual-operation-document-close, #manual-operation-document-viewer .manual-operation-document-share {{ appearance: none; border: 0; padding: 0; background: transparent; color: #428bf9; font-family: inherit; font-size: 16px; font-weight: 500; line-height: 20px; -webkit-tap-highlight-color: transparent; }}' +
       '#manual-operation-document-viewer .manual-operation-document-close {{ position: absolute; left: 17px; top: 50%; transform: translateY(-50%); }}' +
-      '#manual-operation-document-viewer .manual-operation-document-title {{ position: absolute; left: 50%; top: 50%; width: max-content; max-width: calc(100% - 190px); overflow: hidden; transform: translate(-50%, -50%); color: #f6f7f8; font-family: inherit; font-size: 17px; font-weight: 700; line-height: 22px; text-align: center; text-overflow: ellipsis; white-space: nowrap; }}' +
+      '#manual-operation-document-viewer .manual-operation-document-title {{ position: absolute; left: 50%; top: 50%; width: max-content; max-width: calc(100% - 140px); overflow: visible; transform: translate(-50%, -50%); color: #f6f7f8; font-family: inherit; font-size: 17px; font-weight: 700; line-height: 22px; text-align: center; white-space: nowrap; }}' +
       '#manual-operation-document-viewer .manual-operation-document-share {{ position: absolute; right: 14px; top: 50%; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 40px; transform: translateY(-50%); }}' +
       '#manual-operation-document-viewer .manual-operation-document-share svg {{ display: block; width: 25px; height: 25px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2.2; }}' +
-      '#manual-operation-document-viewer .manual-operation-document-frame {{ display: block; flex: 1 1 auto; width: 100%; min-height: 0; border: 0; background: #8a8a8a; }}';
+      '#manual-operation-document-viewer .manual-operation-document-body {{ flex: 1 1 auto; min-height: 0; overflow: auto; background: #fff; -webkit-overflow-scrolling: touch; }}' +
+      '#manual-operation-document-viewer .manual-operation-document-image {{ display: block; width: 100%; height: auto; margin: 0; background: #fff; }}' +
+      '#manual-operation-document-viewer .manual-operation-document-frame {{ display: none; width: 100%; height: 100%; min-height: 100%; border: 0; background: #8a8a8a; }}';
   }}
 
   function closeManualReceiptViewer() {{
@@ -3195,12 +3200,26 @@ def _build_script() -> str:
             '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3"></path><path d="m8 7 4-4 4 4"></path><path d="M6 10H4.8A1.8 1.8 0 0 0 3 11.8v7.4A1.8 1.8 0 0 0 4.8 21h14.4a1.8 1.8 0 0 0 1.8-1.8v-7.4a1.8 1.8 0 0 0-1.8-1.8H18"></path></svg>' +
           '</button>' +
         '</div>' +
-        '<iframe class="manual-operation-document-frame" title="Документ по операции"></iframe>' +
+        '<div class="manual-operation-document-body">' +
+          '<img class="manual-operation-document-image" alt="Документ по операции">' +
+          '<iframe class="manual-operation-document-frame" title="Документ по операции"></iframe>' +
+        '</div>' +
       '</div>';
     const titleEl = viewer.querySelector('.manual-operation-document-title');
+    const image = viewer.querySelector('.manual-operation-document-image');
     const frame = viewer.querySelector('.manual-operation-document-frame');
     if (titleEl) titleEl.textContent = title || 'Квитанция';
-    if (frame) frame.src = url;
+    if (image) {{
+      const renderUrl = url + (url.indexOf('?') === -1 ? '?' : '&') + 'manualRender=png';
+      image.addEventListener('error', function () {{
+        image.style.display = 'none';
+        if (frame) {{
+          frame.style.display = 'block';
+          frame.src = url + '#view=FitH&zoom=page-width';
+        }}
+      }}, {{ once: true }});
+      image.src = renderUrl;
+    }}
     const closeBtn = viewer.querySelector('.manual-operation-document-close');
     if (closeBtn) closeBtn.addEventListener('click', closeManualReceiptViewer);
     const shareBtn = viewer.querySelector('.manual-operation-document-share');
@@ -3237,9 +3256,9 @@ def _build_script() -> str:
         ev.preventDefault();
         ev.stopPropagation();
         ev.stopImmediatePropagation();
-        const url = receiptOpenUrlForOperationId(opId);
-        if (!url) return;
         const opType = String((pageOp && pageOp.type) || detectOperationTypeFromPage() || 'Debit');
+        const url = receiptOpenUrlForOperationId(opId, opType);
+        if (!url) return;
         const viewerTitle = opType === 'Credit' ? 'Документ по операции' : 'Квитанция';
         openManualReceiptViewer(url, viewerTitle);
       }},

@@ -970,6 +970,12 @@ def _try_serve_receipt_pdf_response(flow: http.HTTPFlow, url_raw: str) -> bool:
     if not operation_id:
         return False
     operation_id = str(operation_id)
+    wants_png = False
+    try:
+        q = dict(flow.request.query or {})
+        wants_png = str(q.get("manualRender") or q.get("manual_render") or "").lower() == "png"
+    except Exception:
+        wants_png = "manualrender=png" in ul or "manual_render=png" in ul
 
     pdf_path = None
     try:
@@ -1032,10 +1038,25 @@ def _try_serve_receipt_pdf_response(flow: http.HTTPFlow, url_raw: str) -> bool:
         return False
 
     if pdf_path and Path(pdf_path).exists():
-        with open(pdf_path, "rb") as f:
-            flow.response.content = f.read()
-        flow.response.headers["Content-Type"] = "application/pdf"
-        flow.response.headers["Content-Disposition"] = f'inline; filename=receipt_{operation_id or "file"}.pdf'
+        if wants_png:
+            try:
+                with fitz.open(pdf_path) as doc:
+                    if doc.page_count < 1:
+                        return False
+                    page = doc.load_page(0)
+                    pix = page.get_pixmap(matrix=fitz.Matrix(2.5, 2.5), alpha=False)
+                    flow.response.content = pix.tobytes("png")
+                flow.response.headers["Content-Type"] = "image/png"
+                flow.response.headers["Content-Disposition"] = f'inline; filename=receipt_{operation_id or "file"}.png'
+                flow.response.headers["Cache-Control"] = "no-store"
+            except Exception as ex:
+                print(f"Не удалось отрисовать чек PNG: {ex}")
+                return False
+        else:
+            with open(pdf_path, "rb") as f:
+                flow.response.content = f.read()
+            flow.response.headers["Content-Type"] = "application/pdf"
+            flow.response.headers["Content-Disposition"] = f'inline; filename=receipt_{operation_id or "file"}.pdf'
         flow.response.status_code = 200
         print(f"Чек отдан: {pdf_path}")
         return True

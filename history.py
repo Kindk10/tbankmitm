@@ -2563,17 +2563,65 @@ def ensure_operation_receipt_pdf_path(op_id: str) -> Optional[str]:
         return None
 
     hop = _fake_history_record_by_id(op_id)
-    if not hop:
+    if hop:
+        pdf_abs = _resolve_stored_receipt_pdf(str(hop.get("pdf_path") or ""))
+        if pdf_abs:
+            return pdf_abs
+        try:
+            pdf_new = func.generate_operation_receipt(_fake_history_op_to_receipt_dict(hop))
+        except Exception:
+            return None
+        if pdf_new:
+            _write_fake_op_pdf_path(op_id, pdf_new)
+            return _resolve_stored_receipt_pdf(pdf_new) or (
+                pdf_new if os.path.isfile(pdf_new) else None
+            )
         return None
-    pdf_abs = _resolve_stored_receipt_pdf(str(hop.get("pdf_path") or ""))
+
+    # Входящие переводы из другого банка могут быть реальными операциями из
+    # operations_cache: UI показывает «Справка», но такого id нет ни в manual,
+    # ни в fake_history. Генерируем документ из уже сохранённых полей операции,
+    # иначе запрос проваливается в исходный endpoint Т-Банка и возвращает 404.
+    cached = operations_cache.get(op_id)
+    if not isinstance(cached, dict):
+        return None
+    pdf_abs = _resolve_stored_receipt_pdf(str(cached.get("pdf_path") or ""))
     if pdf_abs:
         return pdf_abs
+    amount = cached.get("amount")
+    if isinstance(amount, dict):
+        amount = amount.get("value")
     try:
-        pdf_new = func.generate_operation_receipt(_fake_history_op_to_receipt_dict(hop))
+        amount = abs(float(amount or 0))
+    except (TypeError, ValueError):
+        amount = 0.0
+    sender = str(
+        cached.get("requisite_sender_name")
+        or cached.get("sender_name")
+        or cached.get("title")
+        or cached.get("name")
+        or cached.get("description")
+        or ""
+    ).strip()
+    op_data = {
+        "id": op_id,
+        "date": cached.get("date") or "",
+        "operationTime": cached.get("operationTime"),
+        "amount": amount,
+        "type": cached.get("type") or "Debit",
+        "bank": cached.get("bank") or cached.get("subtitle") or "Перевод",
+        "title": cached.get("title") or cached.get("name") or cached.get("description") or "",
+        "phone": cached.get("requisite_phone") or cached.get("phone") or "",
+        "receipt_phone": cached.get("receipt_phone") or "",
+        "sender_name": sender,
+        "requisite_sender_name": sender,
+    }
+    try:
+        pdf_new = func.generate_operation_receipt(op_data)
     except Exception:
         return None
     if pdf_new:
-        _write_fake_op_pdf_path(op_id, pdf_new)
+        cached["pdf_path"] = pdf_new
         return _resolve_stored_receipt_pdf(pdf_new) or (
             pdf_new if os.path.isfile(pdf_new) else None
         )
