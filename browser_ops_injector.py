@@ -1659,7 +1659,8 @@ def _build_script() -> str:
 
   function touchManualDetailStylesOrder() {{
     const st =
-      document.getElementById('manual-detail-pumba-cards-v30')
+      document.getElementById('manual-detail-pumba-cards-v31')
+      || document.getElementById('manual-detail-pumba-cards-v30')
       || document.getElementById('manual-detail-pumba-cards-v29')
       || document.getElementById('manual-detail-pumba-cards-v28')
       || document.getElementById('manual-detail-pumba-cards-v27')
@@ -1690,15 +1691,15 @@ def _build_script() -> str:
   }}
 
   function injectManualDetailStyles() {{
-    if (document.getElementById('manual-detail-pumba-cards-v30')) return;
-    ['manual-detail-pumba-cards-v3', 'manual-detail-pumba-cards-v4', 'manual-detail-pumba-cards-v5', 'manual-detail-pumba-cards-v6', 'manual-detail-pumba-cards-v7', 'manual-detail-pumba-cards-v8', 'manual-detail-pumba-cards-v9', 'manual-detail-pumba-cards-v10', 'manual-detail-pumba-cards-v11', 'manual-detail-pumba-cards-v12', 'manual-detail-pumba-cards-v13', 'manual-detail-pumba-cards-v14', 'manual-detail-pumba-cards-v15', 'manual-detail-pumba-cards-v16', 'manual-detail-pumba-cards-v17', 'manual-detail-pumba-cards-v18', 'manual-detail-pumba-cards-v19', 'manual-detail-pumba-cards-v20', 'manual-detail-pumba-cards-v21', 'manual-detail-pumba-cards-v22', 'manual-detail-pumba-cards-v23', 'manual-detail-pumba-cards-v24', 'manual-detail-pumba-cards-v25', 'manual-detail-pumba-cards-v26', 'manual-detail-pumba-cards-v27', 'manual-detail-pumba-cards-v28', 'manual-detail-pumba-cards-v29'].forEach(function (lid) {{
+    if (document.getElementById('manual-detail-pumba-cards-v31')) return;
+    ['manual-detail-pumba-cards-v3', 'manual-detail-pumba-cards-v4', 'manual-detail-pumba-cards-v5', 'manual-detail-pumba-cards-v6', 'manual-detail-pumba-cards-v7', 'manual-detail-pumba-cards-v8', 'manual-detail-pumba-cards-v9', 'manual-detail-pumba-cards-v10', 'manual-detail-pumba-cards-v11', 'manual-detail-pumba-cards-v12', 'manual-detail-pumba-cards-v13', 'manual-detail-pumba-cards-v14', 'manual-detail-pumba-cards-v15', 'manual-detail-pumba-cards-v16', 'manual-detail-pumba-cards-v17', 'manual-detail-pumba-cards-v18', 'manual-detail-pumba-cards-v19', 'manual-detail-pumba-cards-v20', 'manual-detail-pumba-cards-v21', 'manual-detail-pumba-cards-v22', 'manual-detail-pumba-cards-v23', 'manual-detail-pumba-cards-v24', 'manual-detail-pumba-cards-v25', 'manual-detail-pumba-cards-v26', 'manual-detail-pumba-cards-v27', 'manual-detail-pumba-cards-v28', 'manual-detail-pumba-cards-v29', 'manual-detail-pumba-cards-v30'].forEach(function (lid) {{
       const legacy = document.getElementById(lid);
       if (legacy) {{
         try {{ legacy.remove(); }} catch (eL) {{}}
       }}
     }});
     const st = document.createElement('style');
-    st.id = 'manual-detail-pumba-cards-v30';
+    st.id = 'manual-detail-pumba-cards-v31';
     st.textContent = `
 /* Инжект: ширина; горизонтальный padding даёт independent-pumba-operation-details-container — не дублировать */
 [data-manual-injected-account-cards="1"][data-qa-type="accountCardsShown-wrapper"],
@@ -2418,6 +2419,53 @@ def _build_script() -> str:
 }}
 [data-manual-actions-row-owner="1"] [data-qa-type="uikit/scroll"] {{
   transform: none !important;
+}}
+/* v31: debit-действия остаются горизонтальной лентой, credit — ровно
+   двумя центрированными плитками. Не раскрываем scroll-контейнер наружу. */
+[data-manual-actions-row-owner="1"][data-manual-actions-mode="debit"] {{
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  touch-action: pan-x !important;
+  scrollbar-width: none !important;
+  box-sizing: border-box !important;
+}}
+[data-manual-actions-row-owner="1"][data-manual-actions-mode="debit"]::-webkit-scrollbar,
+[data-manual-actions-row-owner="1"] [data-qa-type="uikit/scroll"]::-webkit-scrollbar {{
+  display: none !important;
+}}
+[data-manual-actions-row-owner="1"][data-manual-actions-mode="debit"] [data-qa-type="uikit/scroll"] {{
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  touch-action: pan-x !important;
+  scrollbar-width: none !important;
+}}
+[data-manual-tui-actions-mode="debit"] {{
+  display: flex !important;
+  flex-flow: row nowrap !important;
+  align-items: flex-start !important;
+  justify-content: flex-start !important;
+  gap: 12px !important;
+  width: max-content !important;
+  min-width: 100% !important;
+  min-height: 80px !important;
+  padding: 0 16px !important;
+  overflow: visible !important;
+  box-sizing: border-box !important;
+}}
+[data-manual-tui-actions-mode="debit"] > * {{
+  flex: 0 0 92px !important;
+  width: 92px !important;
+  min-width: 92px !important;
+  margin: 0 !important;
+}}
+[data-manual-actions-row-owner="1"][data-manual-actions-mode="credit"] {{
+  overflow: visible !important;
 }}
 `;
     (document.head || document.documentElement).appendChild(st);
@@ -3263,11 +3311,70 @@ def _build_script() -> str:
     return applyAccountCardBlackPatch(root, op);
   }}
 
+  function directChildOfDetail(node, details) {{
+    if (!node || !details) return null;
+    let current = node;
+    while (current && current.parentElement && current.parentElement !== details) {{
+      current = current.parentElement;
+    }}
+    return current && current.parentElement === details ? current : null;
+  }}
+
+  function canonicalizeDetailActionHosts(op) {{
+    const details = getOperationDetailsContainer();
+    if (!details || !op) return null;
+    const all = Array.from(document.querySelectorAll('[data-qa-type="mobile-pumba-actions-operation"]'));
+    let keep = null;
+
+    /* Нативный ряд имеет приоритет: React уже расположил его после hero.
+       Синтетический ряд нужен только когда банк вообще не отрисовал actions. */
+    for (let i = 0; i < all.length; i++) {{
+      const candidate = all[i];
+      if (!candidate.closest('[data-manual-actions-wrapper="1"]')) {{
+        keep = candidate;
+        break;
+      }}
+    }}
+    if (!keep) {{
+      for (let i = 0; i < all.length; i++) {{
+        keep = all[i];
+        break;
+      }}
+    }}
+
+    all.forEach(function (candidate) {{
+      if (candidate === keep) return;
+      const wrapper = candidate.closest('[data-manual-actions-wrapper="1"]');
+      try {{
+        if (wrapper) wrapper.remove();
+        else if (details.contains(candidate)) candidate.remove();
+      }} catch (eRemoveDuplicateActions) {{}}
+    }});
+
+    /* Временный host мог появиться до hero. После появления block-details
+       всегда возвращаем его в единственный правильный слот: сразу после hero. */
+    if (keep && keep.closest('[data-manual-actions-wrapper="1"]')) {{
+      const wrapper = keep.closest('[data-manual-actions-wrapper="1"]');
+      const hero = details.querySelector('[data-qa-type="tui/block-details"]');
+      const heroRow = directChildOfDetail(hero, details);
+      const wrapperRow = directChildOfDetail(wrapper, details);
+      if (heroRow && wrapperRow && wrapperRow.previousElementSibling !== heroRow) {{
+        details.insertBefore(wrapperRow, heroRow.nextSibling);
+      }}
+    }}
+    return keep;
+  }}
+
   function ensureCreditActionsContainer(op) {{
-    let pumba = document.querySelector('[data-qa-type="mobile-pumba-actions-operation"]');
+    let pumba = canonicalizeDetailActionHosts(op);
     if (pumba || !op || op.type !== 'Credit') return pumba;
     const details = getOperationDetailsContainer();
     if (!details) return null;
+    const hero = details.querySelector('[data-qa-type="tui/block-details"]');
+    const heroRow = directChildOfDetail(hero, details);
+    /* Не создаём ряд на неполном первом paint: именно это раньше помещало
+       кнопки над логотипом и оставляло второй нативный ряд под суммой. */
+    if (!heroRow) return null;
 
     const outer = document.createElement('div');
     outer.setAttribute('data-manual-actions-wrapper', '1');
@@ -3279,11 +3386,8 @@ def _build_script() -> str:
       + '<div data-component-type="platform-ui" style="--gaps:12px;display:flex;gap:12px;justify-content:center;"></div>'
       + '</div></div>';
 
-    const account = details.querySelector('[data-qa-type="accountCardsShown-wrapper"]');
-    const requisites = details.querySelector('[data-qa-type="bankDetailsShown-wrapper"]');
-    const anchor = account || requisites;
-    if (anchor && anchor.parentElement) {{
-      anchor.parentElement.insertBefore(outer, anchor);
+    if (heroRow.nextSibling) {{
+      details.insertBefore(outer, heroRow.nextSibling);
     }} else {{
       details.appendChild(outer);
     }}
@@ -3295,7 +3399,12 @@ def _build_script() -> str:
     if (!pumba) return false;
 
     pumba.setAttribute('data-manual-actions-row-owner', '1');
-    if (op && op.type === 'Credit') pumba.setAttribute('data-manual-actions', '1');
+    pumba.setAttribute('data-manual-actions-mode', op && op.type === 'Credit' ? 'credit' : 'debit');
+    if (op && op.type === 'Credit') {{
+      pumba.setAttribute('data-manual-actions', '1');
+    }} else {{
+      pumba.removeAttribute('data-manual-actions');
+    }}
     const portalInner = pumba.querySelector('.bbgyrAMeC');
     let gapsRow = null;
     const firstAction = pumba.querySelector('button[data-qa-type^="operation-action"]');
@@ -3343,47 +3452,23 @@ def _build_script() -> str:
       gapsRow.style.boxSizing = 'border-box';
       gapsRow.style.overflow = 'visible';
 
-      function directActionItem(btn) {{
-        let node = btn;
-        while (node && node.parentElement && node.parentElement !== gapsRow) node = node.parentElement;
-        return node && node.parentElement === gapsRow ? node : btn;
-      }}
-
-      const allowed = ['operation-action-disallow', 'operation-action-refund', 'operation-action-return'];
-      Array.from(gapsRow.querySelectorAll('button[data-qa-type^="operation-action"]')).forEach(function (btn) {{
-        const qa = String(btn.getAttribute('data-qa-type') || '');
-        if (allowed.indexOf(qa) === -1) {{
-          const item = directActionItem(btn);
-          try {{ item.remove(); }} catch (eRemoveAction) {{}}
-        }}
-      }});
-
       let disallow = gapsRow.querySelector('button[data-qa-type="operation-action-disallow"]');
       let refund = gapsRow.querySelector(
         'button[data-qa-type="operation-action-refund"], button[data-qa-type="operation-action-return"]'
       );
-      if (!disallow || !refund) {{
-        const tmp = document.createElement('div');
-        tmp.innerHTML = MANUAL_ACTIONS_CREDIT_INNER_HTML;
-        function templateActionItem(btn) {{
-          let node = btn;
-          while (node && node.parentElement && node.parentElement !== tmp) node = node.parentElement;
-          return node && node.parentElement === tmp ? node : btn;
-        }}
-        const templateDisallow = tmp.querySelector('button[data-qa-type="operation-action-disallow"]');
-        const templateRefund = tmp.querySelector('button[data-qa-type="operation-action-refund"]');
-        if (!disallow && templateDisallow) {{
-          const item = templateActionItem(templateDisallow);
-          item.setAttribute('data-manual-action-fallback', '1');
-          gapsRow.appendChild(item);
-          disallow = templateDisallow;
-        }}
-        if (!refund && templateRefund) {{
-          const item = templateActionItem(templateRefund);
-          item.setAttribute('data-manual-action-fallback', '1');
-          gapsRow.appendChild(item);
-          refund = templateRefund;
-        }}
+      const actionButtons = gapsRow.querySelectorAll('button[data-qa-type^="operation-action"]');
+      const labelsAreComplete =
+        disallow && normalizeUiText(disallow.textContent || '').indexOf('Не учитывать') !== -1
+        && refund && normalizeUiText(refund.textContent || '').indexOf('Вернуть') !== -1;
+      if (actionButtons.length !== 2 || !labelsAreComplete || gapsRow.getAttribute('data-manual-tui-actions-filled') !== 'credit') {{
+        gapsRow.innerHTML = MANUAL_ACTIONS_CREDIT_INNER_HTML;
+        disallow = gapsRow.querySelector('button[data-qa-type="operation-action-disallow"]');
+        refund = gapsRow.querySelector('button[data-qa-type="operation-action-refund"]');
+      }}
+      function directActionItem(btn) {{
+        let node = btn;
+        while (node && node.parentElement && node.parentElement !== gapsRow) node = node.parentElement;
+        return node && node.parentElement === gapsRow ? node : btn;
       }}
       [disallow, refund].forEach(function (btn) {{
         if (!btn || !btn.style) return;
@@ -3573,91 +3658,55 @@ def _build_script() -> str:
     if (!op) return false;
     const phoneFmt = formatPhoneRu(op.requisite_phone || op.phone || '');
     const senderText = String(op.requisite_sender_name || op.sender_name || op.title || '').trim();
+    const label = op.type === 'Credit' ? 'Отправитель' : 'Номер телефона';
+    const value = op.type === 'Credit' ? senderText : phoneFmt;
+    if (!value || !MANUAL_BANK_DETAILS_INNER_HTML) return false;
 
-    const nativeVr = findNativeVisibleRequisites();
-    if (nativeVr && visibleRequisitesNeedManualFill(nativeVr)) {{
-      if (op.type === 'Credit' && senderText) {{
-        nativeVr.innerHTML = '';
-        nativeVr.appendChild(makeManualRequisiteRow('Отправитель', senderText));
-        return true;
-      }}
-      if (op.type === 'Debit' && phoneFmt) {{
-        nativeVr.innerHTML = '';
-        nativeVr.appendChild(makeManualRequisiteRow('Номер телефона', phoneFmt));
-        return true;
-      }}
-    }}
-    if (nativeVr && !visibleRequisitesNeedManualFill(nativeVr)) {{
-      return false;
-    }}
-
-    let host = document.querySelector('[data-qa-type="bankDetailsShown-wrapper"]');
+    const detailsContainer = getOperationDetailsContainer();
+    if (!detailsContainer) return false;
+    const allHosts = Array.from(document.querySelectorAll('[data-qa-type="bankDetailsShown-wrapper"]'));
+    let host = allHosts.find(function (candidate) {{
+      return candidate.getAttribute('data-manual-bank-wrapper') !== '1';
+    }}) || allHosts[0] || null;
+    allHosts.forEach(function (candidate) {{
+      if (candidate === host) return;
+      try {{ candidate.remove(); }} catch (eRemoveDuplicateRequisites) {{}}
+    }});
+    let createdHost = false;
     if (!host) {{
-      const detailsContainer = document.querySelector('[data-qa-type="independent-pumba-operation-details-container"]');
-      if (!detailsContainer) return false;
       host = document.createElement('div');
       host.setAttribute('data-qa-type', 'bankDetailsShown-wrapper');
       host.setAttribute('data-manual-bank-wrapper', '1');
-      host.className = 'abVXAIVX5';
-      host.setAttribute('data-component-type', 'platform-ui');
-      host.innerHTML = MANUAL_BANK_DETAILS_INNER_HTML;
       detailsContainer.appendChild(host);
+      createdHost = true;
     }}
+    if (createdHost || host.getAttribute('data-manual-bank-wrapper') === '1') {{
+      host.setAttribute('data-manual-bank-wrapper', '1');
+    }}
+    host.className = 'abVXAIVX5';
+    host.setAttribute('data-component-type', 'platform-ui');
 
     let panel = host.querySelector('[data-manual-requisites-panel="1"]');
-    if (!panel) {{
-      if (host.getAttribute('data-manual-bank-wrapper') === '1') {{
-        host.className = 'abVXAIVX5';
-        host.setAttribute('data-component-type', 'platform-ui');
-        host.innerHTML = MANUAL_BANK_DETAILS_INNER_HTML;
-      }} else {{
-        const gapsRows = Array.from(host.querySelectorAll('div[data-component-type="platform-ui"][style*="--gaps: 20px"]'));
-        let gap = null;
-        for (let i = gapsRows.length - 1; i >= 0; i--) {{
-          if (gapsRows[i].querySelector('[data-qa-type="mobile-pumba-requisites-operation"]')) {{
-            gap = gapsRows[i];
-            break;
-          }}
-        }}
-        if (!gap && gapsRows.length) {{
-          gap = gapsRows[gapsRows.length - 1];
-        }}
-        if (!gap) {{
-          gap = host.querySelector('.abVdrB8kC') || host.querySelector('.abXrZFFIQ');
-        }}
-        if (gap) {{
-          const tmp = document.createElement('div');
-          tmp.innerHTML = MANUAL_BANK_DETAILS_INNER_HTML;
-          const outer = tmp.firstElementChild;
-          if (outer) {{
-            while (outer.firstChild) gap.appendChild(outer.firstChild);
-          }}
-        }} else {{
-          host.insertAdjacentHTML('beforeend', MANUAL_BANK_DETAILS_INNER_HTML);
-        }}
-      }}
+    const elevated = panel && panel.querySelector(
+      '[data-qa-type="atom-panel"][data-surface="true"][data-appearance="elevated"]'
+    );
+    if (!panel || !elevated) {{
+      host.innerHTML = MANUAL_BANK_DETAILS_INNER_HTML;
       panel = host.querySelector('[data-manual-requisites-panel="1"]');
     }}
     if (!panel) return false;
-
     const vr = panel.querySelector('[data-qa-type="visible-requisites"]');
     if (!vr) return false;
-
-    if (op.type === 'Credit') {{
-      if (!senderText) return false;
-      vr.innerHTML = '';
-      vr.appendChild(makeManualRequisiteRow('Отправитель', senderText));
-      return true;
-    }}
-
-    if (op.type === 'Debit') {{
-      if (!phoneFmt) return false;
-      vr.innerHTML = '';
-      vr.appendChild(makeManualRequisiteRow('Номер телефона', phoneFmt));
-      return true;
-    }}
-
-    return false;
+    const existing = vr.querySelector('[data-qa-type="requisite"]');
+    const parts = getRequisiteParts(existing);
+    if (
+      vr.querySelectorAll('[data-qa-type="requisite"]').length === 1
+      && String(parts.labelEl && parts.labelEl.textContent || '').trim() === label
+      && String(parts.valueEl && parts.valueEl.textContent || '').replace(/\u00a0/g, ' ').trim() === value
+    ) return true;
+    vr.innerHTML = '';
+    vr.appendChild(makeManualRequisiteRow(label, value));
+    return true;
   }}
 
   function patchDetailDom() {{
@@ -3733,6 +3782,7 @@ def _build_script() -> str:
         }}
       }});
     }});
+    canonicalizeDetailActionHosts(op);
     ensureDetailActionButtons(op);
     patchExistingTopOperationCard(op);
     ensureInjectedTopOperationCard(op);
@@ -3740,6 +3790,7 @@ def _build_script() -> str:
     patchDetailHeaderAmount(op);
     dedupeDetailAccountCards();
     dedupeDetailRequisitesBlocks();
+    canonicalizeDetailActionHosts(op);
     applyBalanceTextToBlackAccountRows(BALANCE_TEXT);
     syncBlackAccountBalanceFromPanel();
     try {{ touchManualDetailStylesOrder(); }} catch (eTouch) {{}}
