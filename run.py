@@ -81,10 +81,6 @@ class PanelHandler(BaseHTTPRequestHandler):
         if self.path == "/api/operations":
             self.send_json(self.get_operations())
             return
-
-        if self.path.split("?", 1)[0] == "/api/state_revision":
-            self.send_json_cors({"revision": history.panel_state_revision_token()})
-            return
         
         if self.path == "/api/config":
             self.send_json(config)
