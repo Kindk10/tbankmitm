@@ -866,16 +866,16 @@ def _build_script() -> str:
       '[data-manual-debit-account-ph="1"] [data-manual-ph-line] {{ color: rgba(0,0,0,0.78) !important; }}' +
       '[data-manual-debit-account-ph="1"] [data-manual-ph-amt] {{ color: rgba(0,0,0,0.92) !important; font-weight: 600; }}' +
       /* Главная: только типографика суммы — без restyle карточки */
-      '[data-manual-home-allops-tile="1"] [data-qa-type="subtitleWrapper"] {{ display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }}' +
+      '[data-manual-home-allops-tile="1"] [data-qa-type="subtitleWrapper"] {{ display: flex; flex-direction: column; align-items: flex-start; gap: 0; }}' +
       '[data-manual-home-allops-tile="1"] [data-qa-type="subtitleWrapper"] [data-qa-type="subtitle"],' +
-      '[data-manual-home-allops-tile="1"] [data-qa-type="subtitle"] {{ font: var(--pumba-payment-history-subtitle-font, var(--tui-font-text-mobile-m, 400 15px/1.43 var(--tui-font-text, Roboto), system-ui, sans-serif)); color: var(--tui-text-secondary, #9299A2) !important; -webkit-text-fill-color: var(--tui-text-secondary, #9299A2) !important; margin: 0 !important; display: block !important; }}' +
+      '[data-manual-home-allops-tile="1"] [data-qa-type="subtitle"] {{ font: var(--pumba-payment-history-subtitle-font, var(--tui-font-text-mobile-m, 400 15px/1.43 var(--tui-font-text, Roboto), system-ui, sans-serif)); color: var(--tui-text-primary, #F6F7F8) !important; -webkit-text-fill-color: var(--tui-text-primary, #F6F7F8) !important; margin: 0 !important; display: block !important; }}' +
       '[data-manual-home-allops-tile="1"] [data-qa-type="moneyAmount"],' +
       '[data-manual-home-allops-tile="1"] [data-manual-home-spend-amt="1"],' +
       '[data-manual-home-allops-tile="1"] [data-qa-type="moneyAmount"] [data-qa-type="atom-sensitive"],' +
       '[data-manual-home-allops-tile="1"] [data-qa-type="moneyAmount"] [data-qa-type="uikit/money"],' +
-      '[data-manual-home-allops-tile="1"] [data-qa-type="moneyAmount"] [data-qa-type="uikit/money"] span {{ font: var(--tui-font-text-mobile-m-bold, 600 15px/1.43 var(--tui-font-text, Roboto), system-ui, sans-serif); color: var(--tui-text-primary, #F6F7F8) !important; -webkit-text-fill-color: var(--tui-text-primary, #F6F7F8) !important; margin: 0 !important; display: block !important; line-height: 1.43 !important; }}' +
-      '[data-manual-home-allops-tile="1"] [data-manual-ph-line] {{ display: block; font: var(--pumba-payment-history-subtitle-font, var(--tui-font-text-mobile-m, 400 15px/1.43 var(--tui-font-text, Roboto), system-ui, sans-serif)); color: var(--tui-text-secondary, #9299A2) !important; -webkit-text-fill-color: var(--tui-text-secondary, #9299A2) !important; margin: 0; }}' +
-      '[data-manual-home-allops-tile="1"] [data-manual-ph-amt] {{ display: block; margin-top: 2px; font: var(--tui-font-text-mobile-m-bold, 600 15px/1.43 var(--tui-font-text, Roboto), system-ui, sans-serif); color: var(--tui-text-primary, #F6F7F8) !important; -webkit-text-fill-color: var(--tui-text-primary, #F6F7F8) !important; line-height: 1.43; }}' +
+      '[data-manual-home-allops-tile="1"] [data-qa-type="moneyAmount"] [data-qa-type="uikit/money"] span {{ font: 500 15px/1.3 var(--tui-font-text, Roboto), system-ui, sans-serif !important; color: var(--tui-text-primary, #F6F7F8) !important; -webkit-text-fill-color: var(--tui-text-primary, #F6F7F8) !important; margin: 0 !important; display: block !important; }}' +
+      '[data-manual-home-allops-tile="1"] [data-manual-ph-line] {{ display: block; font: var(--pumba-payment-history-subtitle-font, var(--tui-font-text-mobile-m, 400 15px/1.43 var(--tui-font-text, Roboto), system-ui, sans-serif)); color: var(--tui-text-primary, #F6F7F8) !important; -webkit-text-fill-color: var(--tui-text-primary, #F6F7F8) !important; margin: 0; }}' +
+      '[data-manual-home-allops-tile="1"] [data-manual-ph-amt] {{ display: block; margin-top: 0; font: 500 15px/1.3 var(--tui-font-text, Roboto), system-ui, sans-serif !important; color: var(--tui-text-primary, #F6F7F8) !important; -webkit-text-fill-color: var(--tui-text-primary, #F6F7F8) !important; }}' +
       '[data-manual-home-allops-tile="1"] [data-qa-type="lineChart"] {{ margin-top: var(--pumba-payment-history-progressLine-padding-top, 12px); width: 100%; }}';
     let st4 = document.getElementById('manual-luca-account-blocks-styles');
     if (!st4) {{
@@ -3146,6 +3146,77 @@ def _build_script() -> str:
     return PANEL_ORIGIN + '/api/manual_operation_receipt?operationId=' + encodeURIComponent(opId);
   }}
 
+  function ensureManualReceiptViewerStyles() {{
+    let st = document.getElementById('manual-operation-document-viewer-styles');
+    if (!st) {{
+      st = document.createElement('style');
+      st.id = 'manual-operation-document-viewer-styles';
+      (document.head || document.documentElement).appendChild(st);
+    }}
+    st.textContent =
+      '#manual-operation-document-viewer {{ position: fixed; inset: 0; z-index: 2147483646; background: #000; font-family: Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }}' +
+      '#manual-operation-document-viewer .manual-operation-document-sheet {{ position: absolute; inset: 74px 0 0; display: flex; flex-direction: column; overflow: hidden; border-radius: 14px 14px 0 0; background: #8a8a8a; }}' +
+      '#manual-operation-document-viewer .manual-operation-document-header {{ position: relative; flex: 0 0 56px; height: 56px; box-sizing: border-box; background: #202023; color: #f6f7f8; }}' +
+      '#manual-operation-document-viewer .manual-operation-document-close, #manual-operation-document-viewer .manual-operation-document-share {{ appearance: none; border: 0; padding: 0; background: transparent; color: #428bf9; font-family: inherit; font-size: 16px; font-weight: 500; line-height: 20px; -webkit-tap-highlight-color: transparent; }}' +
+      '#manual-operation-document-viewer .manual-operation-document-close {{ position: absolute; left: 17px; top: 50%; transform: translateY(-50%); }}' +
+      '#manual-operation-document-viewer .manual-operation-document-title {{ position: absolute; left: 50%; top: 50%; width: max-content; max-width: calc(100% - 190px); overflow: hidden; transform: translate(-50%, -50%); color: #f6f7f8; font-family: inherit; font-size: 17px; font-weight: 700; line-height: 22px; text-align: center; text-overflow: ellipsis; white-space: nowrap; }}' +
+      '#manual-operation-document-viewer .manual-operation-document-share {{ position: absolute; right: 14px; top: 50%; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 40px; transform: translateY(-50%); }}' +
+      '#manual-operation-document-viewer .manual-operation-document-share svg {{ display: block; width: 25px; height: 25px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2.2; }}' +
+      '#manual-operation-document-viewer .manual-operation-document-frame {{ display: block; flex: 1 1 auto; width: 100%; min-height: 0; border: 0; background: #8a8a8a; }}';
+  }}
+
+  function closeManualReceiptViewer() {{
+    const viewer = document.getElementById('manual-operation-document-viewer');
+    if (viewer) viewer.remove();
+    if (document.body) {{
+      document.body.style.overflow = window.__manualReceiptPrevBodyOverflow || '';
+    }}
+    window.__manualReceiptPrevBodyOverflow = null;
+  }}
+
+  function openManualReceiptViewer(url, title) {{
+    if (!url) return;
+    ensureManualReceiptViewerStyles();
+    closeManualReceiptViewer();
+    if (document.body) {{
+      window.__manualReceiptPrevBodyOverflow = document.body.style.overflow || '';
+      document.body.style.overflow = 'hidden';
+    }}
+    const viewer = document.createElement('div');
+    viewer.id = 'manual-operation-document-viewer';
+    viewer.setAttribute('role', 'dialog');
+    viewer.setAttribute('aria-modal', 'true');
+    viewer.innerHTML =
+      '<div class="manual-operation-document-sheet">' +
+        '<div class="manual-operation-document-header">' +
+          '<button type="button" class="manual-operation-document-close">Закрыть</button>' +
+          '<div class="manual-operation-document-title"></div>' +
+          '<button type="button" class="manual-operation-document-share" aria-label="Поделиться">' +
+            '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3"></path><path d="m8 7 4-4 4 4"></path><path d="M6 10H4.8A1.8 1.8 0 0 0 3 11.8v7.4A1.8 1.8 0 0 0 4.8 21h14.4a1.8 1.8 0 0 0 1.8-1.8v-7.4a1.8 1.8 0 0 0-1.8-1.8H18"></path></svg>' +
+          '</button>' +
+        '</div>' +
+        '<iframe class="manual-operation-document-frame" title="Документ по операции"></iframe>' +
+      '</div>';
+    const titleEl = viewer.querySelector('.manual-operation-document-title');
+    const frame = viewer.querySelector('.manual-operation-document-frame');
+    if (titleEl) titleEl.textContent = title || 'Квитанция';
+    if (frame) frame.src = url;
+    const closeBtn = viewer.querySelector('.manual-operation-document-close');
+    if (closeBtn) closeBtn.addEventListener('click', closeManualReceiptViewer);
+    const shareBtn = viewer.querySelector('.manual-operation-document-share');
+    if (shareBtn) {{
+      shareBtn.addEventListener('click', function () {{
+        const shareTitle = title || 'Квитанция';
+        if (navigator.share) {{
+          navigator.share({{ title: shareTitle, url: url }}).catch(function () {{}});
+          return;
+        }}
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }});
+    }}
+    (document.body || document.documentElement).appendChild(viewer);
+  }}
+
   function bindManualCertReceiptClick() {{
     if (window.__manualCertReceiptClickBound) return;
     window.__manualCertReceiptClickBound = true;
@@ -3165,13 +3236,12 @@ def _build_script() -> str:
         if (!opId) return;
         ev.preventDefault();
         ev.stopPropagation();
+        ev.stopImmediatePropagation();
         const url = receiptOpenUrlForOperationId(opId);
         if (!url) return;
-        if (typeof location !== 'undefined' && location.origin && url.indexOf(location.origin) === 0) {{
-          window.location.assign(url);
-        }} else {{
-          window.open(url, '_blank', 'noopener,noreferrer');
-        }}
+        const opType = String((pageOp && pageOp.type) || detectOperationTypeFromPage() || 'Debit');
+        const viewerTitle = opType === 'Credit' ? 'Документ по операции' : 'Квитанция';
+        openManualReceiptViewer(url, viewerTitle);
       }},
       true
     );
