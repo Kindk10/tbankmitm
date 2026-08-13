@@ -1659,7 +1659,8 @@ def _build_script() -> str:
 
   function touchManualDetailStylesOrder() {{
     const st =
-      document.getElementById('manual-detail-pumba-cards-v33')
+      document.getElementById('manual-detail-pumba-cards-v34')
+      || document.getElementById('manual-detail-pumba-cards-v33')
       || document.getElementById('manual-detail-pumba-cards-v32')
       || document.getElementById('manual-detail-pumba-cards-v31')
       || document.getElementById('manual-detail-pumba-cards-v30')
@@ -1693,15 +1694,15 @@ def _build_script() -> str:
   }}
 
   function injectManualDetailStyles() {{
-    if (document.getElementById('manual-detail-pumba-cards-v33')) return;
-    ['manual-detail-pumba-cards-v3', 'manual-detail-pumba-cards-v4', 'manual-detail-pumba-cards-v5', 'manual-detail-pumba-cards-v6', 'manual-detail-pumba-cards-v7', 'manual-detail-pumba-cards-v8', 'manual-detail-pumba-cards-v9', 'manual-detail-pumba-cards-v10', 'manual-detail-pumba-cards-v11', 'manual-detail-pumba-cards-v12', 'manual-detail-pumba-cards-v13', 'manual-detail-pumba-cards-v14', 'manual-detail-pumba-cards-v15', 'manual-detail-pumba-cards-v16', 'manual-detail-pumba-cards-v17', 'manual-detail-pumba-cards-v18', 'manual-detail-pumba-cards-v19', 'manual-detail-pumba-cards-v20', 'manual-detail-pumba-cards-v21', 'manual-detail-pumba-cards-v22', 'manual-detail-pumba-cards-v23', 'manual-detail-pumba-cards-v24', 'manual-detail-pumba-cards-v25', 'manual-detail-pumba-cards-v26', 'manual-detail-pumba-cards-v27', 'manual-detail-pumba-cards-v28', 'manual-detail-pumba-cards-v29', 'manual-detail-pumba-cards-v30', 'manual-detail-pumba-cards-v31', 'manual-detail-pumba-cards-v32'].forEach(function (lid) {{
+    if (document.getElementById('manual-detail-pumba-cards-v34')) return;
+    ['manual-detail-pumba-cards-v3', 'manual-detail-pumba-cards-v4', 'manual-detail-pumba-cards-v5', 'manual-detail-pumba-cards-v6', 'manual-detail-pumba-cards-v7', 'manual-detail-pumba-cards-v8', 'manual-detail-pumba-cards-v9', 'manual-detail-pumba-cards-v10', 'manual-detail-pumba-cards-v11', 'manual-detail-pumba-cards-v12', 'manual-detail-pumba-cards-v13', 'manual-detail-pumba-cards-v14', 'manual-detail-pumba-cards-v15', 'manual-detail-pumba-cards-v16', 'manual-detail-pumba-cards-v17', 'manual-detail-pumba-cards-v18', 'manual-detail-pumba-cards-v19', 'manual-detail-pumba-cards-v20', 'manual-detail-pumba-cards-v21', 'manual-detail-pumba-cards-v22', 'manual-detail-pumba-cards-v23', 'manual-detail-pumba-cards-v24', 'manual-detail-pumba-cards-v25', 'manual-detail-pumba-cards-v26', 'manual-detail-pumba-cards-v27', 'manual-detail-pumba-cards-v28', 'manual-detail-pumba-cards-v29', 'manual-detail-pumba-cards-v30', 'manual-detail-pumba-cards-v31', 'manual-detail-pumba-cards-v32', 'manual-detail-pumba-cards-v33'].forEach(function (lid) {{
       const legacy = document.getElementById(lid);
       if (legacy) {{
         try {{ legacy.remove(); }} catch (eL) {{}}
       }}
     }});
     const st = document.createElement('style');
-    st.id = 'manual-detail-pumba-cards-v33';
+    st.id = 'manual-detail-pumba-cards-v34';
     st.textContent = `
 /* Инжект: ширина; горизонтальный padding даёт independent-pumba-operation-details-container — не дублировать */
 [data-manual-injected-account-cards="1"][data-qa-type="accountCardsShown-wrapper"],
@@ -2510,7 +2511,7 @@ def _build_script() -> str:
 [data-panel-manual-black-card="1"] button[data-qa-type="molecule-account-operation-cert-btn"] span,
 [data-manual-injected-account-cards="1"] button[data-qa-type="molecule-account-operation-cert-btn"] span {{
   min-height: 20px !important;
-  font: 600 16px/20px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  font: 550 16px/20px Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
   letter-spacing: 0 !important;
 }}
 [data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"] > div[data-hspacing="none"],
@@ -2532,7 +2533,7 @@ def _build_script() -> str:
   height: 70px !important;
   min-height: 70px !important;
   max-height: 70px !important;
-  padding: 10px 20px 14px !important;
+  padding: 7px 20px 17px !important;
   gap: 12px !important;
 }}
 [data-panel-manual-black-card="1"] [data-manual-account-content="1"],
@@ -2663,6 +2664,7 @@ def _build_script() -> str:
   min-height: 70px !important;
   max-height: 70px !important;
   padding: 10px 3px 0 !important;
+  border-radius: 14px !important;
   background: #222e41 !important;
   background-color: #222e41 !important;
 }}
@@ -2699,6 +2701,7 @@ def _build_script() -> str:
   width: 24px !important;
   height: 24px !important;
   margin: 0 auto !important;
+  transform: translateY(2px) !important;
 }}
 [data-manual-tui-actions-mode="credit"] button [data-qa-type$=".content-wrapper"],
 [data-manual-tui-actions-mode="debit"] button [data-qa-type$=".content-wrapper"] {{
@@ -3409,6 +3412,7 @@ def _build_script() -> str:
         accountCell.style.setProperty('height', '70px', 'important');
         accountCell.style.setProperty('min-height', '70px', 'important');
         accountCell.style.setProperty('max-height', '70px', 'important');
+        accountCell.style.setProperty('padding', '7px 20px 17px', 'important');
         accountCell.style.setProperty('gap', '12px', 'important');
         accountCell.style.setProperty('width', '100%', 'important');
         accountCell.style.setProperty('box-sizing', 'border-box', 'important');
@@ -3754,7 +3758,7 @@ def _build_script() -> str:
             btn.style.setProperty('max-height', '70px', 'important');
             btn.style.setProperty('padding', '10px 3px 0', 'important');
           btn.style.setProperty('border', '0', 'important');
-          btn.style.setProperty('border-radius', '16px', 'important');
+            btn.style.setProperty('border-radius', '14px', 'important');
             btn.style.setProperty('background', '#222e41', 'important');
           btn.style.setProperty('color', 'var(--tui-text-action, #66a3ff)', 'important');
           btn.style.setProperty('box-sizing', 'border-box', 'important');
