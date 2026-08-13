@@ -1613,7 +1613,7 @@ def _build_script() -> str:
   }}
 
   const RUB_ICON_HTML = `
-<span data-component-type="platform-ui" iconpath="&lt;svg viewBox=&quot;0 0 24 24&quot; xmlns=&quot;http://www.w3.org/2000/svg&quot; focusable=&quot;false&quot;&gt;&lt;defs&gt;&lt;linearGradient id=&quot;paint0_linear_1524_1586&quot; x1=&quot;3.8&quot; y1=&quot;3.8&quot; x2=&quot;19.2&quot; y2=&quot;19.2&quot; gradientUnits=&quot;userSpaceOnUse&quot;&gt;&lt;stop stop-color=&quot;currentColor&quot;/&gt;&lt;stop offset=&quot;1&quot; stop-opacity=&quot;.7&quot; stop-color=&quot;currentColor&quot;/&gt;&lt;/linearGradient&gt;&lt;/defs&gt;&lt;path fill-rule=&quot;evenodd&quot; clip-rule=&quot;evenodd&quot; d=&quot;M12 .5C5.649.5.5 5.649.5 12S5.649 23.5 12 23.5 23.5 18.351 23.5 12 18.351.5 12 .5ZM9 11V6h3.96c1.017 0 2.072.154 2.821.841C16.396 7.405 17 8.271 17 9.5c0 1.229-.604 2.095-1.218 2.659-.75.688-1.805.841-2.823.841H11.5v1.041H15A1.959 1.959 0 0 1 13.041 16H11.5v.063a2 2 0 0 1-2 2H9V16l-1.5-.041V15.5A1.46 1.46 0 0 1 9 14.041V13l-1.5-.041v-.5A1.46 1.46 0 0 1 9 11Zm4-3h-1.5v3H13s1.5.106 1.5-1.447C14.5 8 13 8 13 8Z&quot; fill=&quot;url(#paint0_linear_1524_1586)&quot;/&gt;&lt;/svg&gt;" data-qa-type="uikit/icon" class="abH-Kb5MJ" style="width: 40px; height: 40px; color: var(--tui-text-primary-on-dark);"><span class="bbH-Kb5MJ" style="background: var(--tui-background-accent-2);"></span><span data-qa-type="uikit/icon.content" class="cbH-Kb5MJ" role="presentation" style="width: 24px; height: 24px;"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" focusable="false"><defs><linearGradient id="dsId_manualAcct_linear_1524_1586" x1="3.8" y1="3.8" x2="19.2" y2="19.2" gradientUnits="userSpaceOnUse"><stop stop-color="currentColor"></stop><stop offset="1" stop-opacity=".7" stop-color="currentColor"></stop></linearGradient></defs><path fill-rule="evenodd" clip-rule="evenodd" d="M12 .5C5.649.5.5 5.649.5 12S5.649 23.5 12 23.5 23.5 18.351 23.5 12 18.351.5 12 .5ZM9 11V6h3.96c1.017 0 2.072.154 2.821.841C16.396 7.405 17 8.271 17 9.5c0 1.229-.604 2.095-1.218 2.659-.75.688-1.805.841-2.823.841H11.5v1.041H15A1.959 1.959 0 0 1 13.041 16H11.5v.063a2 2 0 0 1-2 2H9V16l-1.5-.041V15.5A1.46 1.46 0 0 1 9 14.041V13l-1.5-.041v-.5A1.46 1.46 0 0 1 9 11Zm4-3h-1.5v3H13s1.5.106 1.5-1.447C14.5 8 13 8 13 8Z" fill="url(#dsId_manualAcct_linear_1524_1586)"></path></svg></span></span>`;
+<span data-component-type="platform-ui" data-qa-type="uikit/icon" data-manual-rub-icon="1" style="width:40px;height:40px;color:var(--tui-text-primary-on-dark,#fff);"><span data-manual-rub-icon-bg="1"></span><span data-qa-type="uikit/icon.content" role="presentation" style="width:24px;height:24px;"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" focusable="false"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 .5C5.649.5.5 5.649.5 12S5.649 23.5 12 23.5 23.5 18.351 23.5 12 18.351.5 12 .5ZM9 11V6h3.96c1.017 0 2.072.154 2.821.841C16.396 7.405 17 8.271 17 9.5c0 1.229-.604 2.095-1.218 2.659-.75.688-1.805.841-2.823.841H11.5v1.041H15A1.959 1.959 0 0 1 13.041 16H11.5v.063a2 2 0 0 1-2 2H9V16l-1.5-.041V15.5A1.46 1.46 0 0 1 9 14.041V13l-1.5-.041v-.5A1.46 1.46 0 0 1 9 11Zm4-3h-1.5v3H13s1.5.106 1.5-1.447C14.5 8 13 8 13 8Z" fill="currentColor"></path></svg></span></span>`;
 
   function isOperationsDetailPage() {{
     if (location.pathname.indexOf('/mybank') === -1) return false;
@@ -1659,7 +1659,13 @@ def _build_script() -> str:
 
   function touchManualDetailStylesOrder() {{
     const st =
-      document.getElementById('manual-detail-pumba-cards-v23')
+      document.getElementById('manual-detail-pumba-cards-v29')
+      || document.getElementById('manual-detail-pumba-cards-v28')
+      || document.getElementById('manual-detail-pumba-cards-v27')
+      || document.getElementById('manual-detail-pumba-cards-v26')
+      || document.getElementById('manual-detail-pumba-cards-v25')
+      || document.getElementById('manual-detail-pumba-cards-v24')
+      || document.getElementById('manual-detail-pumba-cards-v23')
       || document.getElementById('manual-detail-pumba-cards-v22')
       || document.getElementById('manual-detail-pumba-cards-v21')
       || document.getElementById('manual-detail-pumba-cards-v20')
@@ -1683,15 +1689,15 @@ def _build_script() -> str:
   }}
 
   function injectManualDetailStyles() {{
-    if (document.getElementById('manual-detail-pumba-cards-v23')) return;
-    ['manual-detail-pumba-cards-v3', 'manual-detail-pumba-cards-v4', 'manual-detail-pumba-cards-v5', 'manual-detail-pumba-cards-v6', 'manual-detail-pumba-cards-v7', 'manual-detail-pumba-cards-v8', 'manual-detail-pumba-cards-v9', 'manual-detail-pumba-cards-v10', 'manual-detail-pumba-cards-v11', 'manual-detail-pumba-cards-v12', 'manual-detail-pumba-cards-v13', 'manual-detail-pumba-cards-v14', 'manual-detail-pumba-cards-v15', 'manual-detail-pumba-cards-v16', 'manual-detail-pumba-cards-v17', 'manual-detail-pumba-cards-v18', 'manual-detail-pumba-cards-v19', 'manual-detail-pumba-cards-v20', 'manual-detail-pumba-cards-v21', 'manual-detail-pumba-cards-v22'].forEach(function (lid) {{
+    if (document.getElementById('manual-detail-pumba-cards-v29')) return;
+    ['manual-detail-pumba-cards-v3', 'manual-detail-pumba-cards-v4', 'manual-detail-pumba-cards-v5', 'manual-detail-pumba-cards-v6', 'manual-detail-pumba-cards-v7', 'manual-detail-pumba-cards-v8', 'manual-detail-pumba-cards-v9', 'manual-detail-pumba-cards-v10', 'manual-detail-pumba-cards-v11', 'manual-detail-pumba-cards-v12', 'manual-detail-pumba-cards-v13', 'manual-detail-pumba-cards-v14', 'manual-detail-pumba-cards-v15', 'manual-detail-pumba-cards-v16', 'manual-detail-pumba-cards-v17', 'manual-detail-pumba-cards-v18', 'manual-detail-pumba-cards-v19', 'manual-detail-pumba-cards-v20', 'manual-detail-pumba-cards-v21', 'manual-detail-pumba-cards-v22', 'manual-detail-pumba-cards-v23', 'manual-detail-pumba-cards-v24', 'manual-detail-pumba-cards-v25', 'manual-detail-pumba-cards-v26', 'manual-detail-pumba-cards-v27', 'manual-detail-pumba-cards-v28'].forEach(function (lid) {{
       const legacy = document.getElementById(lid);
       if (legacy) {{
         try {{ legacy.remove(); }} catch (eL) {{}}
       }}
     }});
     const st = document.createElement('style');
-    st.id = 'manual-detail-pumba-cards-v23';
+    st.id = 'manual-detail-pumba-cards-v29';
     st.textContent = `
 /* Инжект: ширина; горизонтальный padding даёт independent-pumba-operation-details-container — не дублировать */
 [data-manual-injected-account-cards="1"][data-qa-type="accountCardsShown-wrapper"],
@@ -2003,6 +2009,333 @@ def _build_script() -> str:
   width: 100% !important;
   box-sizing: border-box !important;
   text-align: left !important;
+}}
+/* Хешированные классы T‑Bank меняются между сборками. Геометрию карточки
+   задаём по стабильным data-qa, чтобы заголовок не обрезался у верхней границы. */
+[data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"] > div[data-hspacing="normal"],
+[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] > div[data-hspacing="normal"] {{
+  display: block !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  padding: 16px 20px 0 !important;
+}}
+[data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation"] > div[data-hspacing="none"],
+[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation"] > div[data-hspacing="none"] {{
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  padding: 12px 0 !important;
+}}
+[data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation-title-text"],
+[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation-title-text"] {{
+  display: block !important;
+  width: 100% !important;
+  color: var(--tui-text-primary, #f6f7f8) !important;
+}}
+[data-panel-manual-black-card="1"] h2[data-qa-type="tui/header.title"],
+[data-manual-injected-account-cards="1"] h2[data-qa-type="tui/header.title"] {{
+  padding: 0 !important;
+  font: var(--tui-typography-heading-mobile-s, 500 16px/19px Roboto, system-ui, sans-serif) !important;
+  font-size: 16px !important;
+  line-height: 19px !important;
+  font-weight: 500 !important;
+  color: var(--tui-text-primary, #f6f7f8) !important;
+}}
+[data-panel-manual-black-card="1"] button[data-qa-type="molecule-account-operation-cert-btn"],
+[data-manual-injected-account-cards="1"] button[data-qa-type="molecule-account-operation-cert-btn"] {{
+  appearance: none !important;
+  border: 0 !important;
+  background: transparent !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  min-height: 19px !important;
+  font: var(--tui-typography-ui-m-bold, 500 14px/16px Roboto, system-ui, sans-serif) !important;
+}}
+[data-panel-manual-black-card="1"] button[data-qa-type="tui/cell"],
+[data-manual-injected-account-cards="1"] button[data-qa-type="tui/cell"] {{
+  appearance: none !important;
+  min-height: 56px !important;
+  margin: 0 !important;
+  padding: 8px 20px !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--tui-text-primary, #f6f7f8) !important;
+}}
+[data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation-account-icon"],
+[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation-account-icon"] {{
+  display: inline-block !important;
+  position: relative !important;
+  flex: 0 0 40px !important;
+  width: 40px !important;
+  height: 40px !important;
+}}
+[data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation-account-icon"] > [data-qa-type="uikit/icon"],
+[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation-account-icon"] > [data-qa-type="uikit/icon"] {{
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  position: relative !important;
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 50% !important;
+  overflow: hidden !important;
+  color: var(--tui-text-primary-on-dark, #fff) !important;
+  background: var(--tui-background-accent-2, #428bf9) !important;
+}}
+[data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation-account-icon"] > [data-qa-type="uikit/icon"] > span:first-child,
+[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation-account-icon"] > [data-qa-type="uikit/icon"] > span:first-child {{
+  position: absolute !important;
+  inset: 0 !important;
+  border-radius: 50% !important;
+  background: var(--tui-background-accent-2, #428bf9) !important;
+}}
+[data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation-account-icon"] [data-qa-type="uikit/icon.content"],
+[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation-account-icon"] [data-qa-type="uikit/icon.content"] {{
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  position: relative !important;
+  z-index: 1 !important;
+  width: 24px !important;
+  height: 24px !important;
+}}
+[data-panel-manual-black-card="1"] [data-manual-rub-icon="1"],
+[data-manual-injected-account-cards="1"] [data-manual-rub-icon="1"] {{
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  position: relative !important;
+  flex: 0 0 40px !important;
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 50% !important;
+  overflow: hidden !important;
+  background: var(--tui-background-accent-2, #428bf9) !important;
+  color: var(--tui-text-primary-on-dark, #fff) !important;
+}}
+[data-panel-manual-black-card="1"] [data-manual-rub-icon-bg="1"],
+[data-manual-injected-account-cards="1"] [data-manual-rub-icon-bg="1"] {{
+  position: absolute !important;
+  inset: 0 !important;
+  border-radius: 50% !important;
+  background: var(--tui-background-accent-2, #428bf9) !important;
+}}
+[data-panel-manual-black-card="1"] [data-manual-rub-icon="1"] svg,
+[data-manual-injected-account-cards="1"] [data-manual-rub-icon="1"] svg {{
+  display: block !important;
+  width: 24px !important;
+  height: 24px !important;
+  color: inherit !important;
+  fill: currentColor !important;
+}}
+/* У новых сборок меняются все классы header. Эти stable data-qa снимают
+   фиксированную высоту/overflow, из-за которых видна только нижняя часть заголовка. */
+[data-panel-manual-black-card="1"] [data-qa-type="tui/header"],
+[data-panel-manual-black-card="1"] [data-qa-type="tui/header.wrapper"],
+[data-panel-manual-black-card="1"] [data-qa-type="tui/header.content"],
+[data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation-title-text"],
+[data-manual-injected-account-cards="1"] [data-qa-type="tui/header"],
+[data-manual-injected-account-cards="1"] [data-qa-type="tui/header.wrapper"],
+[data-manual-injected-account-cards="1"] [data-qa-type="tui/header.content"],
+[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation-title-text"] {{
+  min-height: 19px !important;
+  height: auto !important;
+  overflow: visible !important;
+}}
+[data-panel-manual-black-card="1"] h2[data-qa-type="tui/header.title"] span,
+[data-manual-injected-account-cards="1"] h2[data-qa-type="tui/header.title"] span {{
+  line-height: 19px !important;
+  overflow: visible !important;
+}}
+/* Горизонтальная лента действий и её две credit-кнопки. */
+[data-manual-actions-wrapper="1"] {{
+  width: 100% !important;
+  height: auto !important;
+  margin: 0 0 20px !important;
+  box-sizing: border-box !important;
+}}
+[data-manual-actions="1"] {{
+  width: 100% !important;
+  height: auto !important;
+  padding: 0 !important;
+  overflow: visible !important;
+}}
+[data-manual-actions="1"] [data-manual-tui-actions-row="1"] {{
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: flex-start !important;
+  justify-content: center !important;
+  gap: 12px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  height: auto !important;
+}}
+[data-manual-tui-actions-mode="credit"] > div {{
+  flex: 0 0 92px !important;
+  width: 92px !important;
+  line-height: 0 !important;
+}}
+[data-manual-tui-actions-mode="credit"] button[data-qa-type^="operation-action"] {{
+  display: block !important;
+  width: 92px !important;
+  min-width: 92px !important;
+  max-width: 92px !important;
+  height: 80px !important;
+  min-height: 80px !important;
+  padding: 12px 3px !important;
+  border: 0 !important;
+  border-radius: 16px !important;
+  appearance: none !important;
+  background: var(--tui-background-neutral-1, #ffffff1a) !important;
+  color: var(--tui-text-action, #66a3ff) !important;
+  box-sizing: border-box !important;
+}}
+[data-manual-tui-actions-mode="credit"] button[data-qa-type^="operation-action"] > span {{
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 8px !important;
+  width: 100% !important;
+  min-height: 56px !important;
+  color: inherit !important;
+}}
+[data-manual-tui-actions-mode="credit"] button [data-qa-type$=".icon"] {{
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 24px !important;
+  height: 24px !important;
+  color: inherit !important;
+}}
+[data-manual-tui-actions-mode="credit"] button [data-qa-type$=".content-wrapper"] {{
+  display: block !important;
+  width: 100% !important;
+  line-height: 15px !important;
+  text-align: center !important;
+  color: inherit !important;
+}}
+[data-manual-tui-actions-mode="credit"] button [data-qa-type$=".content"]:not([data-qa-type="uikit/icon.content"]) {{
+  display: block !important;
+  width: 100% !important;
+  max-height: 30px !important;
+  overflow: hidden !important;
+  font: var(--tui-typography-ui-s, 400 13px/15px Roboto, system-ui, sans-serif) !important;
+  font-size: 13px !important;
+  line-height: 15px !important;
+  text-align: center !important;
+  color: inherit !important;
+}}
+/* v28: заголовок карточки больше не зависит от вложенных header-классов
+   конкретной сборки приложения. */
+[data-panel-manual-black-card="1"] [data-manual-account-header="1"],
+[data-manual-injected-account-cards="1"] [data-manual-account-header="1"] {{
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 20px !important;
+  height: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  box-sizing: border-box !important;
+}}
+[data-panel-manual-black-card="1"] [data-manual-account-title="1"],
+[data-manual-injected-account-cards="1"] [data-manual-account-title="1"] {{
+  display: block !important;
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  height: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  white-space: nowrap !important;
+  font: var(--tui-typography-heading-mobile-s, 500 16px/19px Roboto, system-ui, sans-serif) !important;
+  font-size: 16px !important;
+  font-weight: 500 !important;
+  line-height: 20px !important;
+  color: var(--tui-text-primary, #f6f7f8) !important;
+  -webkit-text-fill-color: var(--tui-text-primary, #f6f7f8) !important;
+}}
+[data-panel-manual-black-card="1"] [data-qa-type="molecule-account-operation-account-icon"] > *,
+[data-manual-injected-account-cards="1"] [data-qa-type="molecule-account-operation-account-icon"] > * {{
+  visibility: visible !important;
+  opacity: 1 !important;
+}}
+[data-panel-manual-black-card="1"] [data-manual-account-icon-column="1"],
+[data-manual-injected-account-cards="1"] [data-manual-account-icon-column="1"] {{
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex: 0 0 40px !important;
+  width: 40px !important;
+  min-width: 40px !important;
+  max-width: 40px !important;
+  height: 40px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  box-sizing: border-box !important;
+}}
+[data-manual-actions-wrapper="1"],
+[data-manual-actions="1"],
+[data-manual-actions="1"] > div {{
+  min-height: 80px !important;
+  overflow: visible !important;
+}}
+[data-manual-actions="1"] [data-manual-tui-actions-row="1"] {{
+  padding: 0 16px !important;
+}}
+/* v29: фактические узлы карточки и строки действий получают stable markers
+   из JS; правила ниже убирают clipping, оставшийся от хешированных классов. */
+[data-panel-manual-black-card="1"] [data-manual-account-title-section="1"] {{
+  display: block !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 36px !important;
+  padding: 16px 20px 0 !important;
+  overflow: visible !important;
+  box-sizing: border-box !important;
+}}
+[data-panel-manual-black-card="1"] [data-manual-account-cell="1"] {{
+  display: flex !important;
+  align-items: center !important;
+  width: 100% !important;
+  min-height: 64px !important;
+  padding: 12px 20px !important;
+  box-sizing: border-box !important;
+}}
+[data-panel-manual-black-card="1"] [data-manual-account-name-column="1"] {{
+  display: flex !important;
+  flex: 1 1 auto !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  justify-content: center !important;
+  min-width: 0 !important;
+  overflow: visible !important;
+}}
+[data-manual-actions-row-owner="1"],
+[data-manual-actions-row-owner="1"] [data-qa-type="uikit/scroll"],
+[data-manual-actions-row-owner="1"] [data-qa-type="uikit/scroll.content"] {{
+  min-height: 80px !important;
+  height: auto !important;
+  overflow: visible !important;
+}}
+[data-manual-tui-actions-mode="credit"] {{
+  display: flex !important;
+  flex-flow: row nowrap !important;
+  align-items: flex-start !important;
+  justify-content: center !important;
+  gap: 12px !important;
+  min-height: 80px !important;
+  padding: 0 16px !important;
+  box-sizing: border-box !important;
+  overflow: visible !important;
 }}
 `;
     (document.head || document.documentElement).appendChild(st);
@@ -2589,6 +2922,7 @@ def _build_script() -> str:
     const title = op.type === 'Credit' ? 'Пополнение' : 'Перевод';
     const titleWrap = root.querySelector('[data-qa-type="molecule-account-operation-title-text"]');
     if (titleWrap) {{
+      titleWrap.setAttribute('data-manual-account-title', '1');
       const titleNode = findDetailAccountOperationTitleTextNode(titleWrap);
       if (titleNode) titleNode.textContent = title;
     }}
@@ -2596,6 +2930,18 @@ def _build_script() -> str:
     if (molecule) {{
       molecule.setAttribute('data-surface', 'true');
       molecule.setAttribute('data-appearance', 'elevated');
+      try {{
+        molecule.style.setProperty('position', 'relative', 'important');
+        molecule.style.setProperty('display', 'flex', 'important');
+        molecule.style.setProperty('flex-direction', 'column', 'important');
+        molecule.style.setProperty('width', '100%', 'important');
+        molecule.style.setProperty('box-sizing', 'border-box', 'important');
+        molecule.style.setProperty('padding', '0', 'important');
+        molecule.style.setProperty('border-radius', '24px', 'important');
+        molecule.style.setProperty('overflow', 'hidden', 'important');
+        molecule.style.setProperty('background-color', 'var(--tui-background-elevation-2, #2C2C2E)', 'important');
+        molecule.style.setProperty('color', 'var(--tui-text-primary, #F6F7F8)', 'important');
+      }} catch (eMoleculeStyle) {{}}
       const layer = molecule.querySelector('[data-qa-type="tui/surface-layer"]');
       if (layer && layer.style) {{
         try {{
@@ -2603,6 +2949,53 @@ def _build_script() -> str:
           layer.style.setProperty('border-radius', '24px', 'important');
         }} catch (eLayer) {{}}
       }}
+    }}
+    /* Хеши классов header меняются почти в каждой сборке. Снимаем clipping
+       на всей короткой цепочке от текста заголовка до молекулы. */
+    if (titleWrap && molecule) {{
+      try {{
+        let titleParent = titleWrap;
+        while (titleParent && titleParent !== molecule) {{
+          titleParent.style.setProperty('height', 'auto', 'important');
+          titleParent.style.setProperty('min-height', '19px', 'important');
+          titleParent.style.setProperty('overflow', 'visible', 'important');
+          titleParent.style.setProperty('box-sizing', 'border-box', 'important');
+          titleParent = titleParent.parentElement;
+        }}
+        const headerTitle = molecule.querySelector('h2[data-qa-type="tui/header.title"]');
+        if (headerTitle) {{
+          headerTitle.style.setProperty('display', 'block', 'important');
+          headerTitle.style.setProperty('height', 'auto', 'important');
+          headerTitle.style.setProperty('min-height', '19px', 'important');
+          headerTitle.style.setProperty('margin', '0', 'important');
+          headerTitle.style.setProperty('padding', '0', 'important');
+          headerTitle.style.setProperty('overflow', 'visible', 'important');
+          headerTitle.style.setProperty('font-size', '16px', 'important');
+          headerTitle.style.setProperty('font-weight', '500', 'important');
+          headerTitle.style.setProperty('line-height', '19px', 'important');
+        }}
+        const titleSection = titleWrap.closest('div[data-hspacing], div[data-horizontal-spacing]');
+        if (titleSection) {{
+          titleSection.setAttribute('data-manual-account-title-section', '1');
+          titleSection.style.setProperty('display', 'block', 'important');
+          titleSection.style.setProperty('width', '100%', 'important');
+          titleSection.style.setProperty('height', 'auto', 'important');
+          titleSection.style.setProperty('padding', '16px 20px 0', 'important');
+          titleSection.style.setProperty('overflow', 'visible', 'important');
+          titleSection.style.setProperty('box-sizing', 'border-box', 'important');
+        }}
+        const headerRow = headerTitle && headerTitle.parentElement;
+        if (headerRow) {{
+          headerRow.setAttribute('data-manual-account-header', '1');
+          headerRow.style.setProperty('display', 'flex', 'important');
+          headerRow.style.setProperty('flex-direction', 'row', 'important');
+          headerRow.style.setProperty('align-items', 'center', 'important');
+          headerRow.style.setProperty('justify-content', 'space-between', 'important');
+          headerRow.style.setProperty('width', '100%', 'important');
+          headerRow.style.setProperty('height', 'auto', 'important');
+          headerRow.style.setProperty('overflow', 'visible', 'important');
+        }}
+      }} catch (eTitleGeometry) {{}}
     }}
     const certBtn = root.querySelector('[data-qa-type="molecule-account-operation-cert-btn"]');
     if (certBtn) {{
@@ -2616,6 +3009,7 @@ def _build_script() -> str:
     }}
     const accountCell = root.querySelector('[data-qa-type="tui/cell"]');
     if (accountCell) {{
+      accountCell.setAttribute('data-manual-account-cell', '1');
       try {{
         accountCell.style.setProperty('display', 'flex', 'important');
         accountCell.style.setProperty('flex-direction', 'row', 'important');
@@ -2627,6 +3021,7 @@ def _build_script() -> str:
         if (ch && ch.length >= 2) {{
           const mid = ch[1];
           if (mid && mid.style) {{
+            mid.setAttribute('data-manual-account-name-column', '1');
             mid.style.setProperty('display', 'flex', 'important');
             mid.style.setProperty('flex-direction', 'column', 'important');
             mid.style.setProperty('flex', '1 1 auto', 'important');
@@ -2652,7 +3047,34 @@ def _build_script() -> str:
       }}
       /* Всегда ставим синий круг с ₽ как в эталоне (иначе иконка пропадает / неверная) */
       if (iconHost) {{
+        const iconColumn = iconHost.parentElement;
+        if (iconColumn) {{
+          iconColumn.setAttribute('data-manual-account-icon-column', '1');
+          try {{
+            iconColumn.style.setProperty('display', 'flex', 'important');
+            iconColumn.style.setProperty('align-items', 'center', 'important');
+            iconColumn.style.setProperty('justify-content', 'center', 'important');
+            iconColumn.style.setProperty('flex', '0 0 40px', 'important');
+            iconColumn.style.setProperty('width', '40px', 'important');
+            iconColumn.style.setProperty('height', '40px', 'important');
+            iconColumn.style.setProperty('margin-right', '16px', 'important');
+            iconColumn.style.setProperty('overflow', 'visible', 'important');
+          }} catch (eIconColumn) {{}}
+        }}
         iconHost.innerHTML = RUB_ICON_HTML;
+        try {{
+          iconHost.style.setProperty('display', 'inline-flex', 'important');
+          iconHost.style.setProperty('align-items', 'center', 'important');
+          iconHost.style.setProperty('justify-content', 'center', 'important');
+          iconHost.style.setProperty('position', 'relative', 'important');
+          iconHost.style.setProperty('flex', '0 0 40px', 'important');
+          iconHost.style.setProperty('width', '40px', 'important');
+          iconHost.style.setProperty('height', '40px', 'important');
+          iconHost.style.setProperty('border-radius', '50%', 'important');
+          iconHost.style.setProperty('overflow', 'hidden', 'important');
+          iconHost.style.setProperty('background', 'var(--tui-background-accent-2, #428bf9)', 'important');
+          iconHost.style.setProperty('color', 'var(--tui-text-primary-on-dark, #fff)', 'important');
+        }} catch (eIconGeometry) {{}}
       }}
       const blackNode = findAccountCellCounterpartyNameNode(accountCell);
       if (blackNode) {{
@@ -2790,9 +3212,26 @@ def _build_script() -> str:
     const pumba = ensureCreditActionsContainer(op);
     if (!pumba) return false;
 
+    pumba.setAttribute('data-manual-actions-row-owner', '1');
+    if (op && op.type === 'Credit') pumba.setAttribute('data-manual-actions', '1');
     const portalInner = pumba.querySelector('.bbgyrAMeC');
     let gapsRow = null;
-    if (portalInner) {{
+    const firstAction = pumba.querySelector('button[data-qa-type^="operation-action"]');
+    if (firstAction) {{
+      let candidate = firstAction.parentElement;
+      while (candidate && candidate !== pumba) {{
+        const directButtonItems = Array.from(candidate.children || []).filter(function (child) {{
+          return child.matches('button[data-qa-type^="operation-action"]')
+            || !!child.querySelector('button[data-qa-type^="operation-action"]');
+        }});
+        if (directButtonItems.length >= 2) {{
+          gapsRow = candidate;
+          break;
+        }}
+        candidate = candidate.parentElement;
+      }}
+    }}
+    if (!gapsRow && portalInner) {{
       gapsRow = portalInner.querySelector('div[data-component-type="platform-ui"][style*="--gaps"]')
         || portalInner.querySelector('div[style*="--gaps"]')
         || portalInner.querySelector('div[data-component-type="platform-ui"]');
@@ -2814,6 +3253,13 @@ def _build_script() -> str:
       gapsRow.style.justifyContent = 'center';
       gapsRow.style.display = 'flex';
       gapsRow.style.gap = '12px';
+      gapsRow.style.flexFlow = 'row nowrap';
+      gapsRow.style.alignItems = 'flex-start';
+      gapsRow.style.width = '100%';
+      gapsRow.style.minHeight = '80px';
+      gapsRow.style.padding = '0 16px';
+      gapsRow.style.boxSizing = 'border-box';
+      gapsRow.style.overflow = 'visible';
 
       function directActionItem(btn) {{
         let node = btn;
@@ -2857,6 +3303,46 @@ def _build_script() -> str:
           refund = templateRefund;
         }}
       }}
+      [disallow, refund].forEach(function (btn) {{
+        if (!btn || !btn.style) return;
+        try {{
+          const item = directActionItem(btn);
+          if (item && item.style) {{
+            item.style.setProperty('flex', '0 0 92px', 'important');
+            item.style.setProperty('width', '92px', 'important');
+            item.style.setProperty('margin', '0', 'important');
+            item.style.setProperty('line-height', '0', 'important');
+          }}
+          btn.style.setProperty('display', 'block', 'important');
+          btn.style.setProperty('width', '92px', 'important');
+          btn.style.setProperty('min-width', '92px', 'important');
+          btn.style.setProperty('max-width', '92px', 'important');
+          btn.style.setProperty('height', '80px', 'important');
+          btn.style.setProperty('min-height', '80px', 'important');
+          btn.style.setProperty('padding', '12px 3px', 'important');
+          btn.style.setProperty('border', '0', 'important');
+          btn.style.setProperty('border-radius', '16px', 'important');
+          btn.style.setProperty('background', 'var(--tui-background-neutral-1, #ffffff1a)', 'important');
+          btn.style.setProperty('color', 'var(--tui-text-action, #66a3ff)', 'important');
+          btn.style.setProperty('box-sizing', 'border-box', 'important');
+          const inner = btn.firstElementChild;
+          if (inner && inner.style) {{
+            inner.style.setProperty('display', 'flex', 'important');
+            inner.style.setProperty('flex-direction', 'column', 'important');
+            inner.style.setProperty('align-items', 'center', 'important');
+            inner.style.setProperty('justify-content', 'flex-start', 'important');
+            inner.style.setProperty('gap', '8px', 'important');
+            inner.style.setProperty('width', '100%', 'important');
+          }}
+          btn.querySelectorAll('[data-qa-type="uikit/icon"], [data-qa-type="uikit/icon.content"], svg').forEach(function (icon) {{
+            icon.style.setProperty('width', '24px', 'important');
+            icon.style.setProperty('height', '24px', 'important');
+            icon.style.setProperty('max-width', '24px', 'important');
+            icon.style.setProperty('max-height', '24px', 'important');
+            icon.style.setProperty('color', 'inherit', 'important');
+          }});
+        }} catch (eCreditActionStyle) {{}}
+      }});
       gapsRow.setAttribute('data-manual-tui-actions-filled', 'credit');
       return !!(disallow && refund);
     }}
