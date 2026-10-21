@@ -95,6 +95,47 @@ def _resolve_manual_pdf_path(stored: str) -> Optional[str]:
     return None
 
 
+_PANEL_STATIC_DIR = os.path.join(_BASE_DIR, "panel_static")
+
+
+def _try_serve_panel_static(flow: http.HTTPFlow, path_only: str) -> bool:
+    if not path_only.startswith("/panel-static/"):
+        return False
+    rel = path_only[len("/panel-static/") :].lstrip("/").replace("\\", "/")
+    if not rel or ".." in rel.split("/"):
+        flow.response = http.Response.make(403, b"Forbidden")
+        return True
+    fp = os.path.normpath(os.path.join(_PANEL_STATIC_DIR, rel))
+    if not fp.startswith(os.path.normpath(_PANEL_STATIC_DIR)) or not os.path.isfile(fp):
+        flow.response = http.Response.make(404, b"Not found")
+        return True
+    try:
+        data = Path(fp).read_bytes()
+    except OSError:
+        flow.response = http.Response.make(500, b"read error")
+        return True
+    ct = "application/octet-stream"
+    low = fp.lower()
+    if low.endswith(".css"):
+        ct = "text/css; charset=utf-8"
+    elif low.endswith(".woff2"):
+        ct = "font/woff2"
+    elif low.endswith(".woff"):
+        ct = "font/woff"
+    elif low.endswith(".ttf"):
+        ct = "font/ttf"
+    flow.response = http.Response.make(
+        200,
+        data,
+        {
+            "Content-Type": ct,
+            "Cache-Control": "public, max-age=604800",
+            "Access-Control-Allow-Origin": "*",
+        },
+    )
+    return True
+
+
 def effective_balance_value() -> float:
     """Тот же базовый баланс + корректировка ручных операций, что и в balance.py для подстановки в API."""
     base = float(((controller.config.get("balance") or {}).get("new_balance")) or 0)
@@ -190,12 +231,14 @@ HTML_PANEL = """<!DOCTYPE html>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover, user-scalable=yes">
     <title>T‑Bank Control Panel</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/panel-static/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" media="print" onload="this.media='all'">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"></noscript>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: 'Inter', sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             background: #0b0b0b;
             min-height: 100vh;
             color: #ffe37a;
@@ -1042,7 +1085,11 @@ HTML_PANEL = """<!DOCTYPE html>
             const toImgproxy = (url) => {
                 if (!url) return '';
                 if (url.includes('imgproxy.cdn-tinkoff.ru/compressed95/')) return url;
-                if (!url.includes('brands-prod.cdn-tinkoff.ru/') && !url.includes('brands-static.cdn-tinkoff.ru/')) return url;
+                if (
+                    !url.includes('brands-prod.cdn-tinkoff.ru/')
+                    && !url.includes('brands-static.cdn-tinkoff.ru/')
+                    && !url.includes('bms-logo-prod.t-static.ru/')
+                ) return url;
                 try {
                     const utf8 = unescape(encodeURIComponent(url));
                     return 'https://imgproxy.cdn-tinkoff.ru/compressed95/' + btoa(utf8);
@@ -1810,6 +1857,9 @@ def request(flow: http.HTTPFlow) -> None:
 
     path = flow.request.path
     path_only = _panel_request_path_only(path)
+
+    if flow.request.method == "GET" and _try_serve_panel_static(flow, path_only):
+        return
 
     client_ip = flow.client_conn.address[0]
     if not _client_ok_for_panel(client_ip):

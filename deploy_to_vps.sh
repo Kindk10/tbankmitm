@@ -20,6 +20,7 @@ FILES=(
   tls_passthrough_hosts.py
   controller.py
   config.json
+  panel.html
   start_vps.sh
   mitm_run_dump.py
   nonbank_connect_block.py
@@ -35,6 +36,8 @@ for f in "${FILES[@]}"; do
 done
 
 echo "Deploy -> ${HOST}:${REMOTE}"
+ssh "$HOST" "mkdir -p ${REMOTE}/panel_static/webfonts"
 scp "${LOCAL[@]}" "${HOST}:${REMOTE}/"
+scp -r "${ROOT}/panel_static/"* "${HOST}:${REMOTE}/panel_static/"
 ssh "$HOST" "cd ${REMOTE} && pkill -f mitm_run_dump || true; sleep 1; export TBANKMITM_PUBLIC_IP=188.127.237.61 TBANKMITM_PANEL_ALLOW_ANY=1; nohup bash start_vps.sh >/tmp/tbankmitm.log 2>&1 & sleep 3; curl -s -o /dev/null -w 'api %{http_code}\n' http://127.0.0.1:8082/api/operations || true"
 echo "Done."

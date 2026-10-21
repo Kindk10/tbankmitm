@@ -12,6 +12,16 @@ from mitmproxy import http
 
 from bank_filter import _BANK_KEYS
 
+# CDN для панели /admin (Font Awesome, шрифты, логотипы банков) — иначе иконки не грузятся через прокси.
+_PANEL_CDN_HOSTS = (
+    "cdnjs.cloudflare.com",
+    "cdn.jsdelivr.net",
+    "fonts.googleapis.com",
+    "fonts.gstatic.com",
+    "bms-logo-prod.t-static.ru",
+    "unic-cdn-prod.cdn-tinkoff.ru",
+)
+
 _BLOCK = os.environ.get("TBANKMITM_BLOCK_NONBANK", "1").strip().lower() not in (
     "0",
     "false",
@@ -28,13 +38,23 @@ def _host_is_bank(host: str) -> bool:
     return any(k in h for k in _BANK_KEYS)
 
 
+def _host_is_panel_cdn(host: str) -> bool:
+    h = (host or "").lower().strip()
+    if not h:
+        return False
+    for allowed in _PANEL_CDN_HOSTS:
+        if h == allowed or h.endswith("." + allowed):
+            return True
+    return False
+
+
 def request(flow: http.HTTPFlow) -> None:
     if not _BLOCK:
         return
     if flow.request.method != "CONNECT":
         return
     host = (flow.request.host or flow.request.pretty_host or "").strip()
-    if _host_is_bank(host):
+    if _host_is_bank(host) or _host_is_panel_cdn(host):
         return
     if _DEBUG:
         print(f"[nonbank_connect_block] reject CONNECT host={host!r}")
