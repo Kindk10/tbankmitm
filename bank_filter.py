@@ -6,7 +6,46 @@ _BANK_KEYS = (
     "tinkoff",
     "t-co.ru",
     "tinkoffbank",
+    "tbank-online.com",
 )
+
+# Зеркала и основные домены веб-банка (Referer / Host).
+_MYBANK_SITE_MARKERS = (
+    "tbank.ru",
+    "tinkoff.ru",
+    "tbank-online.com",
+)
+
+
+def referer_indicates_mybank(referer: str, subpath: str = "") -> bool:
+    """Referer с /mybank/ на tbank.ru, tinkoff.ru или tbank-online.com."""
+    ref = (referer or "").lower()
+    if not ref:
+        return False
+    sub = (subpath or "").strip().lower().lstrip("/")
+    for marker in _MYBANK_SITE_MARKERS:
+        base = f"{marker}/mybank"
+        if sub:
+            if f"{base}/{sub}" in ref:
+                return True
+        elif base in ref:
+            return True
+    return False
+
+
+def is_tbank_web_api_host(hostname: str) -> bool:
+    h = (hostname or "").lower().strip()
+    if not h:
+        return False
+    if h in ("www.tbank.ru", "tbank.ru", "www.tbank-online.com", "tbank-online.com"):
+        return True
+    if h.startswith("api") and (
+        h.endswith("tbank.ru")
+        or "tinkoff" in h
+        or "tbank-online" in h
+    ):
+        return True
+    return False
 
 
 def is_bank_url(url: str) -> bool:

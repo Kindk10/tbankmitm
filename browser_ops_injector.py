@@ -1153,8 +1153,8 @@ def _build_script() -> str:
     if (!reqRoot || !reqRoot.parentElement) return;
     const aid = currentDebitAccountIdFromPath();
     const linkHint = aid
-      ? 'https://www.tbank.ru/mybank/payments/quick/replenishment?accountId=' + aid
-      : 'https://www.tbank.ru/mybank/';
+      ? (location.origin || '') + '/mybank/payments/quick/replenishment?accountId=' + aid
+      : (location.origin || '') + '/mybank/';
     let row = document.querySelector('[data-manual-qr-link-row="1"]');
     if (!row) {{
       row = document.createElement('div');
@@ -3236,6 +3236,41 @@ def _build_script() -> str:
     (document.body || document.documentElement).appendChild(viewer);
   }}
 
+  function isPaymentSuccessReceiptSurface() {{
+    const p = (location.pathname || '').toLowerCase();
+    if (p.indexOf('/mybank') === -1) return false;
+    if (p.indexOf('success') !== -1 || p.indexOf('/pay') !== -1 || p.indexOf('/payment') !== -1) return true;
+    const t = normalizeUiText(document.body && document.body.textContent || '').toLowerCase();
+    return (t.indexOf('перевод выполнен') !== -1 || t.indexOf('операция выполнена') !== -1) && t.indexOf('квитан') !== -1;
+  }}
+
+  function resolveReceiptOpIdFromPage() {{
+    const detailOpId = getDetailUrlOperationId();
+    if (detailOpId) return detailOpId;
+    const q = new URLSearchParams(location.search || '');
+    const pid = (q.get('paymentId') || q.get('trackingId') || '').trim();
+    if (pid) return pid;
+    if (window.__TBANK_LAST_MOCK_OP_ID) return String(window.__TBANK_LAST_MOCK_OP_ID);
+    return '';
+  }}
+
+  function openReceiptForLatestMockTransfer() {{
+    fetchJsonFirstOk(_panelUrlVariants(PANEL_ORIGIN + '/api/operations'))
+      .then(function (d) {{
+        const ops = (d && d.operations) || [];
+        for (let i = 0; i < ops.length; i++) {{
+          const o = ops[i];
+          if (!o || !o.fake_transfer) continue;
+          const id = String(o.id || '');
+          if (id.indexOf('UNIFIED_') !== 0) continue;
+          window.__TBANK_LAST_MOCK_OP_ID = id;
+          openManualReceiptViewer(receiptOpenUrlForOperationId(id, o.type || 'Debit'), 'Квитанция');
+          return;
+        }}
+      }})
+      .catch(function () {{}});
+  }}
+
   function bindManualCertReceiptClick() {{
     if (window.__manualCertReceiptClickBound) return;
     window.__manualCertReceiptClickBound = true;
@@ -3244,15 +3279,26 @@ def _build_script() -> str:
       function (ev) {{
         const btn = ev.target && ev.target.closest && ev.target.closest('button[data-qa-type="molecule-account-operation-cert-btn"]');
         if (!btn) return;
-        if (!shouldPatchOperationsDetail()) return;
+        const onDetail = shouldPatchOperationsDetail();
+        const onSuccess = isPaymentSuccessReceiptSurface();
+        if (!onDetail && !onSuccess) return;
         const op = currentManualOp();
-        const detailOpId = getDetailUrlOperationId();
+        const detailOpId = resolveReceiptOpIdFromPage();
         const isManualUrl = !!(detailOpId && String(detailOpId).indexOf('m_') === 0);
+        const isMockUrl = !!(detailOpId && String(detailOpId).indexOf('UNIFIED_') === 0);
         const pageOp = op || Object.assign({{ id: detailOpId }}, fallbackOpFromScopedPage());
         const isExternalCredit = pageLooksLikeExternalCreditTransfer(pageOp);
-        if (!isManualLikeDetailOp(op) && !isManualUrl && !isExternalCredit) return;
-        const opId = isManualUrl ? detailOpId : ((op && op.id) || detailOpId);
+        if (!onSuccess && !isManualLikeDetailOp(op) && !isManualUrl && !isMockUrl && !isExternalCredit) return;
+        let opId = isManualUrl || isMockUrl ? detailOpId : ((op && op.id) || detailOpId);
+        if (!opId && onSuccess) {{
+          ev.preventDefault();
+          ev.stopPropagation();
+          ev.stopImmediatePropagation();
+          openReceiptForLatestMockTransfer();
+          return;
+        }}
         if (!opId) return;
+        if (String(opId).indexOf('UNIFIED_') === 0) window.__TBANK_LAST_MOCK_OP_ID = String(opId);
         ev.preventDefault();
         ev.stopPropagation();
         ev.stopImmediatePropagation();
@@ -4282,7 +4328,7 @@ def _build_script() -> str:
     try {{
       window.addEventListener('popstate', patchDetailDom, {{ passive: true }});
     }} catch (ePs) {{}}
-    window.setInterval(patchDetailDom, 1100);
+    window.setInterval(patchDetailDom, 2200);
   }}
 
   function startFinanalyticsCardSync() {{
@@ -4294,7 +4340,7 @@ def _build_script() -> str:
     let __finMoTimer = 0;
     function scheduleFromDom() {{
       window.clearTimeout(__finMoTimer);
-      __finMoTimer = window.setTimeout(tick, 140);
+      __finMoTimer = window.setTimeout(tick, 320);
     }}
     try {{
       const moRoot =
@@ -4304,7 +4350,7 @@ def _build_script() -> str:
       const mo = new MutationObserver(scheduleFromDom);
       mo.observe(moRoot, {{ childList: true, subtree: true }});
     }} catch (eMo) {{}}
-    window.setInterval(tick, 900);
+    window.setInterval(tick, 2000);
   }}
 
   bindManualCertReceiptClick();

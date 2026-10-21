@@ -22,6 +22,8 @@ from bank_filter import (
     is_jsonish_response,
     text_indicates_statements_spravki,
     url_prohibit_proxy_json_mutation,
+    referer_indicates_mybank,
+    is_tbank_web_api_host,
 )
 
 try:
@@ -53,6 +55,65 @@ operations_cache = {}
 manual_operations = {}
 hidden_operations = set()
 last_sync_time = None
+
+DELETED_FAKE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "deleted_fake_transfers.json")
+_deleted_fake_transfer_ids = set()
+_deleted_fake_mtime = None
+
+
+def _load_deleted_fake_transfer_ids():
+    global _deleted_fake_transfer_ids, _deleted_fake_mtime
+    if not os.path.isfile(DELETED_FAKE_FILE):
+        _deleted_fake_transfer_ids = set()
+        _deleted_fake_mtime = None
+        return
+    try:
+        mtime = os.path.getmtime(DELETED_FAKE_FILE)
+        if mtime == _deleted_fake_mtime and _deleted_fake_transfer_ids:
+            return
+        with open(DELETED_FAKE_FILE, "r", encoding="utf-8") as f:
+            raw = json.load(f)
+        if isinstance(raw, list):
+            _deleted_fake_transfer_ids = {str(x).strip() for x in raw if str(x).strip()}
+        elif isinstance(raw, dict):
+            ids = raw.get("ids") or raw.get("deleted") or []
+            _deleted_fake_transfer_ids = {str(x).strip() for x in ids if str(x).strip()}
+        else:
+            _deleted_fake_transfer_ids = set()
+        _deleted_fake_mtime = mtime
+    except Exception as e:
+        print(f"[history] deleted_fake_transfers load: {e}")
+        _deleted_fake_transfer_ids = set()
+        _deleted_fake_mtime = None
+
+
+def _save_deleted_fake_transfer_ids():
+    global _deleted_fake_mtime
+    try:
+        with open(DELETED_FAKE_FILE, "w", encoding="utf-8") as f:
+            json.dump(sorted(_deleted_fake_transfer_ids), f, ensure_ascii=False, indent=2)
+        _deleted_fake_mtime = os.path.getmtime(DELETED_FAKE_FILE)
+    except Exception as e:
+        print(f"[history] deleted_fake_transfers save: {e}")
+
+
+def is_fake_transfer_deleted(op_id: str) -> bool:
+    _load_deleted_fake_transfer_ids()
+    return str(op_id or "").strip() in _deleted_fake_transfer_ids
+
+
+def mark_fake_transfer_deleted(op_id: str) -> None:
+    oid = str(op_id or "").strip()
+    if not oid:
+        return
+    _load_deleted_fake_transfer_ids()
+    if oid in _deleted_fake_transfer_ids:
+        return
+    _deleted_fake_transfer_ids.add(oid)
+    _save_deleted_fake_transfer_ids()
+
+
+_load_deleted_fake_transfer_ids()
 _manual_ops_mtime = None
 # Текст последней ошибки generate_statement_pdf_for_period (для ответа API).
 statement_generation_error = ""
@@ -285,7 +346,7 @@ def pending_fake_history_ops(month_restrict: bool = None) -> list:
             if not isinstance(op, dict):
                 continue
             oid = str(op.get("id") or "").strip()
-            if not oid or oid in hidden_operations or oid in seen:
+            if not oid or oid in hidden_operations or oid in seen or is_fake_transfer_deleted(oid):
                 continue
             seen.add(oid)
             if month_restrict and not _fake_op_in_current_month(op):
@@ -431,10 +492,7 @@ def _block_manual_inject_browser_tbank(url: str, user_agent: Optional[str]) -> b
         return False
     if not host:
         return False
-    web_api = (host.startswith("api") and (host.endswith("tbank.ru") or "tinkoff" in host)) or host in (
-        "www.tbank.ru",
-        "tbank.ru",
-    )
+    web_api = is_tbank_web_api_host(host)
     if not web_api:
         return False
     if _url_is_mybank_certificates_statements_spa(url):
@@ -460,12 +518,9 @@ def _cross_response_inject_mark(op_id: str) -> None:
 
 
 def _mybank_page_kind(referer: Optional[str]) -> str:
-    ref = (referer or "").lower()
-    if not ref:
-        return ""
-    if "tbank.ru/mybank/operations" in ref:
+    if referer_indicates_mybank(referer, "operations"):
         return "operations"
-    if "tbank.ru/mybank/" in ref:
+    if referer_indicates_mybank(referer):
         return "mybank"
     return ""
 
@@ -795,9 +850,9 @@ def _graphql_manual_inject_noise_request(url: str, request_text: Optional[str]) 
             gh = (urlparse(url).hostname or "").lower()
         except Exception:
             gh = ""
-        if gh.endswith("tbank.ru"):
+        if gh.endswith("tbank.ru") or "tbank-online" in gh:
             if bank_debug_enabled():
-                print("[history] graphql без operationName на *.tbank.ru — пропуск ручных операций")
+                print("[history] graphql без operationName на веб-API банка — пропуск ручных операций")
             return True
         return False
     return not any_clean
@@ -1789,8 +1844,7 @@ def inject_manual_into_response(
     product_surface = _response_looks_like_product_surface(data)
     # Не повышать page_kind до operations только по телу — иначе inject на главной плодит карточки.
     if page_kind == "" and request_feed_like and not product_surface:
-        ref_l = (referer or "").lower()
-        if "tbank.ru/mybank/operations" in ref_l or "tinkoff.ru/mybank/operations" in ref_l:
+        if referer_indicates_mybank(referer, "operations"):
             page_kind = "operations"
     candidates = _candidate_operation_lists_from_data(
         data,
@@ -2173,7 +2227,7 @@ def _iter_fake_debit_ops_month():
             oid = op.get("id")
             oid_s = str(oid).strip() if oid is not None and str(oid).strip() else ""
             if oid_s:
-                if oid_s in seen_ids or oid_s in hidden_operations:
+                if oid_s in seen_ids or oid_s in hidden_operations or is_fake_transfer_deleted(oid_s):
                     continue
                 seen_ids.add(oid_s)
             amt = op.get("amount")
@@ -2203,7 +2257,7 @@ def _iter_fake_credit_ops_month():
             oid = op.get("id")
             oid_s = str(oid).strip() if oid is not None and str(oid).strip() else ""
             if oid_s:
-                if oid_s in seen_ids or oid_s in hidden_operations:
+                if oid_s in seen_ids or oid_s in hidden_operations or is_fake_transfer_deleted(oid_s):
                     continue
                 seen_ids.add(oid_s)
             amt = op.get("amount")
@@ -2231,7 +2285,7 @@ def _iter_fake_debit_ops_all():
             oid = op.get("id")
             oid_s = str(oid).strip() if oid is not None and str(oid).strip() else ""
             if oid_s:
-                if oid_s in seen_ids or oid_s in hidden_operations:
+                if oid_s in seen_ids or oid_s in hidden_operations or is_fake_transfer_deleted(oid_s):
                     continue
                 seen_ids.add(oid_s)
             amt = op.get("amount")
@@ -2259,7 +2313,7 @@ def _iter_fake_credit_ops_all():
             oid = op.get("id")
             oid_s = str(oid).strip() if oid is not None and str(oid).strip() else ""
             if oid_s:
-                if oid_s in seen_ids or oid_s in hidden_operations:
+                if oid_s in seen_ids or oid_s in hidden_operations or is_fake_transfer_deleted(oid_s):
                     continue
                 seen_ids.add(oid_s)
             amt = op.get("amount")
@@ -2355,7 +2409,7 @@ def _fake_transfer_ops_for_panel(skip_ids: set, month_only: bool = True) -> list
             if not isinstance(op, dict):
                 continue
             oid = str(op.get("id") or "").strip()
-            if not oid or oid in skip_ids or oid in seen_ids:
+            if not oid or oid in skip_ids or oid in seen_ids or is_fake_transfer_deleted(oid):
                 continue
             seen_ids.add(oid)
             if month_only and not _fake_op_in_current_month(op):
@@ -2411,6 +2465,8 @@ def op_id_in_fake_history_files(op_id: str) -> bool:
             continue
         for op in data.get("fake_history") or []:
             if isinstance(op, dict) and str(op.get("id") or "") == str(op_id):
+                if is_fake_transfer_deleted(str(op_id)):
+                    return False
                 return True
     return False
 
@@ -2628,9 +2684,38 @@ def ensure_operation_receipt_pdf_path(op_id: str) -> Optional[str]:
     return None
 
 
+def _clear_last_transfer_session_if_matches(op_id: str) -> None:
+    """Не восстанавливать удалённый мок из transfer_data.amount / transaction_id."""
+    oid = str(op_id or "").strip()
+    if not oid:
+        return
+    for path in _last_transfer_json_paths():
+        if not os.path.isfile(path):
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            continue
+        if str(data.get("transaction_id") or "") != oid:
+            continue
+        data["amount"] = 0
+        data.pop("transaction_id", None)
+        data["transfer_completed"] = False
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
+
+
 def remove_fake_transfer_operation(op_id: str) -> bool:
     if not op_id:
         return False
+    oid = str(op_id).strip()
+    mark_fake_transfer_deleted(oid)
+    operations_cache.pop(oid, None)
+    hidden_operations.discard(oid)
     changed = False
     for path in _last_transfer_json_paths():
         if not os.path.isfile(path):
@@ -2642,9 +2727,15 @@ def remove_fake_transfer_operation(op_id: str) -> bool:
             continue
         fh = data.get("fake_history")
         if not isinstance(fh, list):
-            continue
-        new_fh = [x for x in fh if not (isinstance(x, dict) and str(x.get("id") or "") == str(op_id))]
-        if len(new_fh) != len(fh):
+            fh = []
+        new_fh = [x for x in fh if not (isinstance(x, dict) and str(x.get("id") or "") == oid)]
+        touched = len(new_fh) != len(fh)
+        if str(data.get("transaction_id") or "") == oid:
+            data["amount"] = 0
+            data.pop("transaction_id", None)
+            data["transfer_completed"] = False
+            touched = True
+        if touched:
             data["fake_history"] = new_fh
             try:
                 with open(path, "w", encoding="utf-8") as f:
@@ -2653,8 +2744,8 @@ def remove_fake_transfer_operation(op_id: str) -> bool:
             except Exception as e:
                 if bank_debug_enabled():
                     print(f"[history] remove_fake_transfer_operation {path}: {e}")
-    hidden_operations.discard(op_id)
-    return changed
+    _clear_last_transfer_session_if_matches(oid)
+    return changed or is_fake_transfer_deleted(oid)
 
 
 def extract_operations(data):
@@ -2749,12 +2840,16 @@ def get_op_bank(op):
     return ''
 
 def clean_old_ops():
-    MAX_OPS = 1200
+    purge = [k for k in operations_cache if is_fake_transfer_deleted(k)]
+    for k in purge:
+        operations_cache.pop(k, None)
+    MAX_OPS = 800
     if len(operations_cache) > MAX_OPS:
         sorted_ops = sorted(operations_cache.items(), key=lambda x: x[1].get("date", ""), reverse=True)
         operations_cache.clear()
         for k, v in sorted_ops[:MAX_OPS]:
-            operations_cache[k] = v
+            if not is_fake_transfer_deleted(k):
+                operations_cache[k] = v
 
 def _manual_operations_income_expense_month(restrict_month: bool = True) -> tuple:
     """Суммы доход/расход по manual_operations.json (по умолчанию только текущий месяц)."""
@@ -3596,6 +3691,10 @@ def build_operations_api_response():
     show_all = panel_include_all_cached_operations()
     month_ops = []
     for op_id, op in operations_cache.items():
+        if is_fake_transfer_deleted(op_id):
+            continue
+        if str(op_id).startswith("UNIFIED_") and not op_id_in_fake_history_files(str(op_id)):
+            continue
         if not show_all and not is_current_month(op.get("date", "")):
             continue
         row = {
@@ -3734,7 +3833,7 @@ def response(flow: http.HTTPFlow) -> None:
                 merged = 0
                 for op in ops:
                     op_id = str(op.get("id") or "").strip()
-                    if not op_id or op_id in manual_operations:
+                    if not op_id or op_id in manual_operations or is_fake_transfer_deleted(op_id):
                         continue
                     if op_id in operations_cache:
                         if merge_ops_cache_from_bank_op(op_id, op):
@@ -3788,7 +3887,12 @@ def response(flow: http.HTTPFlow) -> None:
         injected = False if ctx_stmt else inject_manual_into_response(data, url, req_text, ua, referer)
 
         if injected or filtered:
-            flow.response.text = json.dumps(data, ensure_ascii=False)
+            if isinstance(data, (dict, list)):
+                flow.response.text = json.dumps(data, ensure_ascii=False)
+            else:
+                print("[history] пропуск записи ответа: после патча не dict/list")
+    except json.JSONDecodeError as e:
+        print(f"[history] JSON ответа битый — не патчим (история не ломается): {e}")
     except Exception as e:
         print(f"[history] Ошибка при разборе/модификации ответа: {e}")
 

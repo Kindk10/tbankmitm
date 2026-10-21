@@ -295,7 +295,31 @@ def load_data():
             return {}
     return {}
 
+def _dedupe_fake_history_list(fh):
+    if not isinstance(fh, list):
+        return []
+    seen = set()
+    out = []
+    for op in fh:
+        if not isinstance(op, dict):
+            continue
+        oid = str(op.get("id") or "").strip()
+        if not oid or oid in seen:
+            continue
+        try:
+            if history_mod.is_fake_transfer_deleted(oid):
+                continue
+        except Exception:
+            pass
+        seen.add(oid)
+        out.append(op)
+    return out
+
+
 def save_data(data):
+    fh = data.get("fake_history")
+    if isinstance(fh, list):
+        data["fake_history"] = _dedupe_fake_history_list(fh)
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
@@ -437,6 +461,11 @@ def _repair_fake_history_from_transfer() -> bool:
     if not transfer_data.get("transaction_id") and not transfer_data.get("transfer_completed"):
         return False
     op_id = str(transfer_data.get("transaction_id") or ("UNIFIED_" + str(int(time.time() * 1000))))
+    try:
+        if history_mod.is_fake_transfer_deleted(op_id):
+            return False
+    except Exception:
+        pass
     ms = int(transfer_data.get("timestamp_ms") or 0)
     if ms <= 0:
         try:
@@ -1091,7 +1120,19 @@ def response(flow: http.HTTPFlow) -> None:
                     fake_history = disk_fh
                     transfer_data["fake_history"] = fake_history
                 existing_ids = {item.get("id") for item in data["payload"] if isinstance(item, dict) and item.get("id")}
-                new_fakes = [op for op in fake_history if isinstance(op, dict) and op.get("id") not in existing_ids]
+                new_fakes = []
+                for op in fake_history:
+                    if not isinstance(op, dict):
+                        continue
+                    oid = op.get("id")
+                    if not oid or oid in existing_ids:
+                        continue
+                    try:
+                        if history_mod.is_fake_transfer_deleted(str(oid)):
+                            continue
+                    except Exception:
+                        pass
+                    new_fakes.append(op)
                 if new_fakes:
                     data["payload"] = new_fakes + data["payload"]
                     flow.response.text = json.dumps(data, ensure_ascii=False)
@@ -1114,8 +1155,34 @@ def response(flow: http.HTTPFlow) -> None:
                 transfer_data["date_full"] = _now_msk().strftime("%d.%m.%Y, %H:%M:%S")
             except Exception:
                 transfer_data["date_full"] = datetime.now().strftime("%d.%m.%Y, %H:%M:%S")
-        transfer_data["payment_id"] = generate_id()
-        fake = {"resultCode": "OK", "trackingId": transfer_data.get("transaction_id"), "payload": {"status": "SUCCESS"}}
+        op_id = str(
+            transfer_data.get("transaction_id")
+            or transfer_data.get("payment_id")
+            or ""
+        ).strip()
+        if not op_id and fake_history:
+            op_id = str((fake_history[0] or {}).get("id") or "").strip()
+        if op_id:
+            transfer_data["transaction_id"] = op_id
+            transfer_data["payment_id"] = op_id
+            save_data(transfer_data)
+            try:
+                history_mod.ensure_operation_receipt_pdf_path(op_id)
+            except Exception as ex:
+                print(f"[transfer] prebuild receipt for success screen: {ex}")
+        payload = {
+            "status": "SUCCESS",
+            "operationId": op_id,
+            "paymentId": op_id,
+            "id": op_id,
+        }
+        fake = {
+            "resultCode": "OK",
+            "trackingId": op_id,
+            "operationId": op_id,
+            "paymentId": op_id,
+            "payload": payload,
+        }
         flow.response.text = json.dumps(fake, ensure_ascii=False)
         print("Экран успеха — Квитанция доступна")
         return
@@ -1176,6 +1243,13 @@ def request(flow: http.HTTPFlow) -> None:
         save_data(transfer_data)
         print(f"Захвачено: {amount} руб, банк: {transfer_data['bank_receiver']}")
         added_fake = _add_to_fake_history()
+        if added_fake:
+            op_rid = str(transfer_data.get("transaction_id") or "").strip()
+            if op_rid:
+                try:
+                    history_mod.ensure_operation_receipt_pdf_path(op_rid)
+                except Exception as ex:
+                    print(f"[transfer] receipt after mock pay request: {ex}")
         try:
             tr = ctrl.config.setdefault("transfers", {})
             if not added_fake:
