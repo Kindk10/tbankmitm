@@ -6,6 +6,7 @@ import os
 import random
 from pathlib import Path
 from typing import Optional
+import hashlib
 import urllib.request
 
 sys.path.append(os.path.dirname(__file__))
@@ -101,7 +102,7 @@ _PANEL_FA_CDN = "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3
 _PANEL_FA_CACHE = os.path.join(_PANEL_STATIC_DIR, "fa-cache")
 
 
-def _panel_http_get(url: str, timeout: float = 25.0) -> bytes:
+def _panel_http_get(url: str, timeout: float = 8.0) -> bytes:
     req = urllib.request.Request(url, headers={"User-Agent": "tbankmitm-panel/1"})
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return resp.read()
@@ -177,8 +178,21 @@ def _try_serve_panel_bank_logo(flow: http.HTTPFlow, path_only: str) -> bool:
     if not any(m in low for m in allowed):
         flow.response = http.Response.make(403, b"host not allowed")
         return True
+    cache_dir = os.path.join(_PANEL_STATIC_DIR, "logo-cache")
+    cache_key = hashlib.sha256(raw_url.encode("utf-8")).hexdigest()[:32]
+    ext = ".png"
+    if ".jpg" in low or ".jpeg" in low:
+        ext = ".jpg"
+    elif ".webp" in low:
+        ext = ".webp"
+    cache_fp = os.path.join(cache_dir, cache_key + ext)
     try:
-        data = _panel_http_get(raw_url)
+        if os.path.isfile(cache_fp) and os.path.getsize(cache_fp) > 0:
+            data = Path(cache_fp).read_bytes()
+        else:
+            data = _panel_http_get(raw_url)
+            os.makedirs(cache_dir, exist_ok=True)
+            Path(cache_fp).write_bytes(data)
     except Exception as ex:
         print(f"[panel_bridge] panel-bank-logo: {ex}")
         flow.response = http.Response.make(502, b"upstream error")

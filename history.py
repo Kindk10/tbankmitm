@@ -938,14 +938,11 @@ def _propagate_merchant_logo(out):
     for alias in ("logo", "logoUrl", "image", "icon", "picture", "avatar", "favicon"):
         cp[alias] = logo
     brand = out.get("brand")
-    if not isinstance(brand, dict):
-        brand = {}
-        out["brand"] = brand
-    brand["logo"] = logo
-    brand["fileLink"] = logo
-    if isinstance(m, dict) and m.get("name") and not brand.get("name"):
-        brand["name"] = m.get("name")
-    out["icon"] = logo
+    if isinstance(brand, dict):
+        brand["logo"] = logo
+        brand["fileLink"] = logo
+        if m.get("name") and not brand.get("name"):
+            brand["name"] = m.get("name")
 
 
 def _logo_from_bank_preset(preset_key: str) -> str:
@@ -988,6 +985,45 @@ def _set_amount_field(container, key, value):
         container[key] = _normalize_money_dict(cur, value)
     else:
         container[key] = {"value": value, "currency": _rub_currency_obj()}
+
+
+def _coerce_money_fields_in_operation(out: dict) -> None:
+    """Строка currency: \"RUB\" ломает парсер приложения — только объект {code,name,strCode}."""
+    if not isinstance(out, dict):
+        return
+    money_keys = (
+        "amount",
+        "operationAmount",
+        "moneyAmount",
+        "accountAmount",
+        "paymentAmount",
+        "totalAmount",
+        "signedAmount",
+        "debitAmount",
+        "creditAmount",
+        "cashbackAmount",
+    )
+
+    def fix_one(obj: dict, key: str) -> None:
+        if key not in obj:
+            return
+        cur = obj.get(key)
+        if not isinstance(cur, dict):
+            obj[key] = {"value": float(cur or 0), "currency": _rub_currency_obj()}
+            return
+        val = cur.get("value")
+        if val is None:
+            val = 0
+        obj[key] = _normalize_money_dict(cur, val)
+
+    for key in money_keys:
+        fix_one(out, key)
+    subs = out.get("subOperations")
+    if isinstance(subs, list):
+        for sub in subs:
+            if isinstance(sub, dict):
+                for key in money_keys:
+                    fix_one(sub, key)
 
 
 def _propagate_amount_fields(out, amt, typ):
@@ -1601,11 +1637,11 @@ def overlay_manual_on_template(
             for card_key in ("cardNumber", "pan", "card_number"):
                 cp[card_key] = card_mask
     if "accountAmount" not in out:
-        out["accountAmount"] = {"value": amt, "currency": "RUB"}
+        out["accountAmount"] = {"value": amt, "currency": _rub_currency_obj()}
     if "cashback" not in out:
         out["cashback"] = 0.0
     if "cashbackAmount" not in out:
-        out["cashbackAmount"] = {"value": 0.0, "currency": "RUB"}
+        out["cashbackAmount"] = {"value": 0.0, "currency": _rub_currency_obj()}
     if "locations" not in out:
         out["locations"] = []
     if "senderDetails" not in out:
@@ -1701,7 +1737,11 @@ def overlay_manual_on_template(
 
     if manual_logo and isinstance(out.get("merchant"), dict):
         out["merchant"]["logo"] = manual_logo
-    _propagate_merchant_logo(out)
+        if isinstance(out.get("brand"), dict):
+            out["brand"]["logo"] = manual_logo
+            out["brand"]["fileLink"] = manual_logo
+
+    _coerce_money_fields_in_operation(out)
 
     return out
 
@@ -1861,6 +1901,31 @@ def _candidate_operation_lists_from_data(
     return out
 
 
+def _pending_manual_inject_ops(show_all: bool) -> list:
+    pending = []
+    for op_id, op in manual_operations.items():
+        if op_id in hidden_operations:
+            continue
+        if not show_all and not is_current_month(op.get("date", "")):
+            continue
+        pending.append((op_id, op))
+    return pending
+
+
+def _quick_fake_history_might_exist() -> bool:
+    for path in _last_transfer_json_paths():
+        if not os.path.isfile(path):
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                head = f.read(8192)
+            if '"fake_history"' in head and "[" in head:
+                return True
+        except OSError:
+            continue
+    return False
+
+
 def inject_manual_into_response(
     data,
     url: str,
@@ -1876,68 +1941,48 @@ def inject_manual_into_response(
         return False
     if _flow_is_statements_certificates_context(url, referer, request_text):
         return False
-    page_kind = _mybank_page_kind(referer)
-    request_feed_like = _request_looks_like_operations_feed(request_text)
-    product_surface = _response_looks_like_product_surface(data)
-    # Не повышать page_kind до operations только по телу — иначе inject на главной плодит карточки.
-    if page_kind == "" and request_feed_like and not product_surface:
-        if referer_indicates_mybank(referer, "operations"):
-            page_kind = "operations"
-    candidates = _candidate_operation_lists_from_data(
-        data,
-        allow_graphql_edges=(page_kind != "mybank"),
-        allow_widget_containers=(page_kind == "operations" and not product_surface),
-    )
-    has_operation_candidates = bool(candidates)
     url_u = (url or "").lower()
+    page_kind = _mybank_page_kind(referer)
     is_strict_ops_feed = "/api/common/v1/operations" in url_u and "operations_category_list" not in url_u
-    # Главная /mybank/: только баланс через balance.py; inject — только strict ops feed.
-    if page_kind == "mybank" and _ua_looks_like_desktop_browser(user_agent) and not is_strict_ops_feed:
-        if bank_debug_enabled():
-            print(f"[history] ручные операции: пропуск inject на главной mybank: {url[:140]}")
+    if "operations_category_list" in url_u or not url_allows_operation_inject(url):
+        return False
+    if page_kind == "mybank" and not is_strict_ops_feed:
         return False
     # WebView/браузер (Mozilla/Chrome UA) — inject на ленте операций не отключаем.
     if _ua_looks_like_desktop_browser(user_agent) and not (
         is_strict_ops_feed or page_kind == "operations"
     ):
         return False
-    if product_surface and page_kind != "operations":
-        if bank_debug_enabled():
-            print(f"[history] ручные операции: пропуск product-surface ответа: {url[:140]}")
-        return False
-    if not url_allows_operation_inject(url) and not has_operation_candidates:
-        if bank_debug_enabled():
-            print(f"[history] ручные операции: URL пропущен (не лента операций): {url[:140]}")
-        return False
-    # На mybank не обходить browser-block через has_operation_candidates.
     if page_kind == "mybank" and _block_manual_inject_browser_tbank(url, user_agent):
-        if bank_debug_enabled():
-            print(f"[history] ручные операции: mybank + browser block: {url[:140]}")
-        return False
-    if page_kind != "operations" and page_kind != "mybank" and _block_manual_inject_browser_tbank(url, user_agent) and not has_operation_candidates:
-        if bank_debug_enabled():
-            print(f"[history] ручные операции: браузер + веб-API, путь не похож на ленту — пропуск: {url[:140]}")
-        return False
-    if page_kind != "operations" and _graphql_manual_inject_noise_request(url, request_text) and not has_operation_candidates:
-        if bank_debug_enabled():
-            print(f"[history] ручные операции: GraphQL operationName — виджет/шум, пропуск: {url[:120]}")
         return False
 
     show_all = app_include_all_operations()
-    pending = []
-    for op_id, op in manual_operations.items():
-        if op_id in hidden_operations:
-            continue
-        if not show_all and not is_current_month(op.get("date", "")):
-            continue
-        pending.append((op_id, op))
-    pending_fake = pending_fake_history_ops(month_restrict=not show_all)
+    pending = _pending_manual_inject_ops(show_all)
+    pending_fake = pending_fake_history_ops(month_restrict=not show_all) if not pending else []
     if not pending and not pending_fake:
-        if bank_debug_enabled() and (manual_operations or pending_fake_history_ops(month_restrict=False)):
-            print(
-                "[history] операции для inject есть, но ни одна не проходит фильтр — "
-                "проверьте дату или panel_show_all_operations / hidden_operations."
-            )
+        return False
+
+    request_feed_like = _request_looks_like_operations_feed(request_text)
+    product_surface = _response_looks_like_product_surface(data)
+    if page_kind == "" and request_feed_like and not product_surface:
+        if referer_indicates_mybank(referer, "operations"):
+            page_kind = "operations"
+    if product_surface and page_kind != "operations":
+        return False
+
+    candidates = _candidate_operation_lists_from_data(
+        data,
+        allow_graphql_edges=(page_kind != "mybank"),
+        allow_widget_containers=(page_kind == "operations" and not product_surface),
+    )
+    has_operation_candidates = bool(candidates)
+    if page_kind != "operations" and page_kind != "mybank" and _block_manual_inject_browser_tbank(
+        url, user_agent
+    ) and not has_operation_candidates:
+        return False
+    if page_kind != "operations" and _graphql_manual_inject_noise_request(
+        url, request_text
+    ) and not has_operation_candidates:
         return False
 
     changed = False
@@ -2136,7 +2181,7 @@ def inject_manual_into_response(
 
     if apply_manual_transfer_summary_adjustments(data, url):
         changed = True
-    if changed:
+    if changed and bank_debug_enabled():
         print(f"[history] ✓ подменён ответ (ручные операции): {url[:130]}")
     return changed
 
@@ -3927,12 +3972,19 @@ def response(flow: http.HTTPFlow) -> None:
                         print(f"[history] Обновлено из повторного ответа: {merged} операций")
                     last_sync_time = datetime.now()
 
-        filtered = apply_hidden_operations_filter(data, url, referer, req_text)
-        injected = False if ctx_stmt else inject_manual_into_response(data, url, req_text, ua, referer)
+        filtered = False
+        if hidden_operations:
+            filtered = apply_hidden_operations_filter(data, url, referer, req_text)
+        injected = False
+        if not ctx_stmt and (manual_operations or _quick_fake_history_might_exist()):
+            injected = inject_manual_into_response(data, url, req_text, ua, referer)
 
         if injected or filtered:
             if isinstance(data, (dict, list)):
-                flow.response.text = json.dumps(data, ensure_ascii=False)
+                try:
+                    flow.response.text = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+                except (TypeError, ValueError) as ser_ex:
+                    print(f"[history] json.dumps после патча: {ser_ex}")
             else:
                 print("[history] пропуск записи ответа: после патча не dict/list")
     except json.JSONDecodeError as e:
