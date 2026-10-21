@@ -40,7 +40,7 @@
     "panel_show_all_operations": true
   },
   "browser_finanalytics_dom_patch": true,
-  "panel_fetch_origin": "http://31.177.109.149:8082",
+  "panel_fetch_origin": "http://188.127.237.61:8082",
   "manual": {
     "histogram_sync_with_operations": true,
     "expense": 38050.0,

@@ -18,9 +18,9 @@ from bank_filter import (
     url_prohibit_proxy_json_mutation,
 )
 
-ALLOWED_IPS = ["31.177.109.149", "193.233.89.185", "85.209.135.247", "5.18.160.29", "85.192.60.79", "127.0.0.1"]
+ALLOWED_IPS = ["188.127.237.61", "31.177.109.149", "193.233.89.185", "85.209.135.247", "5.18.160.29", "85.192.60.79", "127.0.0.1"]
 PANEL_PORT = 8082
-HOST_IP = os.environ.get("TBANKMITM_PUBLIC_IP", "31.177.109.149")
+HOST_IP = os.environ.get("TBANKMITM_PUBLIC_IP", "188.127.237.61")
 
 
 def _env_truthy(name: str) -> bool:

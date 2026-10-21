@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Залить локальные фиксы на VPS.
-#   export VPS_HOST=root@31.177.109.149
+#   export VPS_HOST=root@188.127.237.61
 #   bash deploy_to_vps.sh
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-HOST="${VPS_HOST:-root@31.177.109.149}"
+HOST="${VPS_HOST:-root@188.127.237.61}"
 REMOTE="${VPS_REMOTE_DIR:-~/tbankmitm/tbankmitm}"
 
 FILES=(

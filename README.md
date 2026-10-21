@@ -32,7 +32,7 @@ mitmweb -s controller.py -s history.py -s balance.py -s name.py -s panel_bridge.
 
 1. Откройте настройки сети/прокси
 2. Укажите:
-   - **Host:** `localhost` или `31.177.109.149`
+   - **Host:** `localhost` или `188.127.237.61`
    - **Port:** `8082`
    - **SSL:** Включить
 3. Установите сертификат mitmproxy (первый запуск)
