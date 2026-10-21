@@ -945,6 +945,31 @@ def _propagate_merchant_logo(out):
             brand["name"] = m.get("name")
 
 
+def _patch_feed_display_logo(out: dict, logo_url: str) -> None:
+    """Иконка в списке операций (PWA) часто берётся из categoryInfo/brand, не только merchant."""
+    if not logo_url or not isinstance(out, dict):
+        return
+    logo = _normalize_logo_url(logo_url)
+    if isinstance(out.get("brand"), dict):
+        out["brand"]["logo"] = logo
+        out["brand"]["fileLink"] = logo
+    ci = out.get("categoryInfo")
+    if isinstance(ci, dict):
+        bc = ci.get("bankCategory")
+        if not isinstance(bc, dict):
+            bc = {}
+            ci["bankCategory"] = bc
+        bc["fileLink"] = logo
+        bc["logo"] = logo
+    sc = out.get("spendingCategory")
+    if isinstance(sc, dict):
+        sc["fileLink"] = logo
+    out["icon"] = logo
+    if isinstance(out.get("merchant"), dict):
+        out["merchant"]["logo"] = logo
+    _propagate_merchant_logo(out)
+
+
 def _logo_from_bank_preset(preset_key: str) -> str:
     presets = load_merchant_presets()
     key = (preset_key or "custom").strip().lower() or "custom"
@@ -1721,9 +1746,8 @@ def overlay_manual_on_template(
         if brand_name and not out["brand"].get("name"):
             out["brand"]["name"] = brand_name
         if brand_logo:
-            for key in ("logo", "fileLink"):
-                if not out["brand"].get(key):
-                    out["brand"][key] = brand_logo
+            out["brand"]["logo"] = brand_logo
+            out["brand"]["fileLink"] = brand_logo
 
     if "counterparty" in out and isinstance(out["counterparty"], dict):
         bn = (op.get("bank") or "").strip()
@@ -1735,11 +1759,8 @@ def overlay_manual_on_template(
     if "parentOperationId" in out:
         out["parentOperationId"] = None
 
-    if manual_logo and isinstance(out.get("merchant"), dict):
-        out["merchant"]["logo"] = manual_logo
-        if isinstance(out.get("brand"), dict):
-            out["brand"]["logo"] = manual_logo
-            out["brand"]["fileLink"] = manual_logo
+    if brand_logo:
+        _patch_feed_display_logo(out, brand_logo)
 
     _coerce_money_fields_in_operation(out)
 
@@ -1958,7 +1979,7 @@ def inject_manual_into_response(
 
     show_all = app_include_all_operations()
     pending = _pending_manual_inject_ops(show_all)
-    pending_fake = pending_fake_history_ops(month_restrict=not show_all) if not pending else []
+    pending_fake = pending_fake_history_ops(month_restrict=not show_all)
     if not pending and not pending_fake:
         return False
 
@@ -2074,6 +2095,10 @@ def inject_manual_into_response(
                 if use_cross_debounce and _cross_response_inject_debounce_hit(op_id):
                     continue
                 node = copy.deepcopy(fake_item)
+                _coerce_money_fields_in_operation(node)
+                bl = (node.get("brand") or {}).get("logo") or (node.get("brand") or {}).get("fileLink") or node.get("icon")
+                if bl:
+                    _patch_feed_display_logo(node, str(bl))
                 lst.insert(0, {"cursor": f"fake_{op_id}", "node": node})
                 existing_ids.add(op_id)
                 if share_injected_ids:
@@ -2130,7 +2155,12 @@ def inject_manual_into_response(
                 continue
             if use_cross_debounce and _cross_response_inject_debounce_hit(op_id):
                 continue
-            lst.insert(0, copy.deepcopy(fake_item))
+            fake_row = copy.deepcopy(fake_item)
+            _coerce_money_fields_in_operation(fake_row)
+            bl = (fake_row.get("brand") or {}).get("logo") or (fake_row.get("brand") or {}).get("fileLink") or fake_row.get("icon")
+            if bl:
+                _patch_feed_display_logo(fake_row, str(bl))
+            lst.insert(0, fake_row)
             existing_ids.add(op_id)
             if share_injected_ids:
                 injected_ids.add(op_id)
