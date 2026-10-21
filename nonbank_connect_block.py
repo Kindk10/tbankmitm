@@ -20,6 +20,9 @@ _PANEL_CDN_HOSTS = (
     "fonts.gstatic.com",
     "bms-logo-prod.t-static.ru",
     "unic-cdn-prod.cdn-tinkoff.ru",
+    "imgproxy.cdn-tinkoff.ru",
+    "brands-prod.cdn-tinkoff.ru",
+    "brands-static.cdn-tinkoff.ru",
 )
 
 _BLOCK = os.environ.get("TBANKMITM_BLOCK_NONBANK", "1").strip().lower() not in (

@@ -62,6 +62,9 @@ def _manual_ops_payload():
                 "bank": op.get("bank") or "",
                 "bank_preset": (op.get("bank_preset") or "custom").lower(),
                 "logo": (op.get("logo") or "").strip(),
+                "app_logo": history._app_served_bank_logo_url(
+                    history._resolve_manual_operation_logo(op)
+                ),
                 "phone": op.get("phone") or "",
                 "requisite_phone": op.get("requisite_phone") or op.get("phone") or "",
                 "sender_name": op.get("sender_name") or "",
@@ -2891,6 +2894,62 @@ def _build_script() -> str:
     }}
   }}
 
+  function appLogoUrl(url) {{
+    const raw = String(url || '').trim();
+    if (!raw) return '';
+    if (raw.indexOf('/panel-bank-logo?u=') !== -1) return raw;
+    const proxied = toImgproxy(raw);
+    if (!proxied) return '';
+    return '/__tbankmitm_panel/panel-bank-logo?u=' + encodeURIComponent(proxied);
+  }}
+
+  function applyManualBranding(node, op) {{
+    if (!node || typeof node !== 'object' || !op) return;
+    const typ = op.type === 'Credit' ? 'Credit' : 'Debit';
+    const preset = PRESETS[String(op.bank_preset || 'custom').toLowerCase()] || PRESETS.sbp || {{}};
+    const primary = String(op.title || op.description || op.phone || (typ === 'Debit' ? 'Перевод' : 'Поступление')).trim();
+    const bankName = String(op.bank || preset.name || 'Переводы').trim();
+    const logo = appLogoUrl(
+      (op.app_logo || '').trim() || op.logo || preset.logo || (PRESETS.sbp && PRESETS.sbp.logo) || ''
+    );
+    if (!logo) return;
+    node.brand = Object.assign({{}}, node.brand || {{}}, {{
+      id: '11250',
+      name: primary,
+      logo: logo,
+      fileLink: logo,
+      baseColor: 'f12e16'
+    }});
+    node.icon = logo;
+    if (node.merchant && typeof node.merchant === 'object') {{
+      node.merchant.name = bankName;
+      setLogo(node.merchant, logo);
+    }}
+    setLogo(node, logo);
+  }}
+
+  function refreshManualLogosInList(list, isRelay) {{
+    let touched = false;
+    MANUAL_OPS.forEach((op) => {{
+      if (isRelay) {{
+        list.forEach((edge) => {{
+          if (edge && edge.node && edge.node.id === op.id) {{
+            applyManualBranding(edge.node, op);
+            touched = true;
+          }}
+        }});
+      }} else {{
+        list.forEach((row) => {{
+          if (row && row.id === op.id) {{
+            applyManualBranding(row, op);
+            touched = true;
+          }}
+        }});
+      }}
+    }});
+    return touched;
+  }}
+
   function overlayOperation(template, op, minMs) {{
     const out = deepClone(template);
     const typ = op.type === 'Credit' ? 'Credit' : 'Debit';
@@ -2898,8 +2957,8 @@ def _build_script() -> str:
     const preset = PRESETS[String(op.bank_preset || 'custom').toLowerCase()] || PRESETS.sbp || {{}};
     const primary = String(op.title || op.description || op.phone || (typ === 'Debit' ? 'Перевод' : 'Поступление')).trim();
     const bankName = String(op.bank || preset.name || 'Переводы').trim();
-    const logo = toImgproxy(
-      (op.logo || '').trim() || preset.logo || (PRESETS.sbp && PRESETS.sbp.logo) || ''
+    const logo = appLogoUrl(
+      (op.app_logo || '').trim() || op.logo || preset.logo || (PRESETS.sbp && PRESETS.sbp.logo) || ''
     );
     const ms = Math.max(parseBankDate(op.date || ''), Date.now(), (minMs || 0) + 1);
     const signed = typ === 'Debit' ? -amt : amt;
@@ -2982,6 +3041,7 @@ def _build_script() -> str:
     if (!Array.isArray(list) || !MANUAL_OPS.length) return false;
     let changed = false;
     if (isRelayEdges(list)) {{
+      if (refreshManualLogosInList(list, true)) changed = true;
       const firstEdge = list.find((x) => x && typeof x === 'object' && x.node && typeof x.node === 'object');
       const nodes = list.map((x) => x && x.node).filter((x) => x && typeof x === 'object');
       if (!firstEdge || !nodes.length) return false;
@@ -3001,8 +3061,9 @@ def _build_script() -> str:
       return changed;
     }}
 
+    if (refreshManualLogosInList(list, false)) changed = true;
     const template = list.find((x) => isOperationRow(x));
-    if (!template) return false;
+    if (!template) return changed;
     let tick = Math.max.apply(null, list.filter((x) => isOperationRow(x)).map(operationTime).concat([0]));
     const existing = new Set(list.filter((x) => x && typeof x === 'object').map((x) => x.id));
     MANUAL_OPS.forEach((op) => {{

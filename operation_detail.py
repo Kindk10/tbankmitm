@@ -283,20 +283,35 @@ def _patch_receipt_like_node(obj: dict, man: dict) -> bool:
         obj["merchant"] = {"name": bank}
         changed = True
 
-    # Пропагация brand.name и brand.logo (название банка в шапке)
-    brand_logo = man.get("logo") or man.get("bank_preset_logo") or ""
-    if bank and isinstance(obj.get("brand"), dict):
-        obj["brand"]["name"] = bank
+    # Пропагация brand.logo — same-origin panel-bank-logo (как в панели пресетов)
+    brand_logo = history._app_served_bank_logo_url(history._resolve_manual_operation_logo(man))
+    display_title = (man.get("title") or "").strip() or primary
+    if isinstance(obj.get("brand"), dict):
+        if display_title:
+            obj["brand"]["name"] = display_title
+        elif bank:
+            obj["brand"]["name"] = bank
         if brand_logo:
             obj["brand"]["logo"] = brand_logo
             obj["brand"]["fileLink"] = brand_logo
         changed = True
-    elif bank and "brand" in obj:
-        obj["brand"] = {"name": bank}
+    elif display_title or bank or brand_logo:
+        obj["brand"] = {
+            "id": "11250",
+            "name": display_title or bank or primary,
+            "baseColor": "f12e16",
+        }
         if brand_logo:
             obj["brand"]["logo"] = brand_logo
             obj["brand"]["fileLink"] = brand_logo
         changed = True
+
+    if brand_logo:
+        obj["icon"] = brand_logo
+        try:
+            history._patch_feed_display_logo(obj, brand_logo)
+        except Exception:
+            pass
 
     # Пропагация логотипа в logo/logoUrl/image/icon поля
     if brand_logo:

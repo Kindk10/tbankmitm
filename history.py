@@ -3,7 +3,7 @@ import json
 import copy
 from typing import Optional
 from datetime import datetime, timezone, timedelta
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlparse, quote
 import time
 import re
 import os
@@ -25,6 +25,7 @@ from bank_filter import (
     referer_indicates_mybank,
     is_tbank_web_api_host,
     map_same_origin_panel_request,
+    SAME_ORIGIN_PANEL_PREFIX,
 )
 
 try:
@@ -902,6 +903,20 @@ def _apply_bank_brand_preset(out, op):
         out["merchant"] = {"name": bank}
 
 
+def _app_served_bank_logo_url(logo: str) -> str:
+    """
+    Те же URL, что в панели (panel-bank-logo): PWA грузит лого с tbank-online.com,
+    а не напрямую с imgproxy/CDN — иначе на телефоне через Potatso часто «битая» иконка.
+    """
+    normalized = _normalize_logo_url(logo)
+    if not normalized:
+        return ""
+    prefix = f"{SAME_ORIGIN_PANEL_PREFIX}/panel-bank-logo?u="
+    if normalized.startswith(prefix) or "/panel-bank-logo?u=" in normalized:
+        return normalized
+    return f"{prefix}{quote(normalized, safe='')}"
+
+
 def _normalize_logo_url(raw_logo):
     """Приводим URL к формату imgproxy, который стабильно рендерится в карточке."""
     logo = (raw_logo or "").strip()
@@ -953,7 +968,7 @@ def _patch_feed_display_logo(out: dict, logo_url: str) -> None:
     """Иконка в списке операций (PWA) часто берётся из categoryInfo/brand, не только merchant."""
     if not logo_url or not isinstance(out, dict):
         return
-    logo = _normalize_logo_url(logo_url)
+    logo = _app_served_bank_logo_url(logo_url)
     if isinstance(out.get("brand"), dict):
         out["brand"]["logo"] = logo
         out["brand"]["fileLink"] = logo
@@ -1776,7 +1791,7 @@ def overlay_manual_on_template(
     if "documents" not in out:
         out["documents"] = ["Statement"]
 
-    brand_logo = _resolve_manual_operation_logo(op)
+    brand_logo = _app_served_bank_logo_url(_resolve_manual_operation_logo(op))
     bank_label = (op.get("bank") or "").strip() or merchant_name
     if not isinstance(out.get("merchant"), dict):
         out["merchant"] = {}
