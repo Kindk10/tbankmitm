@@ -7,8 +7,8 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>T‑Bank Control Panel</title>
-    <link rel="stylesheet" href="/panel-static/all.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="/panel-fa/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -766,8 +766,17 @@
                     return url;
                 }
             };
+            const panelLogoSrc = (url) => {
+                const proxied = toImgproxy(url);
+                if (!proxied || !proxied.startsWith('https://')) return proxied;
+                try {
+                    return '/panel-bank-logo?u=' + encodeURIComponent(proxied);
+                } catch (_) {
+                    return proxied;
+                }
+            };
             Object.entries(BANK_PRESET_META).forEach(([key, item]) => {
-                html += `<button type="button" class="preset-chip ${selected===key?'active':''}" onclick="setBankPreset('${key}')"><img src="${toImgproxy(item.logo)}" alt=""><span>${item.name}</span></button>`;
+                html += `<button type="button" class="preset-chip ${selected===key?'active':''}" onclick="setBankPreset('${key}')"><img src="${panelLogoSrc(item.logo)}" alt="" loading="lazy"><span>${item.name}</span></button>`;
             });
             html += `<button type="button" class="preset-chip ${selected==='custom'?'active':''}" onclick="setBankPreset('custom')"><span>Свой</span></button>`;
             box.innerHTML = html;

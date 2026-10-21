@@ -6,6 +6,7 @@ import os
 import random
 from pathlib import Path
 from typing import Optional
+import urllib.request
 
 sys.path.append(os.path.dirname(__file__))
 import controller
@@ -96,6 +97,99 @@ def _resolve_manual_pdf_path(stored: str) -> Optional[str]:
 
 
 _PANEL_STATIC_DIR = os.path.join(_BASE_DIR, "panel_static")
+_PANEL_FA_CDN = "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3"
+_PANEL_FA_CACHE = os.path.join(_PANEL_STATIC_DIR, "fa-cache")
+
+
+def _panel_http_get(url: str, timeout: float = 25.0) -> bytes:
+    req = urllib.request.Request(url, headers={"User-Agent": "tbankmitm-panel/1"})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return resp.read()
+
+
+def _panel_asset_headers(content_type: str) -> dict:
+    return {
+        "Content-Type": content_type,
+        "Cache-Control": "public, max-age=604800",
+        "Access-Control-Allow-Origin": "*",
+    }
+
+
+def _try_serve_panel_fa(flow: http.HTTPFlow, path_only: str) -> bool:
+    """Font Awesome с того же origin (:8082) — иконки работают даже при Potatso и без panel_static/."""
+    if not path_only.startswith("/panel-fa/"):
+        return False
+    rel = path_only[len("/panel-fa/") :].lstrip("/").replace("\\", "/")
+    if not rel or ".." in rel.split("/"):
+        flow.response = http.Response.make(403, b"Forbidden")
+        return True
+    try:
+        if rel == "all.min.css":
+            cache_css = os.path.join(_PANEL_FA_CACHE, "all.min.css")
+            if os.path.isfile(cache_css) and os.path.getsize(cache_css) > 500:
+                data = Path(cache_css).read_bytes()
+            else:
+                raw = _panel_http_get(f"{_PANEL_FA_CDN}/css/all.min.css").decode("utf-8", errors="replace")
+                raw = raw.replace("../webfonts/", "/panel-fa/webfonts/")
+                os.makedirs(_PANEL_FA_CACHE, exist_ok=True)
+                Path(cache_css).write_text(raw, encoding="utf-8")
+                data = raw.encode("utf-8")
+            flow.response = http.Response.make(200, data, _panel_asset_headers("text/css; charset=utf-8"))
+            return True
+        if rel.startswith("webfonts/"):
+            fname = rel.split("/", 1)[1]
+            if not fname or ".." in fname or "/" in fname:
+                flow.response = http.Response.make(403, b"Forbidden")
+                return True
+            cache_font = os.path.join(_PANEL_FA_CACHE, "webfonts", fname)
+            if not os.path.isfile(cache_font):
+                os.makedirs(os.path.dirname(cache_font), exist_ok=True)
+                Path(cache_font).write_bytes(_panel_http_get(f"{_PANEL_FA_CDN}/webfonts/{fname}"))
+            data = Path(cache_font).read_bytes()
+            ct = "font/woff2" if fname.endswith(".woff2") else "font/woff"
+            flow.response = http.Response.make(200, data, _panel_asset_headers(ct))
+            return True
+    except Exception as ex:
+        print(f"[panel_bridge] panel-fa {rel!r}: {ex}")
+        flow.response = http.Response.make(502, b"Font Awesome upstream error")
+        return True
+    flow.response = http.Response.make(404, b"Not found")
+    return True
+
+
+def _try_serve_panel_bank_logo(flow: http.HTTPFlow, path_only: str) -> bool:
+    """Логотипы пресетов через :8082 — img не блокируется фильтром CONNECT на телефоне."""
+    if not path_only.startswith("/panel-bank-logo"):
+        return False
+    qs = _panel_request_query_params(flow.request.path or path_only)
+    raw_url = (qs.get("u") or qs.get("url") or [""])[0]
+    raw_url = (raw_url or "").strip()
+    if not raw_url.startswith("https://"):
+        flow.response = http.Response.make(400, b"bad url")
+        return True
+    low = raw_url.lower()
+    allowed = (
+        "imgproxy.cdn-tinkoff.ru/",
+        "brands-prod.cdn-tinkoff.ru/",
+        "brands-static.cdn-tinkoff.ru/",
+        "bms-logo-prod.t-static.ru/",
+    )
+    if not any(m in low for m in allowed):
+        flow.response = http.Response.make(403, b"host not allowed")
+        return True
+    try:
+        data = _panel_http_get(raw_url)
+    except Exception as ex:
+        print(f"[panel_bridge] panel-bank-logo: {ex}")
+        flow.response = http.Response.make(502, b"upstream error")
+        return True
+    ct = "image/png"
+    if ".jpg" in low or ".jpeg" in low:
+        ct = "image/jpeg"
+    elif ".webp" in low:
+        ct = "image/webp"
+    flow.response = http.Response.make(200, data, _panel_asset_headers(ct))
+    return True
 
 
 def _try_serve_panel_static(flow: http.HTTPFlow, path_only: str) -> bool:
@@ -107,6 +201,8 @@ def _try_serve_panel_static(flow: http.HTTPFlow, path_only: str) -> bool:
         return True
     fp = os.path.normpath(os.path.join(_PANEL_STATIC_DIR, rel))
     if not fp.startswith(os.path.normpath(_PANEL_STATIC_DIR)) or not os.path.isfile(fp):
+        if rel == "all.min.css":
+            return _try_serve_panel_fa(flow, "/panel-fa/all.min.css")
         flow.response = http.Response.make(404, b"Not found")
         return True
     try:
@@ -231,12 +327,12 @@ HTML_PANEL = """<!DOCTYPE html>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover, user-scalable=yes">
     <title>T‑Bank Control Panel</title>
-    <link rel="stylesheet" href="/panel-static/all.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="/panel-fa/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-family: 'Inter', sans-serif;
             background: #0b0b0b;
             min-height: 100vh;
             color: #ffe37a;
@@ -1095,8 +1191,17 @@ HTML_PANEL = """<!DOCTYPE html>
                     return url;
                 }
             };
+            const panelLogoSrc = (url) => {
+                const proxied = toImgproxy(url);
+                if (!proxied || !proxied.startsWith('https://')) return proxied;
+                try {
+                    return '/panel-bank-logo?u=' + encodeURIComponent(proxied);
+                } catch (_) {
+                    return proxied;
+                }
+            };
             Object.entries(BANK_PRESET_META).forEach(([key, item]) => {
-                html += `<button type="button" class="preset-chip ${selected===key?'active':''}" onclick="setBankPreset('${key}')"><img src="${toImgproxy(item.logo)}" alt=""><span>${item.name}</span></button>`;
+                html += `<button type="button" class="preset-chip ${selected===key?'active':''}" onclick="setBankPreset('${key}')"><img src="${panelLogoSrc(item.logo)}" alt="" loading="lazy"><span>${item.name}</span></button>`;
             });
             html += `<button type="button" class="preset-chip ${selected==='custom'?'active':''}" onclick="setBankPreset('custom')"><span>Свой</span></button>`;
             box.innerHTML = html;
@@ -1861,6 +1966,10 @@ def request(flow: http.HTTPFlow) -> None:
 
     if flow.request.method == "GET" and _try_serve_panel_static(flow, path_only):
         return
+    if flow.request.method == "GET" and _try_serve_panel_fa(flow, path_only):
+        return
+    if flow.request.method == "GET" and _try_serve_panel_bank_logo(flow, path_only):
+        return
 
     client_ip = flow.client_conn.address[0]
     if not _client_ok_for_panel(client_ip):
@@ -1948,7 +2057,15 @@ def request(flow: http.HTTPFlow) -> None:
         return
 
     if path == "/admin" or path == "/admin/":
-        flow.response = http.Response.make(200, HTML_PANEL.encode('utf-8'), {"Content-Type": "text/html"})
+        flow.response = http.Response.make(
+            200,
+            HTML_PANEL.encode("utf-8"),
+            {
+                "Content-Type": "text/html; charset=utf-8",
+                "Cache-Control": "no-store, no-cache, must-revalidate",
+                "Pragma": "no-cache",
+            },
+        )
         return
 
     if path == "/api/config":
