@@ -9,6 +9,7 @@ REMOTE="${VPS_REMOTE_DIR:-~/tbankmitm/tbankmitm}"
 
 FILES=(
   history.py
+  bank_filter.py
   browser_ops_injector.py
   operation_detail.py
   panel_bridge.py
@@ -19,6 +20,8 @@ FILES=(
   tls_passthrough_hosts.py
   controller.py
   config.json
+  start_vps.sh
+  mitm_run_dump.py
   nonbank_connect_block.py
   vps_hotfix_inject.py
   _action_buttons_row_inner.html
@@ -33,5 +36,5 @@ done
 
 echo "Deploy -> ${HOST}:${REMOTE}"
 scp "${LOCAL[@]}" "${HOST}:${REMOTE}/"
-ssh "$HOST" "cd ${REMOTE} && pkill -f mitm_run_dump || true; sleep 1; export BANK_DEBUG=1 TBANKMITM_PANEL_ALLOW_ANY=1; nohup bash start_vps.sh >/tmp/tbankmitm.log 2>&1 & sleep 2; curl -s -o /dev/null -w 'api %{http_code}\n' http://127.0.0.1:8082/api/operations || true"
+ssh "$HOST" "cd ${REMOTE} && pkill -f mitm_run_dump || true; sleep 1; export TBANKMITM_PUBLIC_IP=188.127.237.61 TBANKMITM_PANEL_ALLOW_ANY=1; nohup bash start_vps.sh >/tmp/tbankmitm.log 2>&1 & sleep 3; curl -s -o /dev/null -w 'api %{http_code}\n' http://127.0.0.1:8082/api/operations || true"
 echo "Done."

@@ -33,6 +33,36 @@ def referer_indicates_mybank(referer: str, subpath: str = "") -> bool:
     return False
 
 
+SAME_ORIGIN_PANEL_PREFIX = "/__tbankmitm_panel"
+
+
+def map_same_origin_panel_request(flow) -> bool:
+    """
+    PWA https://www.tbank-online.com (и tbank.ru): fetch на http://IP:8082 блокируется mixed content.
+    Запросы на https://…/__tbankmitm_panel/api/… переписываем в /api/… для panel_bridge / history.
+    """
+    try:
+        port = int(getattr(flow.request, "port", 0) or 0)
+        if port not in (443, 80):
+            return False
+        host = (flow.request.host or "").lower()
+        if not any(m in host for m in ("tbank-online.com", "tbank.ru", "tinkoff.ru")):
+            return False
+        raw = flow.request.path or ""
+        q = raw.find("?")
+        path_only = raw[:q] if q >= 0 else raw
+        query = raw[q:] if q >= 0 else ""
+        if not path_only.startswith(SAME_ORIGIN_PANEL_PREFIX):
+            return False
+        inner = path_only[len(SAME_ORIGIN_PANEL_PREFIX) :] or "/"
+        if not inner.startswith("/"):
+            inner = "/" + inner
+        flow.request.path = inner + query
+        return True
+    except Exception:
+        return False
+
+
 def is_tbank_web_api_host(hostname: str) -> bool:
     h = (hostname or "").lower().strip()
     if not h:

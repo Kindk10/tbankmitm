@@ -246,7 +246,16 @@ def _build_script() -> str:
   const MANUAL_ACTIONS_ROW_INNER_HTML = {manual_actions_row_inner};
   const MANUAL_ACTIONS_DISALLOW_ONLY_INNER_HTML = {manual_actions_disallow_only};
   const MANUAL_ACTIONS_CREDIT_INNER_HTML = {manual_actions_credit};
-  const PANEL_ORIGIN = {panel_origin_js};
+  const PANEL_ORIGIN = (function () {{
+    const configured = {panel_origin_js};
+    try {{
+      const h = String(location.hostname || '').toLowerCase();
+      if (location.protocol === 'https:' && (h.indexOf('tbank-online.com') !== -1 || h.endsWith('tbank.ru') || h.indexOf('tinkoff.ru') !== -1)) {{
+        return String(location.origin).replace(/\\/$/, '') + '/__tbankmitm_panel';
+      }}
+    }} catch (eOrigin) {{}}
+    return configured;
+  }})();
   const PANEL_EFFECTIVE_BALANCE_URL = PANEL_ORIGIN + '/api/effective_balance';
   const PANEL_INCOME_EXPENSE_URL = PANEL_ORIGIN + '/api/panel_income_expense';
   const PANEL_OPERATIONS_URL = PANEL_ORIGIN + '/api/operations';
@@ -261,6 +270,7 @@ def _build_script() -> str:
 
   function _panelUrlVariants(baseUrl) {{
     const u = String(baseUrl || '');
+    if (u.indexOf('/__tbankmitm_panel') !== -1) return [u];
     const a = u.replace(':8082', ':8083');
     const b = u.replace(':8083', ':8082');
     const urls = [u];
@@ -427,7 +437,10 @@ def _build_script() -> str:
 
   function shouldSyncFinanalyticsCards() {{
     const p = location.pathname || '';
-    return p.indexOf('/mybank') !== -1;
+    if (p.indexOf('/mybank') === -1) return false;
+    if (p.indexOf('/mybank/operations') !== -1) return false;
+    if (p.indexOf('/pay') !== -1 || p.indexOf('/payment') !== -1 || p.indexOf('/transfer') !== -1) return false;
+    return true;
   }}
 
   /* Главная https://www.tbank.ru/mybank/ — блок «Траты» на десктопе без mobile-* разметки; те же суммы, что на /mybank/operations/ */
@@ -1568,7 +1581,7 @@ def _build_script() -> str:
       applyFinanalyticsFromTotals(PANEL_TOTALS_SNAPSHOT);
     }}
     const now = Date.now();
-    const minWait = isMybankRootPath() ? 120 : 480;
+    const minWait = isMybankRootPath() ? 900 : 1500;
     if (now - __finCardLastFetch < minWait || __finCardInFlight) return;
     __finCardLastFetch = now;
     __finCardInFlight = true;
@@ -4328,7 +4341,7 @@ def _build_script() -> str:
     try {{
       window.addEventListener('popstate', patchDetailDom, {{ passive: true }});
     }} catch (ePs) {{}}
-    window.setInterval(patchDetailDom, 2200);
+    window.setInterval(patchDetailDom, 3200);
   }}
 
   function startFinanalyticsCardSync() {{
@@ -4350,7 +4363,7 @@ def _build_script() -> str:
       const mo = new MutationObserver(scheduleFromDom);
       mo.observe(moRoot, {{ childList: true, subtree: true }});
     }} catch (eMo) {{}}
-    window.setInterval(tick, 2000);
+    window.setInterval(tick, 4500);
   }}
 
   bindManualCertReceiptClick();

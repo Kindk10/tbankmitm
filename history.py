@@ -24,6 +24,7 @@ from bank_filter import (
     url_prohibit_proxy_json_mutation,
     referer_indicates_mybank,
     is_tbank_web_api_host,
+    map_same_origin_panel_request,
 )
 
 try:
@@ -470,6 +471,8 @@ def _flow_is_statements_certificates_context(
 
 def _ua_looks_like_desktop_browser(user_agent: Optional[str]) -> bool:
     ua = (user_agent or "").lower()
+    if any(x in ua for x in ("iphone", "ipad", "ipod", " potatso", "cfnetwork")):
+        return False
     return any(x in ua for x in ("mozilla/", "chrome/", "safari/", "edg/", "firefox/"))
 
 
@@ -3807,6 +3810,13 @@ def response(flow: http.HTTPFlow) -> None:
     if url_prohibit_proxy_json_mutation(url):
         return
 
+    try:
+        _body_len = len(flow.response.text or "")
+        if _body_len > 2_500_000 and "/operations" not in url.lower() and "graphql" not in url.lower():
+            return
+    except Exception:
+        pass
+
     if bank_debug_enabled():
         print(f"[history] Вижу запрос: {flow.request.method} {url}")
 
@@ -3900,7 +3910,8 @@ def request(flow: http.HTTPFlow) -> None:
     global hidden_operations, last_sync_time
     ensure_manual_operations_fresh()
 
-    if flow.request.port != 8082:
+    via_bank_https = map_same_origin_panel_request(flow)
+    if not via_bank_https and flow.request.port != 8082:
         return
 
     path = flow.request.path
