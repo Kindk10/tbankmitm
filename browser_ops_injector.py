@@ -61,6 +61,7 @@ def _manual_ops_payload():
                 "description": op.get("description") or "",
                 "bank": op.get("bank") or "",
                 "bank_preset": (op.get("bank_preset") or "custom").lower(),
+                "logo": (op.get("logo") or "").strip(),
                 "phone": op.get("phone") or "",
                 "requisite_phone": op.get("requisite_phone") or op.get("phone") or "",
                 "sender_name": op.get("sender_name") or "",
@@ -147,9 +148,10 @@ def _preset_payload():
         merchant = block.get("merchant") or {}
         if not isinstance(merchant, dict):
             merchant = {}
+        raw_logo = (merchant.get("logo") or merchant.get("logoUrl") or merchant.get("image") or "").strip()
         out[str(key).lower()] = {
             "name": merchant.get("name") or "",
-            "logo": merchant.get("logo") or merchant.get("logoUrl") or merchant.get("image") or "",
+            "logo": history._normalize_logo_url(raw_logo) if raw_logo else "",
         }
     return out
 
@@ -2874,6 +2876,21 @@ def _build_script() -> str:
     }});
   }}
 
+  function toImgproxy(url) {{
+    if (!url) return '';
+    if (url.indexOf('imgproxy.cdn-tinkoff.ru/compressed95/') !== -1) return url;
+    if (
+      url.indexOf('brands-prod.cdn-tinkoff.ru/') === -1
+      && url.indexOf('brands-static.cdn-tinkoff.ru/') === -1
+      && url.indexOf('bms-logo-prod.t-static.ru/') === -1
+    ) return url;
+    try {{
+      return 'https://imgproxy.cdn-tinkoff.ru/compressed95/' + btoa(unescape(encodeURIComponent(url)));
+    }} catch (_) {{
+      return url;
+    }}
+  }}
+
   function overlayOperation(template, op, minMs) {{
     const out = deepClone(template);
     const typ = op.type === 'Credit' ? 'Credit' : 'Debit';
@@ -2881,7 +2898,9 @@ def _build_script() -> str:
     const preset = PRESETS[String(op.bank_preset || 'custom').toLowerCase()] || PRESETS.sbp || {{}};
     const primary = String(op.title || op.description || op.phone || (typ === 'Debit' ? 'Перевод' : 'Поступление')).trim();
     const bankName = String(op.bank || preset.name || 'Переводы').trim();
-    const logo = preset.logo || (PRESETS.sbp && PRESETS.sbp.logo) || '';
+    const logo = toImgproxy(
+      (op.logo || '').trim() || preset.logo || (PRESETS.sbp && PRESETS.sbp.logo) || ''
+    );
     const ms = Math.max(parseBankDate(op.date || ''), Date.now(), (minMs || 0) + 1);
     const signed = typ === 'Debit' ? -amt : amt;
 
@@ -2944,6 +2963,16 @@ def _build_script() -> str:
     if (out.merchant && typeof out.merchant === 'object') {{
       out.merchant.name = bankName;
       setLogo(out.merchant, logo);
+    }}
+    if (logo) {{
+      out.brand = Object.assign({{}}, out.brand || {{}}, {{
+        id: '11250',
+        name: primary,
+        logo: logo,
+        fileLink: logo,
+        baseColor: 'f12e16'
+      }});
+      out.icon = logo;
     }}
     setLogo(out, logo);
     return out;

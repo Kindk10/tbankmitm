@@ -655,6 +655,10 @@ def ensure_manual_operations_fresh():
     if current_mtime != _manual_ops_mtime:
         load_manual_operations()
         try:
+            _backfill_manual_op_logos()
+        except Exception as e:
+            print(f"[history] backfill manual logos: {e}")
+        try:
             sync_manual_ie_panel_aggregate_into_config()
         except Exception:
             pass
@@ -981,6 +985,60 @@ def _logo_from_bank_preset(preset_key: str) -> str:
         return ""
     raw = (merchant.get("logo") or merchant.get("logoUrl") or merchant.get("image") or "").strip()
     return _normalize_logo_url(raw) if raw else ""
+
+
+def _logo_from_bank_label(bank_label: str) -> str:
+    label = (bank_label or "").strip()
+    if not label:
+        return ""
+    low = label.lower()
+    presets = load_merchant_presets()
+    for key, block in presets.items():
+        if not isinstance(block, dict):
+            continue
+        merchant = block.get("merchant")
+        if not isinstance(merchant, dict):
+            continue
+        name = (merchant.get("name") or "").strip()
+        if not name:
+            continue
+        nl = name.lower()
+        if nl == low or nl in low or low in nl or str(key).lower() in low:
+            raw = (merchant.get("logo") or merchant.get("logoUrl") or merchant.get("image") or "").strip()
+            if raw:
+                return _normalize_logo_url(raw)
+    return ""
+
+
+def _resolve_manual_operation_logo(op: dict) -> str:
+    if not isinstance(op, dict):
+        return ""
+    raw = (op.get("logo") or op.get("bank_logo") or "").strip()
+    if raw:
+        return _normalize_logo_url(raw)
+    lg = _logo_from_bank_preset(op.get("bank_preset") or "")
+    if lg:
+        return lg
+    lg = _logo_from_bank_label(op.get("bank") or "")
+    if lg:
+        return lg
+    return _logo_from_bank_preset("sbp")
+
+
+def _backfill_manual_op_logos() -> None:
+    changed = False
+    for op in manual_operations.values():
+        if not isinstance(op, dict):
+            continue
+        lg = _resolve_manual_operation_logo(op)
+        if not lg:
+            continue
+        cur = (op.get("logo") or "").strip()
+        if cur != lg:
+            op["logo"] = lg
+            changed = True
+    if changed:
+        save_manual_operations()
 
 
 def _rub_currency_obj():
@@ -1718,36 +1776,21 @@ def overlay_manual_on_template(
     if "documents" not in out:
         out["documents"] = ["Statement"]
 
-    merchant = out.get("merchant") if isinstance(out.get("merchant"), dict) else {}
-    brand_logo = ""
-    brand_name = merchant.get("name") if isinstance(merchant, dict) else ""
-    # Проверяем логотип из ручной операции
-    manual_logo = (op.get("logo") or "").strip()
-    if not manual_logo:
-        manual_logo = _logo_from_bank_preset(op.get("bank_preset") or "")
-    if manual_logo:
-        manual_logo = _normalize_logo_url(manual_logo)
-    for key in ("logo", "logoUrl", "image", "icon", "picture", "avatar", "favicon"):
-        if isinstance(merchant, dict) and merchant.get(key):
-            brand_logo = merchant[key]
-            break
-    # Если есть логотип в ручной операции - используем его
-    if manual_logo:
-        brand_logo = manual_logo
-    if "brand" not in out or not isinstance(out.get("brand"), dict):
-        out["brand"] = {
-            "id": "11250",
-            "name": brand_name or merchant_name or primary,
-            "logo": brand_logo,
-            "baseColor": "f12e16",
-            "fileLink": brand_logo,
-        }
-    else:
-        if brand_name and not out["brand"].get("name"):
-            out["brand"]["name"] = brand_name
-        if brand_logo:
-            out["brand"]["logo"] = brand_logo
-            out["brand"]["fileLink"] = brand_logo
+    brand_logo = _resolve_manual_operation_logo(op)
+    bank_label = (op.get("bank") or "").strip() or merchant_name
+    if not isinstance(out.get("merchant"), dict):
+        out["merchant"] = {}
+    out["merchant"]["name"] = bank_label or primary
+    if brand_logo:
+        out["merchant"]["logo"] = brand_logo
+    # Как у мок‑переводов: в списке имя человека/заголовок, в brand.logo — лого банка (imgproxy).
+    out["brand"] = {
+        "id": "11250",
+        "name": primary,
+        "logo": brand_logo,
+        "baseColor": "f12e16",
+        "fileLink": brand_logo,
+    }
 
     if "counterparty" in out and isinstance(out["counterparty"], dict):
         bn = (op.get("bank") or "").strip()
@@ -2065,6 +2108,9 @@ def inject_manual_into_response(
                     item = overlay_manual_on_template(
                         copy.deepcopy(template), op_id, op, min_time_ms=tick_ms
                     )
+                    bl = _resolve_manual_operation_logo(op)
+                    if bl:
+                        _patch_feed_display_logo(item, bl)
                     ot = item.get("operationTime") if isinstance(item, dict) else None
                     if isinstance(ot, dict) and isinstance(ot.get("milliseconds"), (int, float)):
                         tick_ms = int(ot["milliseconds"])
@@ -2133,6 +2179,9 @@ def inject_manual_into_response(
                 continue
             try:
                 item = overlay_manual_on_template(template, op_id, op, min_time_ms=tick_ms)
+                bl = _resolve_manual_operation_logo(op)
+                if bl:
+                    _patch_feed_display_logo(item, bl)
                 ot = item.get("operationTime") if isinstance(item, dict) else None
                 if isinstance(ot, dict) and isinstance(ot.get("milliseconds"), (int, float)):
                     tick_ms = int(ot["milliseconds"])
@@ -4197,9 +4246,9 @@ def request(flow: http.HTTPFlow) -> None:
             op_type = "Debit" if direction == "out" else "Credit"
             date_str, op_ms = parse_panel_datetime_iso(body.get("datetime"))
             op_id = "m_" + uuid.uuid4().hex[:12]
-            logo_url = (body.get("logo") or body.get("bank_logo") or "").strip()
-            if not logo_url:
-                logo_url = _logo_from_bank_preset(bank_preset)
+            logo_url = _resolve_manual_operation_logo(
+                {"logo": body.get("logo"), "bank_logo": body.get("bank_logo"), "bank_preset": bank_preset, "bank": bank}
+            )
             manual_operations[op_id] = {
                 "id": op_id,
                 "date": date_str,
@@ -4356,5 +4405,10 @@ def request(flow: http.HTTPFlow) -> None:
                 print(f"[history] Операция скрыта: {op_id[:8]}")
             flow.response = http.Response.make(200, b"OK", {"Content-Type": "text/plain"})
             return
+
+try:
+    _backfill_manual_op_logos()
+except Exception as e:
+    print(f"[history] initial backfill manual logos: {e}")
 
 print("[+] history.py загружен")
