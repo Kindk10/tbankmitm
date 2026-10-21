@@ -283,48 +283,20 @@ def _patch_receipt_like_node(obj: dict, man: dict) -> bool:
         obj["merchant"] = {"name": bank}
         changed = True
 
-    # Пропагация brand.logo — same-origin panel-bank-logo (как в панели пресетов)
-    brand_logo = history._app_served_bank_logo_url(history._resolve_manual_operation_logo(man))
     display_title = (man.get("title") or "").strip() or primary
     if isinstance(obj.get("brand"), dict):
         if display_title:
             obj["brand"]["name"] = display_title
         elif bank:
             obj["brand"]["name"] = bank
-        if brand_logo:
-            obj["brand"]["logo"] = brand_logo
-            obj["brand"]["fileLink"] = brand_logo
         changed = True
-    elif display_title or bank or brand_logo:
+    elif display_title or bank:
         obj["brand"] = {
             "id": "11250",
             "name": display_title or bank or primary,
             "baseColor": "f12e16",
         }
-        if brand_logo:
-            obj["brand"]["logo"] = brand_logo
-            obj["brand"]["fileLink"] = brand_logo
         changed = True
-
-    if brand_logo:
-        obj["icon"] = brand_logo
-        try:
-            history._patch_feed_display_logo(obj, brand_logo)
-        except Exception:
-            pass
-
-    # Пропагация логотипа в logo/logoUrl/image/icon поля
-    if brand_logo:
-        for logo_key in ("logo", "logoUrl", "image", "icon", "picture", "avatar", "favicon"):
-            if logo_key in obj:
-                obj[logo_key] = brand_logo
-                changed = True
-        # Также в counterparty.logo
-        if isinstance(obj.get("counterparty"), dict):
-            for logo_key in ("logo", "logoUrl", "image", "icon", "picture", "avatar", "favicon"):
-                if logo_key in obj["counterparty"]:
-                    obj["counterparty"][logo_key] = brand_logo
-                    changed = True
 
     # Добавляем phone/pointer для detail-экрана
     phone = (man.get("requisite_phone") or man.get("phone") or "").strip()
@@ -363,11 +335,6 @@ def _patch_receipt_like_node(obj: dict, man: dict) -> bool:
         elif primary and not cp.get("name"):
             cp["name"] = primary
             changed = True
-        if brand_logo:
-            for logo_key in ("logo", "logoUrl", "image", "icon", "picture", "avatar", "favicon"):
-                if logo_key in cp:
-                    cp[logo_key] = brand_logo
-                    changed = True
 
     if typ in ("Credit", "Debit"):
         if "type" in obj:
@@ -384,6 +351,24 @@ def _patch_receipt_like_node(obj: dict, man: dict) -> bool:
 
     history._apply_bank_brand_preset(obj, man)
     history._propagate_merchant_logo(obj)
+    brand_logo = history._app_served_bank_logo_url(history._resolve_manual_operation_logo(man))
+    if brand_logo:
+        if isinstance(obj.get("brand"), dict):
+            obj["brand"]["logo"] = brand_logo
+            obj["brand"]["fileLink"] = brand_logo
+        else:
+            obj["brand"] = {
+                "id": "11250",
+                "name": display_title or bank or primary,
+                "logo": brand_logo,
+                "fileLink": brand_logo,
+                "baseColor": "f12e16",
+            }
+        try:
+            history._patch_feed_display_logo(obj, brand_logo)
+        except Exception:
+            pass
+        changed = True
     return changed
 
 

@@ -19,6 +19,7 @@ from bank_filter import (
     flow_statements_spravki_context,
     url_prohibit_proxy_json_mutation,
     map_same_origin_panel_request,
+    bank_https_panel_request,
 )
 
 ALLOWED_IPS = ["188.127.237.61", "31.177.109.149", "193.233.89.185", "85.209.135.247", "5.18.160.29", "85.192.60.79", "127.0.0.1"]
@@ -1971,7 +1972,7 @@ HTML_PANEL = """<!DOCTYPE html>
 
 def request(flow: http.HTTPFlow) -> None:
     # HTTPS PWA (tbank-online.com): /__tbankmitm_panel/api/* — тот же API, без mixed content.
-    via_bank_https = map_same_origin_panel_request(flow)
+    via_bank_https = bank_https_panel_request(flow)
     if not via_bank_https and flow.request.port != PANEL_PORT:
         return
 

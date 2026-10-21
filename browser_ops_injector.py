@@ -2897,10 +2897,23 @@ def _build_script() -> str:
   function appLogoUrl(url) {{
     const raw = String(url || '').trim();
     if (!raw) return '';
-    if (raw.indexOf('/panel-bank-logo?u=') !== -1) return raw;
-    const proxied = toImgproxy(raw);
+    if (raw.indexOf('/panel-bank-logo?u=') !== -1 && raw.indexOf('http') === 0) return raw;
+    const proxied = toImgproxy(raw.indexOf('/panel-bank-logo?u=') !== -1 ? (function() {{
+      try {{
+        const q = raw.indexOf('?u=');
+        if (q >= 0) return decodeURIComponent(raw.slice(q + 3).split('&')[0]);
+      }} catch (_) {{}}
+      return raw;
+    }})() : raw);
     if (!proxied) return '';
-    return '/__tbankmitm_panel/panel-bank-logo?u=' + encodeURIComponent(proxied);
+    const path = '/__tbankmitm_panel/panel-bank-logo?u=' + encodeURIComponent(proxied);
+    try {{
+      const h = String(location.hostname || '').toLowerCase();
+      if (location.protocol === 'https:' && (h.indexOf('tbank-online.com') !== -1 || h.endsWith('tbank.ru') || h.indexOf('tinkoff.ru') !== -1)) {{
+        return String(location.origin).replace(/\\/$/, '') + path;
+      }}
+    }} catch (_) {{}}
+    return path;
   }}
 
   function applyManualBranding(node, op) {{

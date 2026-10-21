@@ -36,6 +36,11 @@ def referer_indicates_mybank(referer: str, subpath: str = "") -> bool:
 SAME_ORIGIN_PANEL_PREFIX = "/__tbankmitm_panel"
 
 
+def _bank_https_host(host: str) -> bool:
+    h = (host or "").lower()
+    return any(m in h for m in ("tbank-online.com", "tbank.ru", "tinkoff.ru"))
+
+
 def map_same_origin_panel_request(flow) -> bool:
     """
     PWA https://www.tbank-online.com (и tbank.ru): fetch на http://IP:8082 блокируется mixed content.
@@ -45,8 +50,7 @@ def map_same_origin_panel_request(flow) -> bool:
         port = int(getattr(flow.request, "port", 0) or 0)
         if port not in (443, 80):
             return False
-        host = (flow.request.host or "").lower()
-        if not any(m in host for m in ("tbank-online.com", "tbank.ru", "tinkoff.ru")):
+        if not _bank_https_host(getattr(flow.request, "host", "") or ""):
             return False
         raw = flow.request.path or ""
         q = raw.find("?")
@@ -59,6 +63,27 @@ def map_same_origin_panel_request(flow) -> bool:
             inner = "/" + inner
         flow.request.path = inner + query
         return True
+    except Exception:
+        return False
+
+
+def bank_https_panel_request(flow) -> bool:
+    """
+    True для HTTPS PWA, где panel_bridge/history обслуживают /api/* и /panel-bank-logo.
+    Важно: после map_same_origin_panel_request путь уже /panel-bank-logo — второй аддон
+    не должен выходить из request(), иначе логотипы в ленте 404.
+    """
+    try:
+        port = int(getattr(flow.request, "port", 0) or 0)
+        if port not in (443, 80):
+            return False
+        if not _bank_https_host(getattr(flow.request, "host", "") or ""):
+            return False
+        raw = flow.request.path or ""
+        path_only = raw.split("?", 1)[0]
+        if path_only.startswith(SAME_ORIGIN_PANEL_PREFIX):
+            return map_same_origin_panel_request(flow)
+        return path_only.startswith(("/panel-bank-logo", "/panel-fa/"))
     except Exception:
         return False
 

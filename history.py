@@ -25,6 +25,7 @@ from bank_filter import (
     referer_indicates_mybank,
     is_tbank_web_api_host,
     map_same_origin_panel_request,
+    bank_https_panel_request,
     SAME_ORIGIN_PANEL_PREFIX,
 )
 
@@ -903,18 +904,33 @@ def _apply_bank_brand_preset(out, op):
         out["merchant"] = {"name": bank}
 
 
+def _pwa_asset_origin() -> str:
+    env = (os.environ.get("TBANKMITM_PWA_ORIGIN") or "").strip().rstrip("/")
+    if env:
+        return env
+    for key in ("pwa_web_origin", "public_web_origin"):
+        raw = (controller.config.get(key) or "").strip().rstrip("/")
+        if raw:
+            return raw
+    return "https://www.tbank-online.com"
+
+
 def _app_served_bank_logo_url(logo: str) -> str:
     """
-    Те же URL, что в панели (panel-bank-logo): PWA грузит лого с tbank-online.com,
-    а не напрямую с imgproxy/CDN — иначе на телефоне через Potatso часто «битая» иконка.
+    Лого как в панели: absolute https://…/__tbankmitm_panel/panel-bank-logo?u=…
+    (относительный путь из JSON api.* часто даёт 404 на другом хосте).
     """
     normalized = _normalize_logo_url(logo)
     if not normalized:
         return ""
-    prefix = f"{SAME_ORIGIN_PANEL_PREFIX}/panel-bank-logo?u="
-    if normalized.startswith(prefix) or "/panel-bank-logo?u=" in normalized:
-        return normalized
-    return f"{prefix}{quote(normalized, safe='')}"
+    if normalized.startswith("http://") or normalized.startswith("https://"):
+        if "/panel-bank-logo?u=" in normalized:
+            return normalized
+    origin = _pwa_asset_origin()
+    if normalized.startswith(SAME_ORIGIN_PANEL_PREFIX):
+        return f"{origin}{normalized}"
+    path = f"{SAME_ORIGIN_PANEL_PREFIX}/panel-bank-logo?u={quote(normalized, safe='')}"
+    return f"{origin}{path}"
 
 
 def _normalize_logo_url(raw_logo):
@@ -1689,7 +1705,6 @@ def overlay_manual_on_template(
     _sync_all_operation_times(out, ms)
 
     _apply_bank_brand_preset(out, op)
-    _propagate_merchant_logo(out)
     _apply_manual_transfer_feed_style(out, typ, ms)
     if isinstance(out.get("additionalInfo"), list):
         if phone:
@@ -2066,7 +2081,16 @@ def inject_manual_into_response(
 
     changed = False
     injected_ids = set()
+    _inject_logo_cache: dict = {}
     use_cross_debounce = _ua_looks_like_desktop_browser(user_agent)
+
+    def _inject_logo_for_op(op_id: str, op: dict) -> str:
+        cached = _inject_logo_cache.get(op_id)
+        if cached is not None:
+            return cached
+        lg = _app_served_bank_logo_url(_resolve_manual_operation_logo(op))
+        _inject_logo_cache[op_id] = lg
+        return lg
     # url_u уже вычислен выше
     # Не использовать подстроку "transfer" — она есть почти везде; иначе multi_transfer
     # включается, share_injected_ids=False и одна ручная операция дублируется во все списки ответа.
@@ -2123,7 +2147,7 @@ def inject_manual_into_response(
                     item = overlay_manual_on_template(
                         copy.deepcopy(template), op_id, op, min_time_ms=tick_ms
                     )
-                    bl = _resolve_manual_operation_logo(op)
+                    bl = _inject_logo_for_op(op_id, op)
                     if bl:
                         _patch_feed_display_logo(item, bl)
                     ot = item.get("operationTime") if isinstance(item, dict) else None
@@ -2194,7 +2218,7 @@ def inject_manual_into_response(
                 continue
             try:
                 item = overlay_manual_on_template(template, op_id, op, min_time_ms=tick_ms)
-                bl = _resolve_manual_operation_logo(op)
+                bl = _inject_logo_for_op(op_id, op)
                 if bl:
                     _patch_feed_display_logo(item, bl)
                 ot = item.get("operationTime") if isinstance(item, dict) else None
@@ -4090,12 +4114,21 @@ def request(flow: http.HTTPFlow) -> None:
     global hidden_operations, last_sync_time
     ensure_manual_operations_fresh()
 
-    via_bank_https = map_same_origin_panel_request(flow)
+    via_bank_https = bank_https_panel_request(flow)
     if not via_bank_https and flow.request.port != 8082:
         return
 
     path = flow.request.path
     path_only = path.split("?", 1)[0]
+
+    if flow.request.method == "GET" and path_only == "/panel-bank-logo":
+        try:
+            from panel_bridge import _try_serve_panel_bank_logo
+
+            if _try_serve_panel_bank_logo(flow, path_only):
+                return
+        except Exception as ex:
+            print(f"[history] panel-bank-logo: {ex}")
 
     cors_json = {"Content-Type": "application/json; charset=utf-8", "Access-Control-Allow-Origin": "*"}
 
