@@ -232,9 +232,7 @@ HTML_PANEL = """<!DOCTYPE html>
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover, user-scalable=yes">
     <title>T‑Bank Control Panel</title>
     <link rel="stylesheet" href="/panel-static/all.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" media="print" onload="this.media='all'">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-    <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"></noscript>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -1722,6 +1720,8 @@ HTML_PANEL = """<!DOCTYPE html>
                 document.getElementById('manual_datetime').value || null,
                 secEl ? secEl.value : 0
             );
+            const presetKey = document.getElementById('manual_bank_preset').value;
+            const presetLogo = (BANK_PRESET_META[presetKey] && BANK_PRESET_META[presetKey].logo) ? BANK_PRESET_META[presetKey].logo : '';
             const body = {
                 direction: direction,
                 amount: amount,
@@ -1729,7 +1729,8 @@ HTML_PANEL = """<!DOCTYPE html>
                 description: document.getElementById('manual_desc').value,
                 title: document.getElementById('manual_title').value,
                 subtitle: document.getElementById('manual_subtitle').value,
-                bank_preset: document.getElementById('manual_bank_preset').value,
+                bank_preset: presetKey,
+                logo: presetLogo,
                 datetime: mdt,
                 phone: requisitePhone,
                 requisite_phone: requisitePhone,

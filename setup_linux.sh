@@ -54,6 +54,12 @@ else:
     print("WARN: нет файла шаблона выписки — положите Выписка.pdf рядом со скриптами:", p)
 PYCHECK
 
+if [[ ! -f panel_static/all.min.css ]]; then
+  echo "[setup] Скачиваю иконки панели (Font Awesome) в panel_static/…"
+  chmod +x install_panel_static.sh 2>/dev/null || true
+  bash install_panel_static.sh || echo "WARN: install_panel_static.sh не удался — панель возьмёт FA с CDN."
+fi
+
 echo
 echo "Готово. Запуск прокси и панели: ./start_vps.sh"
 echo "Откройте порт 8082 в firewall (sudo ufw allow 8082/tcp && sudo ufw enable)."

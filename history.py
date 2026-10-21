@@ -907,7 +907,11 @@ def _normalize_logo_url(raw_logo):
         return logo
     # imgproxy Т‑Банка не всегда отдает внешние домены (wiki/clearbit и т.п.).
     # Для "родных" CDN используем imgproxy, для остальных оставляем прямой URL.
-    if "brands-prod.cdn-tinkoff.ru/" not in logo and "brands-static.cdn-tinkoff.ru/" not in logo:
+    if (
+        "brands-prod.cdn-tinkoff.ru/" not in logo
+        and "brands-static.cdn-tinkoff.ru/" not in logo
+        and "bms-logo-prod.t-static.ru/" not in logo
+    ):
         return logo
     encoded = base64.b64encode(logo.encode("utf-8")).decode("ascii")
     return f"https://imgproxy.cdn-tinkoff.ru/compressed95/{encoded}"
@@ -933,6 +937,28 @@ def _propagate_merchant_logo(out):
         out["counterparty"] = cp
     for alias in ("logo", "logoUrl", "image", "icon", "picture", "avatar", "favicon"):
         cp[alias] = logo
+    brand = out.get("brand")
+    if not isinstance(brand, dict):
+        brand = {}
+        out["brand"] = brand
+    brand["logo"] = logo
+    brand["fileLink"] = logo
+    if isinstance(m, dict) and m.get("name") and not brand.get("name"):
+        brand["name"] = m.get("name")
+    out["icon"] = logo
+
+
+def _logo_from_bank_preset(preset_key: str) -> str:
+    presets = load_merchant_presets()
+    key = (preset_key or "custom").strip().lower() or "custom"
+    block = presets.get(key)
+    if not isinstance(block, dict):
+        return ""
+    merchant = block.get("merchant")
+    if not isinstance(merchant, dict):
+        return ""
+    raw = (merchant.get("logo") or merchant.get("logoUrl") or merchant.get("image") or "").strip()
+    return _normalize_logo_url(raw) if raw else ""
 
 
 def _rub_currency_obj():
@@ -1635,7 +1661,11 @@ def overlay_manual_on_template(
     brand_logo = ""
     brand_name = merchant.get("name") if isinstance(merchant, dict) else ""
     # Проверяем логотип из ручной операции
-    manual_logo = op.get("logo") or ""
+    manual_logo = (op.get("logo") or "").strip()
+    if not manual_logo:
+        manual_logo = _logo_from_bank_preset(op.get("bank_preset") or "")
+    if manual_logo:
+        manual_logo = _normalize_logo_url(manual_logo)
     for key in ("logo", "logoUrl", "image", "icon", "picture", "avatar", "favicon"):
         if isinstance(merchant, dict) and merchant.get(key):
             brand_logo = merchant[key]
@@ -1668,6 +1698,10 @@ def overlay_manual_on_template(
 
     if "parentOperationId" in out:
         out["parentOperationId"] = None
+
+    if manual_logo and isinstance(out.get("merchant"), dict):
+        out["merchant"]["logo"] = manual_logo
+    _propagate_merchant_logo(out)
 
     return out
 
@@ -4081,6 +4115,9 @@ def request(flow: http.HTTPFlow) -> None:
             op_type = "Debit" if direction == "out" else "Credit"
             date_str, op_ms = parse_panel_datetime_iso(body.get("datetime"))
             op_id = "m_" + uuid.uuid4().hex[:12]
+            logo_url = (body.get("logo") or body.get("bank_logo") or "").strip()
+            if not logo_url:
+                logo_url = _logo_from_bank_preset(bank_preset)
             manual_operations[op_id] = {
                 "id": op_id,
                 "date": date_str,
@@ -4097,6 +4134,7 @@ def request(flow: http.HTTPFlow) -> None:
                 "receipt_phone": (body.get("receipt_phone") or "").strip(),
                 "card_number": (body.get("card_number") or "").strip(),
                 "bank_preset": bank_preset,
+                "logo": logo_url,
                 "operationTime": {"milliseconds": op_ms, "seconds": op_ms / 1000.0},
             }
             save_manual_operations()

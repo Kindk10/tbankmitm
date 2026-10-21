@@ -10,6 +10,15 @@ if [[ ! -x venv/bin/python ]]; then
   exit 1
 fi
 
+if [[ ! -f panel_static/all.min.css ]]; then
+  echo "[start_vps] Нет panel_static/all.min.css — ставлю Font Awesome локально…"
+  if [[ -x ./install_panel_static.sh ]]; then
+    ./install_panel_static.sh || true
+  elif [[ -f ./install_panel_static.sh ]]; then
+    bash ./install_panel_static.sh || true
+  fi
+fi
+
 # Кириллица в панели / описаниях операций / PDF на минимальных образах Debian/Ubuntu
 export PYTHONUTF8="${PYTHONUTF8:-1}"
 if [[ -z "${LC_ALL:-}" ]]; then
