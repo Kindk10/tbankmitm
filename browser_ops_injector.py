@@ -2894,12 +2894,76 @@ def _build_script() -> str:
     }}
   }}
 
-  function sbpTransferAccountIconHtml() {{
+  function sbpTransfersCategoryChipIconHtml() {{
     const raw = (PRESETS.sbp && PRESETS.sbp.logo) || 'https://brands-prod.cdn-tinkoff.ru/general_logo/transfers-c1.png';
     const src = appLogoUrl(raw);
-    return '<span data-manual-sbp-icon="1" style="display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;min-width:40px;max-width:40px;border-radius:50%;overflow:hidden;background:#fff;flex:0 0 40px;">' +
-      '<img src="' + src + '" alt="" width="40" height="40" style="display:block;width:40px;height:40px;object-fit:cover;" loading="eager" />' +
-      '</span>';
+    return '<img data-manual-sbp-chip-icon="1" src="' + src + '" alt="" width="18" height="18" style="display:block;width:18px;height:18px;object-fit:contain;" loading="eager" />';
+  }}
+
+  function patchDetailTransfersCategoryChip() {{
+    const roots = document.querySelectorAll(
+      '[data-qa-type="independent-pumba-operation-details-container"], [data-qa-type="mobile-pumba-detail-sheet"]'
+    );
+    if (!roots.length) return;
+    const iconHtml = sbpTransfersCategoryChipIconHtml();
+    roots.forEach(function (root) {{
+      const nodes = root.querySelectorAll('span, button, div, p, a');
+      for (let i = 0; i < nodes.length; i++) {{
+        const el = nodes[i];
+        if (!el || el.getAttribute('data-manual-sbp-chip-patched') === '1') continue;
+        if (el.closest('[data-qa-type="molecule-account-operation"]')) continue;
+        const txt = String(el.textContent || '').replace(/\\u00a0/g, ' ').trim();
+        if (txt !== 'Переводы') continue;
+        if (el.children.length > 2) continue;
+        const chip = el.tagName === 'BUTTON' || el.tagName === 'A'
+          ? el
+          : (el.closest('button, a, [role="button"]') || el.parentElement);
+        if (!chip || chip.getAttribute('data-manual-sbp-chip-patched') === '1') continue;
+        chip.setAttribute('data-manual-sbp-chip-patched', '1');
+        try {{
+          chip.style.setProperty('display', 'inline-flex', 'important');
+          chip.style.setProperty('align-items', 'center', 'important');
+          chip.style.setProperty('justify-content', 'center', 'important');
+          chip.style.setProperty('gap', '6px', 'important');
+          chip.style.setProperty('padding', '6px 12px', 'important');
+          chip.style.setProperty('border-radius', '999px', 'important');
+          chip.style.setProperty('background', 'rgba(23, 52, 87, 0.92)', 'important');
+          chip.style.setProperty('color', '#f6f7f8', 'important');
+          chip.style.setProperty('font-weight', '700', 'important');
+          chip.style.setProperty('font-size', '13px', 'important');
+          chip.style.setProperty('line-height', '16px', 'important');
+          chip.style.setProperty('border', '0', 'important');
+          chip.style.setProperty('box-shadow', 'none', 'important');
+        }} catch (_) {{}}
+        chip.querySelectorAll('[data-manual-sbp-chip-icon-wrap="1"]').forEach(function (n) {{ try {{ n.remove(); }} catch (_) {{}} }});
+        Array.from(chip.children).forEach(function (child) {{
+          if (!child || child.getAttribute('data-manual-sbp-chip-icon-wrap') === '1') return;
+          if (child.querySelector && child.querySelector('[data-manual-sbp-chip-icon="1"]')) return;
+          try {{
+            const bg = window.getComputedStyle(child).backgroundColor || '';
+            const isSolid =
+              child.tagName !== 'SVG'
+              && child.tagName !== 'IMG'
+              && bg
+              && bg !== 'rgba(0, 0, 0, 0)'
+              && bg !== 'transparent';
+            if (isSolid && !String(child.textContent || '').trim()) child.remove();
+          }} catch (_) {{}}
+        }});
+        const wrap = document.createElement('span');
+        wrap.setAttribute('data-manual-sbp-chip-icon-wrap', '1');
+        wrap.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;flex:0 0 18px;';
+        wrap.innerHTML = iconHtml;
+        chip.insertBefore(wrap, chip.firstChild);
+        chip.querySelectorAll('span, p, div').forEach(function (sp) {{
+          if (String(sp.textContent || '').replace(/\\u00a0/g, ' ').trim() !== 'Переводы') return;
+          try {{
+            sp.style.setProperty('color', '#f6f7f8', 'important');
+            sp.style.setProperty('-webkit-text-fill-color', '#f6f7f8', 'important');
+          }} catch (_) {{}}
+        }});
+      }}
+    }});
   }}
 
   function formatDetailHeaderTimeFromOp(op) {{
@@ -3314,14 +3378,14 @@ def _build_script() -> str:
     }}
     st.textContent =
       '#manual-operation-document-viewer {{ position: fixed; inset: 0; z-index: 2147483646; background: rgba(0,0,0,0); transition: background 380ms ease; font-family: Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }}' +
-      '#manual-operation-document-viewer .manual-operation-document-sheet {{ position: absolute; left: 0; right: 0; bottom: 0; top: 8%; display: flex; flex-direction: column; overflow: hidden; border-radius: 14px 14px 0 0; background: #8a8a8a; transform: translateY(100%); transition: transform 420ms cubic-bezier(0.32, 0.72, 0, 1); will-change: transform; }}' +
+      '#manual-operation-document-viewer .manual-operation-document-sheet {{ position: absolute; inset: 0; display: flex; flex-direction: column; overflow: hidden; border-radius: 0; background: #8a8a8a; transform: translateY(100%); transition: transform 420ms cubic-bezier(0.32, 0.72, 0, 1); will-change: transform; }}' +
       '#manual-operation-document-viewer .manual-operation-document-header {{ position: relative; flex: 0 0 56px; height: 56px; box-sizing: border-box; background: #202023; color: #f6f7f8; }}' +
       '#manual-operation-document-viewer .manual-operation-document-close, #manual-operation-document-viewer .manual-operation-document-share {{ appearance: none; border: 0; padding: 0; background: transparent; color: #428bf9; font-family: inherit; font-size: 16px; font-weight: 500; line-height: 20px; -webkit-tap-highlight-color: transparent; }}' +
       '#manual-operation-document-viewer .manual-operation-document-close {{ position: absolute; left: 17px; top: 50%; transform: translateY(-50%); }}' +
       '#manual-operation-document-viewer .manual-operation-document-title {{ position: absolute; left: 50%; top: 50%; width: max-content; max-width: calc(100% - 140px); overflow: visible; transform: translate(-50%, -50%); color: #f6f7f8; font-family: inherit; font-size: 17px; font-weight: 700; line-height: 22px; text-align: center; white-space: nowrap; }}' +
       '#manual-operation-document-viewer .manual-operation-document-share {{ position: absolute; right: 14px; top: 50%; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 40px; transform: translateY(-50%); }}' +
       '#manual-operation-document-viewer .manual-operation-document-share svg {{ display: block; width: 25px; height: 25px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2.2; }}' +
-      '#manual-operation-document-viewer .manual-operation-document-body {{ flex: 1 1 auto; min-height: 0; overflow: auto; background: #fff; -webkit-overflow-scrolling: touch; }}' +
+      '#manual-operation-document-viewer .manual-operation-document-body {{ flex: 1 1 auto; min-height: 0; overflow-x: hidden; overflow-y: auto; background: #fff; -webkit-overflow-scrolling: touch; padding-bottom: max(16px, env(safe-area-inset-bottom)); }}' +
       '#manual-operation-document-viewer .manual-operation-document-image {{ display: block; width: 100%; height: auto; margin: 0; background: #fff; }}' +
       '#manual-operation-document-viewer .manual-operation-document-frame {{ display: none; width: 100%; height: 100%; min-height: 100%; border: 0; background: #8a8a8a; }}';
   }}
@@ -3774,7 +3838,7 @@ def _build_script() -> str:
             iconColumn.style.setProperty('overflow', 'visible', 'important');
           }} catch (eIconColumn) {{}}
         }}
-        iconHost.innerHTML = sbpTransferAccountIconHtml();
+        iconHost.innerHTML = RUB_ICON_HTML;
         try {{
           iconHost.style.setProperty('display', 'inline-flex', 'important');
           iconHost.style.setProperty('align-items', 'center', 'important');
@@ -4384,6 +4448,7 @@ def _build_script() -> str:
     ensureManualRequisitesPanel(op);
     patchDetailHeaderAmount(op);
     patchDetailHeaderTime(op);
+    patchDetailTransfersCategoryChip();
     dedupeDetailAccountCards();
     dedupeDetailRequisitesBlocks();
     canonicalizeDetailActionHosts(op);

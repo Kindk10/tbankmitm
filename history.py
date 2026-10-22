@@ -980,29 +980,45 @@ def _propagate_merchant_logo(out):
             brand["name"] = m.get("name")
 
 
-def _patch_feed_display_logo(out: dict, logo_url: str) -> None:
-    """Иконка в списке операций (PWA) часто берётся из categoryInfo/brand, не только merchant."""
-    if not logo_url or not isinstance(out, dict):
+def _sbp_transfers_chip_icon_url() -> str:
+    return _app_served_bank_logo_url(
+        "https://brands-prod.cdn-tinkoff.ru/general_logo/transfers-c1.png"
+    )
+
+
+def _ensure_transfer_category_chip_icons(out: dict) -> None:
+    """Чип «Переводы» в карточке — иконка СБП (стрелки), не лого банка."""
+    if not isinstance(out, dict):
         return
-    logo = _app_served_bank_logo_url(logo_url)
-    if isinstance(out.get("brand"), dict):
-        out["brand"]["logo"] = logo
-        out["brand"]["fileLink"] = logo
+    sbp = _sbp_transfers_chip_icon_url()
+    sc = out.get("spendingCategory")
+    if isinstance(sc, dict):
+        sc["icon"] = "transfers-c1"
+        sc["baseColor"] = "4FC5DF"
+        sc["fileLink"] = sbp
     ci = out.get("categoryInfo")
     if isinstance(ci, dict):
         bc = ci.get("bankCategory")
         if not isinstance(bc, dict):
             bc = {}
             ci["bankCategory"] = bc
-        bc["fileLink"] = logo
-        bc["logo"] = logo
-    sc = out.get("spendingCategory")
-    if isinstance(sc, dict):
-        sc["fileLink"] = logo
+        bc["fileLink"] = sbp
+        bc.pop("logo", None)
+
+
+def _patch_feed_display_logo(out: dict, logo_url: str) -> None:
+    """Лого банка в brand/merchant; чип категории «Переводы» не трогаем."""
+    if not logo_url or not isinstance(out, dict):
+        return
+    logo = _app_served_bank_logo_url(logo_url)
+    if isinstance(out.get("brand"), dict):
+        out["brand"]["logo"] = logo
+        out["brand"]["fileLink"] = logo
     out["icon"] = logo
     if isinstance(out.get("merchant"), dict):
         out["merchant"]["logo"] = logo
     _propagate_merchant_logo(out)
+    _ensure_transfer_category_chip_icons(out)
 
 
 def _logo_from_bank_preset(preset_key: str) -> str:

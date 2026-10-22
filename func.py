@@ -532,7 +532,7 @@ def _generate_operation_receipt_impl(op_data, output_path=None):
         "identificator": (124.98999786376953, 314.00299072265625+8.18),
         "identificator2": (226.91000366210938, 325.0829772949219 + 8.18),
         "kvit": (93.35900115966797, 450.9629821777344 + 8.18),
-        "commission": (110, 188, 250, 202),
+        "commission": (110, 194, 250, 208),
     }
 
     doc = fitz.open(TEMPLATE_PATH)
