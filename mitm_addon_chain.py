@@ -18,7 +18,7 @@ MITM_ADDON_SCRIPTS: tuple[str, ...] = (
     "name.py",
     "reki.py",
     "panel_bridge.py",
-    "bank_pwa_bootstrap.py",
+    "bank_tls_upstream.py",
     "browser_ops_injector.py",
     "tbank_sbp_debit_injector.py",
 )

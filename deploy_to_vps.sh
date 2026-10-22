@@ -17,7 +17,7 @@ FILES=(
   func.py
   tbank_sbp_debit_injector.py
   mitm_addon_chain.py
-  bank_pwa_bootstrap.py
+  bank_tls_upstream.py
   tls_passthrough_hosts.py
   controller.py
   config.json

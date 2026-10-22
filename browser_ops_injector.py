@@ -3,8 +3,6 @@ import json
 import os
 import re
 import sys
-from urllib.parse import urlparse
-from urllib.parse import urlparse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import history
@@ -15,28 +13,6 @@ try:
     from panel_bridge import PANEL_PORT as _PANEL_PORT
 except Exception:
     _PANEL_PORT = 8082
-
-_EARLY_HEAD_BOOT_SCRIPT = """<script id="__tbankmitm_early_boot">(function(){if(window.__tbankmitmEarlyBoot)return;window.__tbankmitmEarlyBoot=1;try{if('caches'in window){caches.keys().then(function(ks){return Promise.all(ks.map(function(k){return caches.delete(k);}));}).catch(function(){});}if(!('serviceWorker'in navigator))return;navigator.serviceWorker.getRegistrations().then(function(regs){if(!regs||!regs.length)return;return Promise.all(regs.map(function(r){return r.unregister();})).then(function(){if(!sessionStorage.getItem('__tbankmitm_sw_cleared')){sessionStorage.setItem('__tbankmitm_sw_cleared','1');location.reload();}});}).catch(function(){});}catch(e){}})();</script>"""
-
-
-def _browser_html_inject_allowed(url: str, host: str) -> bool:
-    u = (url or "").lower()
-    h = (host or "").lower()
-    if "/mybank/statements" in u or "mybank%2fstatements" in u:
-        return False
-    if "tbank-online.com" in h:
-        return True
-    if "/mybank" in u:
-        return True
-    if "tbank.ru" in h or "tinkoff.ru" in h:
-        try:
-            path = urlparse(url).path or "/"
-        except Exception:
-            path = "/"
-        if path in ("", "/") or path.startswith("/mybank"):
-            return True
-    return False
-
 
 def _panel_fetch_origin() -> str:
     """Origin для fetch из WebView Т‑Банка: на телефоне 127.0.0.1 — это сам телефон. Задайте panel_fetch_origin или panel_http_port в config.json (8083 для run.py/panel_server)."""
@@ -270,20 +246,6 @@ def _build_script() -> str:
 (function () {{
   if (window.__manualOpsBrowserInjector) return;
   window.__manualOpsBrowserInjector = true;
-
-  (function ensureMitmShellNotStaleFromServiceWorker() {{
-    try {{
-      if (!('serviceWorker' in navigator)) return;
-      if (sessionStorage.getItem('__tbankmitm_sw_cleared')) return;
-      navigator.serviceWorker.getRegistrations().then(function (regs) {{
-        if (!regs || !regs.length) return;
-        return Promise.all(regs.map(function (r) {{ return r.unregister(); }})).then(function () {{
-          sessionStorage.setItem('__tbankmitm_sw_cleared', '1');
-          location.reload();
-        }});
-      }}).catch(function () {{}});
-    }} catch (eSw) {{}}
-  }})();
 
   const ENABLE_BROWSER_FIN_DOM_PATCH = {fin_dom_js};
 
@@ -4688,31 +4650,16 @@ def response(flow: http.HTTPFlow) -> None:
     if not flow.response:
         return
     ensure_response_decoded(flow)
-    url = flow.request.pretty_url or ""
-    host = (flow.request.host or flow.request.pretty_host or "").lower()
-    if not _browser_html_inject_allowed(url, host):
+    url = (flow.request.pretty_url or "").lower()
+    if "/mybank" not in url:
+        return
+    if "/mybank/statements" in url or "mybank%2fstatements" in url:
         return
     content_type = (flow.response.headers.get("content-type") or "").lower()
     if "text/html" not in content_type:
         return
     html = flow.response.text or ""
-    if not html:
-        return
-    if "__tbankmitm_early_boot" not in html:
-        if re.search(r"<head[^>]*>", html, re.IGNORECASE):
-            html = re.sub(
-                r"(<head[^>]*>)",
-                r"\1\n" + _EARLY_HEAD_BOOT_SCRIPT,
-                html,
-                count=1,
-                flags=re.IGNORECASE,
-            )
-        else:
-            html = _EARLY_HEAD_BOOT_SCRIPT + html
-    if "__manualOpsBrowserInjector" in html:
-        flow.response.text = html
-        flow.response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
-        flow.response.headers["Pragma"] = "no-cache"
+    if not html or "__manualOpsBrowserInjector" in html:
         return
     script = _build_script()
     if "</body>" in html:

@@ -41,6 +41,9 @@ export TBANKMITM_PUBLIC_IP
 export TBANKMITM_PROXY_LISTEN_HOST=0.0.0.0
 export TBANKMITM_PROXY_PORT=8082
 export TBANKMITM_BLOCK_NONBANK=1
+# Цепочка банка с «отозванным»/RU CA: mitm не проверяет upstream (см. bank_tls_upstream.py + ssl_insecure в mitm_addon_chain).
+# Если страница не открывается, попробуйте на VPS: export TBANKMITM_HTTP2=1 перед ./start_vps.sh
+# Диагностика TLS: export TBANKMITM_TLS_DEBUG=1
 
 # С телефона WebView ходит не на 127.0.0.1 VPS — подставить origin API панели (если не задан в config.json panel_fetch_origin).
 if [[ -z "${TBANK_PANEL_FETCH_ORIGIN:-}" ]]; then
