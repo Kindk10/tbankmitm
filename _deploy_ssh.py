@@ -23,6 +23,7 @@ FILES = [
     "bank_merchants_presets.json",
     "config.json",
     "mitm_addon_chain.py",
+    "bank_pwa_bootstrap.py",
     "start_vps.sh",
     "deploy_to_vps.sh",
 ]
