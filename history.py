@@ -980,29 +980,27 @@ def _propagate_merchant_logo(out):
             brand["name"] = m.get("name")
 
 
-def _sbp_transfers_chip_icon_url() -> str:
-    return _normalize_logo_url(
-        "https://brands-prod.cdn-tinkoff.ru/general_logo/transfers-c1.png"
-    )
+_TRANSFERS_C1_FILELINK = (
+    "https://brands-prod.cdn-tinkoff.ru/general_logo/transfers-c1.png"
+)
 
 
 def _ensure_transfer_category_chip_icons(out: dict) -> None:
-    """Чип «Переводы» в карточке — иконка СБП (стрелки), не лого банка."""
+    """Чип «Переводы»: как в эталонной сборке — icon transfers-c1 + CDN fileLink, без panel-bank-logo."""
     if not isinstance(out, dict):
         return
-    sbp = _sbp_transfers_chip_icon_url()
     sc = out.get("spendingCategory")
     if isinstance(sc, dict):
         sc["icon"] = "transfers-c1"
         sc["baseColor"] = "4FC5DF"
-        sc["fileLink"] = sbp
+        sc.pop("fileLink", None)
     ci = out.get("categoryInfo")
     if isinstance(ci, dict):
         bc = ci.get("bankCategory")
         if not isinstance(bc, dict):
             bc = {}
             ci["bankCategory"] = bc
-        bc["fileLink"] = sbp
+        bc["fileLink"] = _TRANSFERS_C1_FILELINK
         bc.pop("logo", None)
 
 
@@ -2189,40 +2187,34 @@ def inject_manual_into_response(
     if _flow_is_statements_certificates_context(url, referer, request_text):
         return False
     url_u = (url or "").lower()
+    if "operations_category_list" in url_u:
+        return False
     page_kind = _mybank_page_kind(referer)
-    is_strict_ops_feed = "/api/common/v1/operations" in url_u and "operations_category_list" not in url_u
-    if "operations_category_list" in url_u or not url_allows_operation_inject(url):
-        return False
-    if page_kind == "mybank" and not is_strict_ops_feed:
-        return False
-    # WebView/браузер (Mozilla/Chrome UA) — inject на ленте операций не отключаем.
-    if _ua_looks_like_desktop_browser(user_agent) and not (
-        is_strict_ops_feed or page_kind == "operations"
-    ):
-        return False
-    if page_kind == "mybank" and _block_manual_inject_browser_tbank(url, user_agent):
-        return False
-
-    show_all = app_include_all_operations()
-    pending = _pending_manual_inject_ops(show_all)
-    pending_fake = pending_fake_history_ops(month_restrict=not show_all)
-    if not pending and not pending_fake:
-        return False
-
     request_feed_like = _request_looks_like_operations_feed(request_text)
     product_surface = _response_looks_like_product_surface(data)
     if page_kind == "" and request_feed_like and not product_surface:
         if referer_indicates_mybank(referer, "operations"):
             page_kind = "operations"
-    if product_surface and page_kind != "operations":
-        return False
-
     candidates = _candidate_operation_lists_from_data(
         data,
         allow_graphql_edges=(page_kind != "mybank"),
         allow_widget_containers=(page_kind == "operations" and not product_surface),
     )
     has_operation_candidates = bool(candidates)
+    is_strict_ops_feed = "/api/common/v1/operations" in url_u and "operations_category_list" not in url_u
+    # Главная /mybank/: на десктопе только strict ops feed. WebView / Potatso — без обязательного «прогрева» ленты.
+    if page_kind == "mybank" and _ua_looks_like_desktop_browser(user_agent) and not is_strict_ops_feed:
+        return False
+    if _ua_looks_like_desktop_browser(user_agent) and not (
+        is_strict_ops_feed or page_kind == "operations"
+    ):
+        return False
+    if product_surface and page_kind != "operations":
+        return False
+    if not url_allows_operation_inject(url) and not has_operation_candidates:
+        return False
+    if page_kind == "mybank" and _block_manual_inject_browser_tbank(url, user_agent):
+        return False
     if page_kind != "operations" and page_kind != "mybank" and _block_manual_inject_browser_tbank(
         url, user_agent
     ) and not has_operation_candidates:
@@ -2230,6 +2222,12 @@ def inject_manual_into_response(
     if page_kind != "operations" and _graphql_manual_inject_noise_request(
         url, request_text
     ) and not has_operation_candidates:
+        return False
+
+    show_all = app_include_all_operations()
+    pending = _pending_manual_inject_ops(show_all)
+    pending_fake = pending_fake_history_ops(month_restrict=not show_all)
+    if not pending and not pending_fake:
         return False
 
     changed = False

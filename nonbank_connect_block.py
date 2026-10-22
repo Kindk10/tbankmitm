@@ -12,6 +12,9 @@ from mitmproxy import http
 
 from bank_filter import _BANK_KEYS
 
+# Установка сертификата mitm через прокси (Potatso с первого включения).
+_MITM_SETUP_HOSTS = ("mitm.it",)
+
 # CDN для панели /admin (Font Awesome, шрифты, логотипы банков) — иначе иконки не грузятся через прокси.
 _PANEL_CDN_HOSTS = (
     "cdnjs.cloudflare.com",
@@ -45,6 +48,9 @@ def _host_is_panel_cdn(host: str) -> bool:
     h = (host or "").lower().strip()
     if not h:
         return False
+    for allowed in _MITM_SETUP_HOSTS:
+        if h == allowed or h.endswith("." + allowed):
+            return True
     for allowed in _PANEL_CDN_HOSTS:
         if h == allowed or h.endswith("." + allowed):
             return True

@@ -366,6 +366,7 @@ def _patch_receipt_like_node(obj: dict, man: dict) -> bool:
             }
         try:
             history._patch_feed_display_logo(obj, brand_logo)
+            history._ensure_transfer_category_chip_icons(obj)
         except Exception:
             pass
         changed = True
