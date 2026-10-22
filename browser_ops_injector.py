@@ -1663,17 +1663,8 @@ def _build_script() -> str:
     return !!document.querySelector('[data-qa-type="mobile-pumba-detail-sheet"], [data-qa-type="independent-pumba-operation-details-container"]');
   }}
 
-  function isMobileLikeClient() {{
-    const ua = String(navigator.userAgent || '');
-    return /iphone|ipad|ipod|android| potatso|cfnetwork/i.test(ua);
-  }}
-
   function shouldPatchOperationsList() {{
-    const p = location.pathname || '';
-    if (p.indexOf('/mybank/statements') !== -1) return false;
-    if (isOperationsDetailPage()) return false;
-    if (isMobileLikeClient() && p.indexOf('/mybank') !== -1) return true;
-    return p.indexOf('/mybank/operations') !== -1;
+    return location.pathname.indexOf('/mybank/operations') !== -1 && !isOperationsDetailPage();
   }}
 
   function shouldPatchOperationsDetail() {{
@@ -3403,17 +3394,16 @@ def _build_script() -> str:
     }}
     st.textContent =
       '#manual-operation-document-viewer {{ position: fixed; inset: 0; z-index: 2147483646; background: rgba(0,0,0,0); transition: background 380ms ease; font-family: Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }}' +
-      '#manual-operation-document-viewer .manual-operation-document-sheet-anim {{ position: absolute; inset: 0; transform: translateY(100%); transition: transform 420ms cubic-bezier(0.32, 0.72, 0, 1); will-change: transform; }}' +
-      '#manual-operation-document-viewer .manual-operation-document-sheet {{ height: 100%; display: flex; flex-direction: column; overflow: hidden; border-radius: 14px 14px 0 0; background: #8a8a8a; }}' +
+      '#manual-operation-document-viewer .manual-operation-document-sheet {{ position: absolute; inset: 0; display: flex; flex-direction: column; overflow: hidden; border-radius: 14px 14px 0 0; background: #8a8a8a; transform: translateY(100%); transition: transform 420ms cubic-bezier(0.32, 0.72, 0, 1); will-change: transform; }}' +
       '#manual-operation-document-viewer .manual-operation-document-header {{ position: relative; flex: 0 0 56px; height: 56px; box-sizing: border-box; background: #202023; color: #f6f7f8; }}' +
       '#manual-operation-document-viewer .manual-operation-document-close, #manual-operation-document-viewer .manual-operation-document-share {{ appearance: none; border: 0; padding: 0; background: transparent; color: #428bf9; font-family: inherit; font-size: 16px; font-weight: 500; line-height: 20px; -webkit-tap-highlight-color: transparent; }}' +
       '#manual-operation-document-viewer .manual-operation-document-close {{ position: absolute; left: 17px; top: 50%; transform: translateY(-50%); }}' +
       '#manual-operation-document-viewer .manual-operation-document-title {{ position: absolute; left: 50%; top: 50%; width: max-content; max-width: calc(100% - 140px); overflow: visible; transform: translate(-50%, -50%); color: #f6f7f8; font-family: inherit; font-size: 17px; font-weight: 700; line-height: 22px; text-align: center; white-space: nowrap; }}' +
       '#manual-operation-document-viewer .manual-operation-document-share {{ position: absolute; right: 14px; top: 50%; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 40px; transform: translateY(-50%); }}' +
       '#manual-operation-document-viewer .manual-operation-document-share svg {{ display: block; width: 25px; height: 25px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2.2; }}' +
-      '#manual-operation-document-viewer .manual-operation-document-body {{ flex: 1 1 auto; min-height: 0; overflow-x: hidden; overflow-y: auto; background: #fff; -webkit-overflow-scrolling: touch; touch-action: pan-y; overscroll-behavior: contain; }}' +
-      '#manual-operation-document-viewer .manual-operation-document-image {{ display: block; width: 100%; height: auto; margin: 0; background: #fff; pointer-events: none; user-select: none; }}' +
-      '#manual-operation-document-viewer .manual-operation-document-frame {{ display: none; width: 100%; min-height: 120vh; height: auto; border: 0; background: #8a8a8a; }}';
+      '#manual-operation-document-viewer .manual-operation-document-body {{ flex: 1 1 auto; min-height: 0; overflow: auto; background: #fff; -webkit-overflow-scrolling: touch; }}' +
+      '#manual-operation-document-viewer .manual-operation-document-image {{ display: block; width: 100%; height: auto; margin: 0; background: #fff; }}' +
+      '#manual-operation-document-viewer .manual-operation-document-frame {{ display: none; width: 100%; height: 100%; min-height: 100%; border: 0; background: #8a8a8a; }}';
   }}
 
   function closeManualReceiptViewer(immediate) {{
@@ -3427,9 +3417,9 @@ def _build_script() -> str:
       window.__manualReceiptPrevBodyOverflow = null;
       return;
     }}
-    const anim = viewer.querySelector('.manual-operation-document-sheet-anim');
-    if (anim) {{
-      anim.style.transform = 'translateY(100%)';
+    const sheet = viewer.querySelector('.manual-operation-document-sheet');
+    if (sheet) {{
+      sheet.style.transform = 'translateY(100%)';
       viewer.style.background = 'rgba(0,0,0,0)';
     }}
     window.setTimeout(function () {{
@@ -3438,7 +3428,7 @@ def _build_script() -> str:
         document.body.style.overflow = window.__manualReceiptPrevBodyOverflow || '';
       }}
       window.__manualReceiptPrevBodyOverflow = null;
-    }}, anim ? 360 : 0);
+    }}, sheet ? 360 : 0);
   }}
 
   function openManualReceiptViewer(url, title) {{
@@ -3454,19 +3444,17 @@ def _build_script() -> str:
     viewer.setAttribute('role', 'dialog');
     viewer.setAttribute('aria-modal', 'true');
     viewer.innerHTML =
-      '<div class="manual-operation-document-sheet-anim">' +
-        '<div class="manual-operation-document-sheet">' +
-          '<div class="manual-operation-document-header">' +
-            '<button type="button" class="manual-operation-document-close">Закрыть</button>' +
-            '<div class="manual-operation-document-title"></div>' +
-            '<button type="button" class="manual-operation-document-share" aria-label="Поделиться">' +
-              '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3"></path><path d="m8 7 4-4 4 4"></path><path d="M6 10H4.8A1.8 1.8 0 0 0 3 11.8v7.4A1.8 1.8 0 0 0 4.8 21h14.4a1.8 1.8 0 0 0 1.8-1.8v-7.4a1.8 1.8 0 0 0-1.8-1.8H18"></path></svg>' +
-            '</button>' +
-          '</div>' +
-          '<div class="manual-operation-document-body">' +
-            '<img class="manual-operation-document-image" alt="Документ по операции">' +
-            '<iframe class="manual-operation-document-frame" title="Документ по операции"></iframe>' +
-          '</div>' +
+      '<div class="manual-operation-document-sheet">' +
+        '<div class="manual-operation-document-header">' +
+          '<button type="button" class="manual-operation-document-close">Закрыть</button>' +
+          '<div class="manual-operation-document-title"></div>' +
+          '<button type="button" class="manual-operation-document-share" aria-label="Поделиться">' +
+            '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3"></path><path d="m8 7 4-4 4 4"></path><path d="M6 10H4.8A1.8 1.8 0 0 0 3 11.8v7.4A1.8 1.8 0 0 0 4.8 21h14.4a1.8 1.8 0 0 0 1.8-1.8v-7.4a1.8 1.8 0 0 0-1.8-1.8H18"></path></svg>' +
+          '</button>' +
+        '</div>' +
+        '<div class="manual-operation-document-body">' +
+          '<img class="manual-operation-document-image" alt="Документ по операции">' +
+          '<iframe class="manual-operation-document-frame" title="Документ по операции"></iframe>' +
         '</div>' +
       '</div>';
     const titleEl = viewer.querySelector('.manual-operation-document-title');
@@ -3497,28 +3485,12 @@ def _build_script() -> str:
         window.open(url, '_blank', 'noopener,noreferrer');
       }});
     }}
-    const scrollBody = viewer.querySelector('.manual-operation-document-body');
-    if (scrollBody) {{
-      scrollBody.addEventListener('touchmove', function (ev) {{
-        ev.stopPropagation();
-      }}, {{ passive: true }});
-    }}
     (document.body || document.documentElement).appendChild(viewer);
-    const anim = viewer.querySelector('.manual-operation-document-sheet-anim');
+    const sheet = viewer.querySelector('.manual-operation-document-sheet');
     window.requestAnimationFrame(function () {{
       viewer.style.background = 'rgba(0,0,0,0.45)';
-      if (anim) anim.style.transform = 'translateY(0)';
+      if (sheet) sheet.style.transform = 'translateY(0)';
     }});
-    if (anim) {{
-      const unlockScrollAfterOpen = function (ev) {{
-        if (ev && ev.propertyName && ev.propertyName !== 'transform') return;
-        anim.removeEventListener('transitionend', unlockScrollAfterOpen);
-        anim.style.transition = 'none';
-        anim.style.transform = 'none';
-        anim.style.willChange = 'auto';
-      }};
-      anim.addEventListener('transitionend', unlockScrollAfterOpen);
-    }}
   }}
 
   function isPaymentSuccessReceiptSurface() {{
@@ -4650,21 +4622,6 @@ def _build_script() -> str:
     window.setInterval(tick, 4500);
   }}
 
-  function startMobileColdStartAssist() {{
-    if (!isMobileLikeClient()) return;
-    const resync = function () {{
-      try {{
-        syncFinanalyticsCards();
-        patchDetailDom();
-      }} catch (eResync) {{}}
-    }};
-    window.setInterval(resync, 6000);
-    window.addEventListener('visibilitychange', function () {{
-      if (document.visibilityState === 'visible') resync();
-    }}, {{ passive: true }});
-    window.addEventListener('focus', resync, {{ passive: true }});
-  }}
-
   bindManualCertReceiptClick();
   bindOrderCertificateStatementsClick();
 
@@ -4672,12 +4629,10 @@ def _build_script() -> str:
     document.addEventListener('DOMContentLoaded', function () {{
       startDetailDomPatcher();
       startFinanalyticsCardSync();
-      startMobileColdStartAssist();
     }}, {{ once: true }});
   }} else {{
     startDetailDomPatcher();
     startFinanalyticsCardSync();
-    startMobileColdStartAssist();
   }}
 }})();
 </script>
