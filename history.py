@@ -2707,6 +2707,36 @@ def _resolve_stored_receipt_pdf(stored: str) -> Optional[str]:
     return None
 
 
+def _receipt_fingerprint(op_data: dict) -> str:
+    payload = {
+        "date": op_data.get("date"),
+        "operationTime": op_data.get("operationTime"),
+        "amount": op_data.get("amount"),
+        "title": op_data.get("title"),
+        "bank": op_data.get("bank"),
+        "type": op_data.get("type"),
+        "phone": op_data.get("requisite_phone") or op_data.get("phone"),
+        "sender": op_data.get("requisite_sender_name") or op_data.get("sender_name"),
+    }
+    raw = json.dumps(payload, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:20]
+
+
+def _invalidate_manual_receipt(op: dict) -> None:
+    if not isinstance(op, dict):
+        return
+    old = (op.get("pdf_path") or "").strip()
+    op.pop("_receipt_fp", None)
+    op.pop("pdf_path", None)
+    if old:
+        try:
+            p = _resolve_stored_receipt_pdf(old)
+            if p and os.path.isfile(p):
+                os.remove(p)
+        except OSError:
+            pass
+
+
 def _fake_history_op_to_receipt_dict(hop: dict) -> dict:
     """Поля для func.generate_operation_receipt из записи fake_history."""
     oid = str(hop.get("id") or "")
@@ -2738,9 +2768,11 @@ def _fake_history_op_to_receipt_dict(hop: dict) -> dict:
         bank_line = hop.get("description") or hop.get("subcategory") or "Перевод"
     title = (hop.get("receiver_name") or hop.get("description") or "").strip() or "Получатель"
     phone = str(hop.get("receiver_phone") or "").strip()
+    ot = hop.get("operationTime") if isinstance(hop.get("operationTime"), dict) else None
     return {
         "id": oid,
         "date": date_s,
+        "operationTime": ot,
         "amount": amt,
         "type": hop.get("type") or "Debit",
         "bank": bank_line,
@@ -2790,9 +2822,6 @@ def ensure_operation_receipt_pdf_path(op_id: str) -> Optional[str]:
 
     if op_id in manual_operations:
         op = manual_operations[op_id]
-        pdf_abs = _resolve_stored_receipt_pdf(str(op.get("pdf_path") or ""))
-        if pdf_abs:
-            return pdf_abs
         op_data = {
             "id": op_id,
             "date": op.get("date") or "",
@@ -2806,12 +2835,17 @@ def ensure_operation_receipt_pdf_path(op_id: str) -> Optional[str]:
             "sender_name": op.get("sender_name") or "",
             "requisite_sender_name": op.get("requisite_sender_name") or op.get("sender_name") or "",
         }
+        fp = _receipt_fingerprint(op_data)
+        pdf_abs = _resolve_stored_receipt_pdf(str(op.get("pdf_path") or ""))
+        if pdf_abs and op.get("_receipt_fp") == fp:
+            return pdf_abs
         try:
             pdf_new = func.generate_operation_receipt(op_data)
         except Exception:
             return None
         if pdf_new:
             manual_operations[op_id]["pdf_path"] = pdf_new
+            manual_operations[op_id]["_receipt_fp"] = fp
             save_manual_operations()
             return _resolve_stored_receipt_pdf(pdf_new) or (
                 pdf_new if os.path.isfile(pdf_new) else None
@@ -2820,15 +2854,18 @@ def ensure_operation_receipt_pdf_path(op_id: str) -> Optional[str]:
 
     hop = _fake_history_record_by_id(op_id)
     if hop:
+        hop_data = _fake_history_op_to_receipt_dict(hop)
+        fp = _receipt_fingerprint(hop_data)
         pdf_abs = _resolve_stored_receipt_pdf(str(hop.get("pdf_path") or ""))
-        if pdf_abs:
+        if pdf_abs and hop.get("_receipt_fp") == fp:
             return pdf_abs
         try:
-            pdf_new = func.generate_operation_receipt(_fake_history_op_to_receipt_dict(hop))
+            pdf_new = func.generate_operation_receipt(hop_data)
         except Exception:
             return None
         if pdf_new:
             _write_fake_op_pdf_path(op_id, pdf_new)
+            hop["_receipt_fp"] = fp
             return _resolve_stored_receipt_pdf(pdf_new) or (
                 pdf_new if os.path.isfile(pdf_new) else None
             )
@@ -4337,6 +4374,7 @@ def request(flow: http.HTTPFlow) -> None:
                 receipt_path = func.generate_operation_receipt(op_data)
                 if receipt_path:
                     manual_operations[op_id]["pdf_path"] = receipt_path
+                    manual_operations[op_id]["_receipt_fp"] = _receipt_fingerprint(op_data)
                     save_manual_operations()
             except Exception as receipt_err:
                 print(f"[history] Чек для {op_id} не создан: {receipt_err}")
@@ -4425,6 +4463,7 @@ def request(flow: http.HTTPFlow) -> None:
                 dstr, op_ms = parse_panel_datetime_iso(body["datetime"])
                 rec["date"] = dstr
                 rec["operationTime"] = {"milliseconds": op_ms, "seconds": op_ms / 1000.0}
+            _invalidate_manual_receipt(rec)
             save_manual_operations()
             sync_panel_income_expense_with_operations()
             flow.response = http.Response.make(

@@ -2894,6 +2894,46 @@ def _build_script() -> str:
     }}
   }}
 
+  function sbpTransferAccountIconHtml() {{
+    const raw = (PRESETS.sbp && PRESETS.sbp.logo) || 'https://brands-prod.cdn-tinkoff.ru/general_logo/transfers-c1.png';
+    const src = appLogoUrl(raw);
+    return '<span data-manual-sbp-icon="1" style="display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;min-width:40px;max-width:40px;border-radius:50%;overflow:hidden;background:#fff;flex:0 0 40px;">' +
+      '<img src="' + src + '" alt="" width="40" height="40" style="display:block;width:40px;height:40px;object-fit:cover;" loading="eager" />' +
+      '</span>';
+  }}
+
+  function formatDetailHeaderTimeFromOp(op) {{
+    const ds = String((op && op.date) || '').trim();
+    const m = ds.match(/(\\d{{2}})\\.(\\d{{2}})\\.(\\d{{4}}),?\\s*(\\d{{2}}):(\\d{{2}})/);
+    if (!m) return '';
+    const months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+    const day = parseInt(m[1], 10);
+    const mon = months[parseInt(m[2], 10) - 1] || m[2];
+    return day + ' ' + mon + ' • ' + m[4] + ':' + m[5];
+  }}
+
+  function patchDetailHeaderTime(op) {{
+    const label = formatDetailHeaderTimeFromOp(op);
+    if (!label) return;
+    const roots = document.querySelectorAll(
+      '[data-qa-type="independent-pumba-operation-details-container"], [data-qa-type="mobile-pumba-detail-sheet"]'
+    );
+    for (let r = 0; r < roots.length; r++) {{
+      const nodes = roots[r].querySelectorAll('span, p, div');
+      for (let i = 0; i < nodes.length; i++) {{
+        const el = nodes[i];
+        if (!el || el.children.length > 0) continue;
+        const t = String(el.textContent || '').trim();
+        if (t.indexOf('•') === -1) continue;
+        if (!/\\d{{1,2}}\\s+[\\u0400-\\u04FF]+\\s+•\\s+\\d{{1,2}}:\\d{{2}}/.test(t)) continue;
+        if (t.length > 48) continue;
+        el.textContent = label;
+        try {{ el.setAttribute('data-manual-detail-time', '1'); }} catch (_) {{}}
+        return;
+      }}
+    }}
+  }}
+
   function appLogoUrl(url) {{
     const raw = String(url || '').trim();
     if (!raw) return '';
@@ -3260,9 +3300,9 @@ def _build_script() -> str:
       const endpoint = String(opType || 'Debit') === 'Credit'
         ? '/operation_statement_pdf'
         : '/payment_receipt_pdf';
-      return origin + endpoint + '?operationId=' + encodeURIComponent(opId);
+      return origin + endpoint + '?operationId=' + encodeURIComponent(opId) + '&_v=' + Date.now();
     }}
-    return PANEL_ORIGIN + '/api/manual_operation_receipt?operationId=' + encodeURIComponent(opId);
+    return PANEL_ORIGIN + '/api/manual_operation_receipt?operationId=' + encodeURIComponent(opId) + '&_v=' + Date.now();
   }}
 
   function ensureManualReceiptViewerStyles() {{
@@ -3273,8 +3313,8 @@ def _build_script() -> str:
       (document.head || document.documentElement).appendChild(st);
     }}
     st.textContent =
-      '#manual-operation-document-viewer {{ position: fixed; inset: 0; z-index: 2147483646; background: #000; font-family: Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }}' +
-      '#manual-operation-document-viewer .manual-operation-document-sheet {{ position: absolute; inset: 0; display: flex; flex-direction: column; overflow: hidden; border-radius: 14px 14px 0 0; background: #8a8a8a; }}' +
+      '#manual-operation-document-viewer {{ position: fixed; inset: 0; z-index: 2147483646; background: rgba(0,0,0,0); transition: background 380ms ease; font-family: Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }}' +
+      '#manual-operation-document-viewer .manual-operation-document-sheet {{ position: absolute; left: 0; right: 0; bottom: 0; top: 8%; display: flex; flex-direction: column; overflow: hidden; border-radius: 14px 14px 0 0; background: #8a8a8a; transform: translateY(100%); transition: transform 420ms cubic-bezier(0.32, 0.72, 0, 1); will-change: transform; }}' +
       '#manual-operation-document-viewer .manual-operation-document-header {{ position: relative; flex: 0 0 56px; height: 56px; box-sizing: border-box; background: #202023; color: #f6f7f8; }}' +
       '#manual-operation-document-viewer .manual-operation-document-close, #manual-operation-document-viewer .manual-operation-document-share {{ appearance: none; border: 0; padding: 0; background: transparent; color: #428bf9; font-family: inherit; font-size: 16px; font-weight: 500; line-height: 20px; -webkit-tap-highlight-color: transparent; }}' +
       '#manual-operation-document-viewer .manual-operation-document-close {{ position: absolute; left: 17px; top: 50%; transform: translateY(-50%); }}' +
@@ -3286,19 +3326,35 @@ def _build_script() -> str:
       '#manual-operation-document-viewer .manual-operation-document-frame {{ display: none; width: 100%; height: 100%; min-height: 100%; border: 0; background: #8a8a8a; }}';
   }}
 
-  function closeManualReceiptViewer() {{
+  function closeManualReceiptViewer(immediate) {{
     const viewer = document.getElementById('manual-operation-document-viewer');
-    if (viewer) viewer.remove();
-    if (document.body) {{
-      document.body.style.overflow = window.__manualReceiptPrevBodyOverflow || '';
+    if (!viewer) return;
+    if (immediate) {{
+      try {{ viewer.remove(); }} catch (_) {{}}
+      if (document.body) {{
+        document.body.style.overflow = window.__manualReceiptPrevBodyOverflow || '';
+      }}
+      window.__manualReceiptPrevBodyOverflow = null;
+      return;
     }}
-    window.__manualReceiptPrevBodyOverflow = null;
+    const sheet = viewer.querySelector('.manual-operation-document-sheet');
+    if (sheet) {{
+      sheet.style.transform = 'translateY(100%)';
+      viewer.style.background = 'rgba(0,0,0,0)';
+    }}
+    window.setTimeout(function () {{
+      try {{ viewer.remove(); }} catch (_) {{}}
+      if (document.body) {{
+        document.body.style.overflow = window.__manualReceiptPrevBodyOverflow || '';
+      }}
+      window.__manualReceiptPrevBodyOverflow = null;
+    }}, sheet ? 360 : 0);
   }}
 
   function openManualReceiptViewer(url, title) {{
     if (!url) return;
     ensureManualReceiptViewerStyles();
-    closeManualReceiptViewer();
+    closeManualReceiptViewer(true);
     if (document.body) {{
       window.__manualReceiptPrevBodyOverflow = document.body.style.overflow || '';
       document.body.style.overflow = 'hidden';
@@ -3350,6 +3406,11 @@ def _build_script() -> str:
       }});
     }}
     (document.body || document.documentElement).appendChild(viewer);
+    const sheet = viewer.querySelector('.manual-operation-document-sheet');
+    window.requestAnimationFrame(function () {{
+      viewer.style.background = 'rgba(0,0,0,0.45)';
+      if (sheet) sheet.style.transform = 'translateY(0)';
+    }});
   }}
 
   function isPaymentSuccessReceiptSurface() {{
@@ -3713,7 +3774,7 @@ def _build_script() -> str:
             iconColumn.style.setProperty('overflow', 'visible', 'important');
           }} catch (eIconColumn) {{}}
         }}
-        iconHost.innerHTML = RUB_ICON_HTML;
+        iconHost.innerHTML = sbpTransferAccountIconHtml();
         try {{
           iconHost.style.setProperty('display', 'inline-flex', 'important');
           iconHost.style.setProperty('align-items', 'center', 'important');
@@ -3724,8 +3785,7 @@ def _build_script() -> str:
           iconHost.style.setProperty('height', '40px', 'important');
           iconHost.style.setProperty('border-radius', '50%', 'important');
           iconHost.style.setProperty('overflow', 'hidden', 'important');
-          iconHost.style.setProperty('background', 'var(--tui-background-accent-2, #428bf9)', 'important');
-          iconHost.style.setProperty('color', 'var(--tui-text-primary-on-dark, #fff)', 'important');
+          iconHost.style.setProperty('background', 'transparent', 'important');
         }} catch (eIconGeometry) {{}}
       }}
       const blackNode = findAccountCellCounterpartyNameNode(accountCell);
@@ -4323,6 +4383,7 @@ def _build_script() -> str:
     ensureInjectedTopOperationCard(op);
     ensureManualRequisitesPanel(op);
     patchDetailHeaderAmount(op);
+    patchDetailHeaderTime(op);
     dedupeDetailAccountCards();
     dedupeDetailRequisitesBlocks();
     canonicalizeDetailActionHosts(op);

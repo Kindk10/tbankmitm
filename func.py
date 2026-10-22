@@ -315,16 +315,86 @@ async def tbanksbp(data, summ, sender_name, number, name, bank, id):
 
 
 def format_phone_for_receipt(phone: str) -> str:
-    """Как в блоке реквизитов в приложении: +7 927 445-76-16 (пробелы, без скобок)."""
+    """В квитанции: +7 (900) 331-65-81 (скобки у кода)."""
     digits = re.sub(r"\D", "", phone or "")
     if len(digits) == 11 and digits.startswith("8"):
         digits = "7" + digits[1:]
     if len(digits) == 10:
         digits = "7" + digits
     if len(digits) == 11 and digits.startswith("7"):
-        return f"+7 {digits[1:4]} {digits[4:7]}-{digits[7:9]}-{digits[9:11]}"
+        return f"+7 ({digits[1:4]}) {digits[4:7]}-{digits[7:9]}-{digits[9:11]}"
     p = (phone or "").strip()
     return p if p else ""
+
+
+def format_receipt_recipient_title(title: str) -> str:
+    """Получатель в чеке — как в карточке, с точкой после инициала («Максим У.»)."""
+    t = (title or "").strip()
+    if not t:
+        return "Получатель"
+    if re.match(r"^[\w\u0400-\u04FF\-]+\s[\w\u0400-\u04FF]\.?$", t) and not t.endswith("."):
+        return t + "."
+    return t
+
+
+def format_receipt_sender_full(name_cfg: dict, op_data: dict, op_type: str) -> str:
+    """Отправитель в чеке: «Имя Фамилия» без сокращений."""
+    cfg = name_cfg or {}
+    if op_type == "Credit":
+        raw = (
+            (op_data.get("requisite_sender_name") or op_data.get("sender_name") or "")
+            .strip()
+        )
+        if raw and not re.match(r"^[\w\u0400-\u04FF\-]+\s[\w\u0400-\u04FF]\.?$", raw):
+            return raw
+    fn = (cfg.get("first_name") or "").strip()
+    ln = (cfg.get("last_name") or "").strip()
+    if fn and ln:
+        return f"{fn} {ln}"
+    full = (cfg.get("full_name") or "").strip()
+    if full:
+        return full
+    return "Клиент"
+
+
+def _receipt_datetime_str(op_data: dict) -> str:
+    """Время квитанции = operationTime / date из панели (MSK), как в карточке."""
+    ms = None
+    ot = op_data.get("operationTime")
+    if isinstance(ot, dict):
+        try:
+            v = int(ot.get("milliseconds") or 0)
+            if v > 0:
+                ms = v
+        except (TypeError, ValueError):
+            pass
+    if ms is None:
+        try:
+            from history import parse_bank_date_str_to_ms, date_str_to_millis
+
+            ms = parse_bank_date_str_to_ms(op_data.get("date") or "")
+            if ms is None:
+                ms = date_str_to_millis(op_data.get("date") or "")
+        except Exception:
+            ms = None
+    if ms is not None and ms > 0:
+        try:
+            from history import moscow_from_timestamp
+
+            return moscow_from_timestamp(ms / 1000).strftime("%d.%m.%Y %H:%M:%S")
+        except Exception:
+            pass
+    date_str = (op_data.get("date") or "").strip()
+    if date_str:
+        date_str = date_str.replace(",", "").strip()
+        if re.search(r"\d{2}\.\d{2}\.\d{4}\s+\d{2}:\d{2}(:\d{2})?", date_str):
+            return date_str
+    try:
+        from history import now_moscow
+
+        return now_moscow().strftime("%d.%m.%Y %H:%M:%S")
+    except Exception:
+        return datetime.now().strftime("%d.%m.%Y %H:%M:%S")
 
 
 def format_receipt_sender_short(sender_raw: str, name_cfg: dict) -> str:
@@ -418,46 +488,11 @@ def _generate_operation_receipt_impl(op_data, output_path=None):
     sender_account = config.get("reki", {}).get("account", "40817810000112345678")
 
     op_type = (op_data.get("type") or "Debit").strip()
-    if op_type == "Credit":
-        display_sender = format_receipt_sender_short(
-            (op_data.get("requisite_sender_name") or op_data.get("sender_name") or ""),
-            nm,
-        )
-    else:
-        # «Ирина К.» — имя + первая буква фамилии из конфига (как в Т‑Банке)
-        fn = (nm.get("first_name") or "").strip()
-        ln = (nm.get("last_name") or "").strip()
-        if fn and ln:
-            display_sender = f"{fn} {ln[0]}."
-        else:
-            display_sender = format_receipt_sender_short(nm.get("full_name", ""), nm)
-
-    # Данные операции (время — из operationTime, если есть, чтобы совпадало с лентой и секундами)
-    date_str = (op_data.get("date") or op_data.get("date_full") or "").strip()
-    ot_ms = op_data.get("operationTime")
-    if isinstance(ot_ms, dict):
-        try:
-            _v = int(ot_ms.get("milliseconds") or 0)
-            if _v > 0:
-                try:
-                    from history import millis_to_bank_date_str as _msk_date
-                    date_str = _msk_date(_v)
-                except Exception:
-                    from datetime import timezone, timedelta
-                    date_str = datetime.fromtimestamp(_v / 1000, timezone(timedelta(hours=3))).strftime("%d.%m.%Y, %H:%M:%S")
-        except (TypeError, ValueError, OSError):
-            pass
-    if not date_str:
-        try:
-            from history import now_moscow as _now_msk
-            date_str = _now_msk().strftime("%d.%m.%Y, %H:%M:%S")
-        except Exception:
-            date_str = datetime.now().strftime("%d.%m.%Y, %H:%M:%S")
-    if date_str and "," not in date_str and re.search(r"\d{2}\.\d{2}\.\d{4}\s+\d{2}:\d{2}:\d{2}", date_str):
-        date_str = re.sub(r"(\d{2}\.\d{2}\.\d{4})\s+", r"\1, ", date_str, count=1)
+    display_sender = format_receipt_sender_full(nm, op_data, op_type)
+    date_str = _receipt_datetime_str(op_data)
     amount = abs(float(op_data.get("amount") or 0))
     bank = op_data.get("bank") or op_data.get("title") or "Перевод"
-    receiver_name = op_data.get("title") or "Получатель"
+    receiver_name = format_receipt_recipient_title(op_data.get("title") or "Получатель")
     if op_type == "Credit":
         rp = (op_data.get("receipt_phone") or op_data.get("requisite_phone") or op_data.get("phone") or "").strip()
     else:
@@ -497,6 +532,7 @@ def _generate_operation_receipt_impl(op_data, output_path=None):
         "identificator": (124.98999786376953, 314.00299072265625+8.18),
         "identificator2": (226.91000366210938, 325.0829772949219 + 8.18),
         "kvit": (93.35900115966797, 450.9629821777344 + 8.18),
+        "commission": (110, 188, 250, 202),
     }
 
     doc = fitz.open(TEMPLATE_PATH)
@@ -511,9 +547,12 @@ def _generate_operation_receipt_impl(op_data, output_path=None):
     font_n = load_font(FONT_NORMAL, "my_normal")
     font_b = load_font(FONT_BOLD, "my_bold")
 
-    page.insert_text(POSITIONS["date"], date_str.replace(",", ""), fontname=font_n, fontsize=8, color=(144/255, 144/255, 144/255))
+    page.insert_text(POSITIONS["date"], date_str, fontname=font_n, fontsize=8, color=(144/255, 144/255, 144/255))
     page.insert_textbox(POSITIONS["big_summ"], formatted_amount, fontname=font_b, fontsize=16, color=(51/255, 51/255, 51/255), align=TEXT_ALIGN_RIGHT)
     page.insert_textbox(POSITIONS["summ"], formatted_amount, fontname=font_n, fontsize=9, color=(51/255, 51/255, 51/255), align=TEXT_ALIGN_RIGHT)
+    comm = POSITIONS["commission"]
+    page.draw_rect(fitz.Rect(comm[0], comm[1], comm[2], comm[3]), color=(1, 1, 1), fill=(1, 1, 1))
+    page.insert_textbox(comm, "0 ₽", fontname=font_n, fontsize=9, color=(51/255, 51/255, 51/255), align=TEXT_ALIGN_RIGHT)
     page.insert_textbox(POSITIONS["sender"], display_sender, fontname=font_n, fontsize=9, color=(51/255, 51/255, 51/255), align=TEXT_ALIGN_RIGHT)
     page.insert_textbox(POSITIONS["number"], receiver_phone, fontname=font_n, fontsize=9, color=(51/255, 51/255, 51/255), align=TEXT_ALIGN_RIGHT)
     page.insert_textbox(POSITIONS["name"], receiver_name, fontname=font_n, fontsize=9, color=(51/255, 51/255, 51/255), align=TEXT_ALIGN_RIGHT)
