@@ -253,6 +253,29 @@ _last_fake_hash = ""
 _fake_payment_done = False
 
 
+def _hydrate_bank_logo_from_presets() -> None:
+    try:
+        presets = history_mod.load_merchant_presets()
+        for block in presets.values():
+            if not isinstance(block, dict):
+                continue
+            merchant = block.get("merchant")
+            if not isinstance(merchant, dict):
+                continue
+            name = (merchant.get("name") or "").strip()
+            raw = (merchant.get("logo") or merchant.get("logoUrl") or merchant.get("image") or "").strip()
+            if not name or not raw:
+                continue
+            try:
+                url = history_mod._normalize_logo_url(raw)
+            except Exception:
+                url = raw
+            if url and name not in BANK_LOGO:
+                BANK_LOGO[name] = url
+    except Exception:
+        pass
+
+
 def get_bank_logo(bank_name):
     if not bank_name:
         return BANK_LOGO.get("Т-Банк")
@@ -262,6 +285,9 @@ def get_bank_logo(bank_name):
         if key.lower() in bank_name.lower() or bank_name.lower() in key.lower():
             return url
     return BANK_LOGO.get("Т-Банк")
+
+
+_hydrate_bank_logo_from_presets()
 
 
 def clean_bank_name(name):

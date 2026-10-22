@@ -77,6 +77,11 @@ def _manual_ops_payload():
     for row in history._fake_transfer_ops_for_panel(skip_ids, month_only=month_only):
         if row.get("id") in history.hidden_operations:
             continue
+        fake_logo_op = {
+            "bank": row.get("bank") or "",
+            "bank_preset": (row.get("bank_preset") or "sbp").lower(),
+            "logo": (row.get("logo") or "").strip(),
+        }
         items.append(
             {
                 "id": row["id"],
@@ -88,6 +93,10 @@ def _manual_ops_payload():
                 "description": row.get("description") or "",
                 "bank": row.get("bank") or "",
                 "bank_preset": (row.get("bank_preset") or "sbp").lower(),
+                "logo": (row.get("logo") or "").strip(),
+                "app_logo": history._app_served_bank_logo_url(
+                    history._resolve_manual_operation_logo(fake_logo_op)
+                ),
                 "phone": row.get("phone") or row.get("requisite_phone") or "",
                 "requisite_phone": row.get("requisite_phone") or row.get("phone") or "",
                 "sender_name": row.get("sender_name") or "",
@@ -1677,7 +1686,8 @@ def _build_script() -> str:
 
   function touchManualDetailStylesOrder() {{
     const st =
-      document.getElementById('manual-detail-pumba-cards-v33')
+      document.getElementById('manual-detail-pumba-cards-v34')
+      || document.getElementById('manual-detail-pumba-cards-v33')
       || document.getElementById('manual-detail-pumba-cards-v32')
       || document.getElementById('manual-detail-pumba-cards-v31')
       || document.getElementById('manual-detail-pumba-cards-v30')
@@ -1711,16 +1721,38 @@ def _build_script() -> str:
   }}
 
   function injectManualDetailStyles() {{
-    if (document.getElementById('manual-detail-pumba-cards-v33')) return;
-    ['manual-detail-pumba-cards-v3', 'manual-detail-pumba-cards-v4', 'manual-detail-pumba-cards-v5', 'manual-detail-pumba-cards-v6', 'manual-detail-pumba-cards-v7', 'manual-detail-pumba-cards-v8', 'manual-detail-pumba-cards-v9', 'manual-detail-pumba-cards-v10', 'manual-detail-pumba-cards-v11', 'manual-detail-pumba-cards-v12', 'manual-detail-pumba-cards-v13', 'manual-detail-pumba-cards-v14', 'manual-detail-pumba-cards-v15', 'manual-detail-pumba-cards-v16', 'manual-detail-pumba-cards-v17', 'manual-detail-pumba-cards-v18', 'manual-detail-pumba-cards-v19', 'manual-detail-pumba-cards-v20', 'manual-detail-pumba-cards-v21', 'manual-detail-pumba-cards-v22', 'manual-detail-pumba-cards-v23', 'manual-detail-pumba-cards-v24', 'manual-detail-pumba-cards-v25', 'manual-detail-pumba-cards-v26', 'manual-detail-pumba-cards-v27', 'manual-detail-pumba-cards-v28', 'manual-detail-pumba-cards-v29', 'manual-detail-pumba-cards-v30', 'manual-detail-pumba-cards-v31', 'manual-detail-pumba-cards-v32'].forEach(function (lid) {{
+    if (document.getElementById('manual-detail-pumba-cards-v34')) return;
+    ['manual-detail-pumba-cards-v3', 'manual-detail-pumba-cards-v4', 'manual-detail-pumba-cards-v5', 'manual-detail-pumba-cards-v6', 'manual-detail-pumba-cards-v7', 'manual-detail-pumba-cards-v8', 'manual-detail-pumba-cards-v9', 'manual-detail-pumba-cards-v10', 'manual-detail-pumba-cards-v11', 'manual-detail-pumba-cards-v12', 'manual-detail-pumba-cards-v13', 'manual-detail-pumba-cards-v14', 'manual-detail-pumba-cards-v15', 'manual-detail-pumba-cards-v16', 'manual-detail-pumba-cards-v17', 'manual-detail-pumba-cards-v18', 'manual-detail-pumba-cards-v19', 'manual-detail-pumba-cards-v20', 'manual-detail-pumba-cards-v21', 'manual-detail-pumba-cards-v22', 'manual-detail-pumba-cards-v23', 'manual-detail-pumba-cards-v24', 'manual-detail-pumba-cards-v25', 'manual-detail-pumba-cards-v26', 'manual-detail-pumba-cards-v27', 'manual-detail-pumba-cards-v28', 'manual-detail-pumba-cards-v29', 'manual-detail-pumba-cards-v30', 'manual-detail-pumba-cards-v31', 'manual-detail-pumba-cards-v32', 'manual-detail-pumba-cards-v33'].forEach(function (lid) {{
       const legacy = document.getElementById(lid);
       if (legacy) {{
         try {{ legacy.remove(); }} catch (eL) {{}}
       }}
     }});
     const st = document.createElement('style');
-    st.id = 'manual-detail-pumba-cards-v33';
+    st.id = 'manual-detail-pumba-cards-v34';
     st.textContent = `
+[data-manual-sbp-chip-root="1"] {{
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex: 0 0 auto !important;
+  width: auto !important;
+  max-width: max-content !important;
+  gap: 6px !important;
+  padding: 6px 12px !important;
+  border-radius: 999px !important;
+  background: rgba(23, 52, 87, 0.92) !important;
+  color: #f6f7f8 !important;
+  font-weight: 700 !important;
+  font-size: 13px !important;
+  line-height: 16px !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+}}
+[data-manual-sbp-chip-root="1"] [data-manual-sbp-chip-label="1"] {{
+  color: #f6f7f8 !important;
+  -webkit-text-fill-color: #f6f7f8 !important;
+}}
 /* Инжект: ширина; горизонтальный padding даёт independent-pumba-operation-details-container — не дублировать */
 [data-manual-injected-account-cards="1"][data-qa-type="accountCardsShown-wrapper"],
 [data-manual-injected-account-cards="1"] {{
@@ -2894,10 +2926,66 @@ def _build_script() -> str:
     }}
   }}
 
-  function sbpTransfersCategoryChipIconHtml() {{
-    const raw = (PRESETS.sbp && PRESETS.sbp.logo) || 'https://brands-prod.cdn-tinkoff.ru/general_logo/transfers-c1.png';
-    const src = appLogoUrl(raw);
-    return '<img data-manual-sbp-chip-icon="1" src="' + src + '" alt="" width="18" height="18" style="display:block;width:18px;height:18px;object-fit:contain;" loading="eager" />';
+  function transfersCategoryChipIconSvg() {{
+    return '<svg data-manual-sbp-chip-icon="1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">' +
+      '<path fill="#4FC5DF" d="M15.8 8.2 14.4 6.8l-4.6 4.6 4.6 4.6 1.4-1.4-3.2-3.2 3.2-3.2z"></path>' +
+      '<path fill="#428BF9" d="M8.2 15.8 9.6 17.2l4.6-4.6-4.6-4.6-1.4 1.4 3.2 3.2-3.2 3.2z"></path>' +
+      '</svg>';
+  }}
+
+  function normalizeTransfersChipText(raw) {{
+    return String(raw || '').replace(/\\u00a0/g, ' ').replace(/\\s+/g, ' ').trim();
+  }}
+
+  function findDetailTransfersCategoryChip(root) {{
+    if (!root) return null;
+    const interactive = root.querySelectorAll('button, a[href], [role="button"]');
+    for (let i = 0; i < interactive.length; i++) {{
+      const btn = interactive[i];
+      if (btn.closest('[data-qa-type="molecule-account-operation"]')) continue;
+      if (normalizeTransfersChipText(btn.textContent) === 'Переводы') return btn;
+    }}
+    const leaves = root.querySelectorAll('span, p, div');
+    for (let j = 0; j < leaves.length; j++) {{
+      const el = leaves[j];
+      if (!el || el.children.length) continue;
+      if (normalizeTransfersChipText(el.textContent) !== 'Переводы') continue;
+      if (el.closest('[data-qa-type="molecule-account-operation"]')) continue;
+      const btnChip = el.closest('button, a[href], [role="button"]');
+      if (btnChip && normalizeTransfersChipText(btnChip.textContent) === 'Переводы') return btnChip;
+      let chip = el.parentElement;
+      while (chip && chip !== root) {{
+        const t = normalizeTransfersChipText(chip.textContent);
+        if (t === 'Переводы') return chip;
+        if (t.length > 16) break;
+        chip = chip.parentElement;
+      }}
+    }}
+    return null;
+  }}
+
+  function applyTransfersCategoryChipStyles(chip) {{
+    if (!chip) return;
+    try {{
+      chip.style.setProperty('display', 'inline-flex', 'important');
+      chip.style.setProperty('align-items', 'center', 'important');
+      chip.style.setProperty('justify-content', 'center', 'important');
+      chip.style.setProperty('flex', '0 0 auto', 'important');
+      chip.style.setProperty('width', 'auto', 'important');
+      chip.style.setProperty('max-width', 'max-content', 'important');
+      chip.style.setProperty('gap', '6px', 'important');
+      chip.style.setProperty('padding', '6px 12px', 'important');
+      chip.style.setProperty('border-radius', '999px', 'important');
+      chip.style.setProperty('background', 'rgba(23, 52, 87, 0.92)', 'important');
+      chip.style.setProperty('color', '#f6f7f8', 'important');
+      chip.style.setProperty('font-weight', '700', 'important');
+      chip.style.setProperty('font-size', '13px', 'important');
+      chip.style.setProperty('line-height', '16px', 'important');
+      chip.style.setProperty('border', '0', 'important');
+      chip.style.setProperty('box-shadow', 'none', 'important');
+      chip.style.setProperty('overflow', 'hidden', 'important');
+      chip.style.setProperty('white-space', 'nowrap', 'important');
+    }} catch (_) {{}}
   }}
 
   function patchDetailTransfersCategoryChip() {{
@@ -2905,64 +2993,22 @@ def _build_script() -> str:
       '[data-qa-type="independent-pumba-operation-details-container"], [data-qa-type="mobile-pumba-detail-sheet"]'
     );
     if (!roots.length) return;
-    const iconHtml = sbpTransfersCategoryChipIconHtml();
+    const iconSvg = transfersCategoryChipIconSvg();
     roots.forEach(function (root) {{
-      const nodes = root.querySelectorAll('span, button, div, p, a');
-      for (let i = 0; i < nodes.length; i++) {{
-        const el = nodes[i];
-        if (!el || el.getAttribute('data-manual-sbp-chip-patched') === '1') continue;
-        if (el.closest('[data-qa-type="molecule-account-operation"]')) continue;
-        const txt = String(el.textContent || '').replace(/\\u00a0/g, ' ').trim();
-        if (txt !== 'Переводы') continue;
-        if (el.children.length > 2) continue;
-        const chip = el.tagName === 'BUTTON' || el.tagName === 'A'
-          ? el
-          : (el.closest('button, a, [role="button"]') || el.parentElement);
-        if (!chip || chip.getAttribute('data-manual-sbp-chip-patched') === '1') continue;
-        chip.setAttribute('data-manual-sbp-chip-patched', '1');
-        try {{
-          chip.style.setProperty('display', 'inline-flex', 'important');
-          chip.style.setProperty('align-items', 'center', 'important');
-          chip.style.setProperty('justify-content', 'center', 'important');
-          chip.style.setProperty('gap', '6px', 'important');
-          chip.style.setProperty('padding', '6px 12px', 'important');
-          chip.style.setProperty('border-radius', '999px', 'important');
-          chip.style.setProperty('background', 'rgba(23, 52, 87, 0.92)', 'important');
-          chip.style.setProperty('color', '#f6f7f8', 'important');
-          chip.style.setProperty('font-weight', '700', 'important');
-          chip.style.setProperty('font-size', '13px', 'important');
-          chip.style.setProperty('line-height', '16px', 'important');
-          chip.style.setProperty('border', '0', 'important');
-          chip.style.setProperty('box-shadow', 'none', 'important');
-        }} catch (_) {{}}
-        chip.querySelectorAll('[data-manual-sbp-chip-icon-wrap="1"]').forEach(function (n) {{ try {{ n.remove(); }} catch (_) {{}} }});
-        Array.from(chip.children).forEach(function (child) {{
-          if (!child || child.getAttribute('data-manual-sbp-chip-icon-wrap') === '1') return;
-          if (child.querySelector && child.querySelector('[data-manual-sbp-chip-icon="1"]')) return;
-          try {{
-            const bg = window.getComputedStyle(child).backgroundColor || '';
-            const isSolid =
-              child.tagName !== 'SVG'
-              && child.tagName !== 'IMG'
-              && bg
-              && bg !== 'rgba(0, 0, 0, 0)'
-              && bg !== 'transparent';
-            if (isSolid && !String(child.textContent || '').trim()) child.remove();
-          }} catch (_) {{}}
-        }});
-        const wrap = document.createElement('span');
-        wrap.setAttribute('data-manual-sbp-chip-icon-wrap', '1');
-        wrap.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;flex:0 0 18px;';
-        wrap.innerHTML = iconHtml;
-        chip.insertBefore(wrap, chip.firstChild);
-        chip.querySelectorAll('span, p, div').forEach(function (sp) {{
-          if (String(sp.textContent || '').replace(/\\u00a0/g, ' ').trim() !== 'Переводы') return;
-          try {{
-            sp.style.setProperty('color', '#f6f7f8', 'important');
-            sp.style.setProperty('-webkit-text-fill-color', '#f6f7f8', 'important');
-          }} catch (_) {{}}
-        }});
+      const chip = findDetailTransfersCategoryChip(root);
+      if (!chip) return;
+      if (chip.getAttribute('data-manual-sbp-chip-root') === '1') {{
+        applyTransfersCategoryChipStyles(chip);
+        return;
       }}
+      chip.setAttribute('data-manual-sbp-chip-root', '1');
+      chip.setAttribute('data-manual-sbp-chip-patched', '1');
+      chip.innerHTML =
+        '<span data-manual-sbp-chip-icon-wrap="1" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;flex:0 0 16px;">' +
+          iconSvg +
+        '</span>' +
+        '<span data-manual-sbp-chip-label="1" style="color:#f6f7f8;font-weight:700;font-size:13px;line-height:16px;">Переводы</span>';
+      applyTransfersCategoryChipStyles(chip);
     }});
   }}
 
@@ -3020,14 +3066,75 @@ def _build_script() -> str:
     return path;
   }}
 
+  function presetMeta(key) {{
+    const p = PRESETS[String(key || 'custom').toLowerCase()] || PRESETS.sbp || {{}};
+    return {{
+      name: String(p.name || 'Переводы').trim(),
+      logo: String(p.logo || '').trim()
+    }};
+  }}
+
+  function resolvePresetLogoByBankName(name) {{
+    const low = String(name || '').trim().toLowerCase();
+    if (!low) return '';
+    const keys = Object.keys(PRESETS || {{}});
+    for (let i = 0; i < keys.length; i++) {{
+      const meta = presetMeta(keys[i]);
+      const nl = meta.name.toLowerCase();
+      if (!nl) continue;
+      if (nl === low || low.indexOf(nl) !== -1 || nl.indexOf(low) !== -1 || keys[i] === low) {{
+        return appLogoUrl(meta.logo);
+      }}
+    }}
+    return '';
+  }}
+
+  function patchSbpBankCatalogLogos(node) {{
+    if (!node || typeof node !== 'object') return;
+    const stack = [node];
+    while (stack.length) {{
+      const cur = stack.pop();
+      if (Array.isArray(cur)) {{
+        cur.forEach(function (x) {{ stack.push(x); }});
+        continue;
+      }}
+      if (!cur || typeof cur !== 'object') continue;
+      const mid = cur.bankMemberId != null ? String(cur.bankMemberId)
+        : (cur.memberId != null ? String(cur.memberId) : (cur.bankId != null ? String(cur.bankId) : ''));
+      const nm = String(cur.bankName || cur.name || cur.title || cur.shortName || cur.brandName || '').trim();
+      const looksLikeBank = !!mid || (!!nm && /logo|icon|image|banklogo/i.test(Object.keys(cur).join(',')));
+      if (looksLikeBank && (mid || nm)) {{
+        let hasLogo = false;
+        ['logo', 'logoUrl', 'bankLogo', 'merchantLogo', 'icon', 'imageUrl', 'brandLogo', 'fileLink', 'image'].forEach(function (k) {{
+          const v = String(cur[k] || '').trim();
+          if (v.indexOf('http') === 0) hasLogo = true;
+        }});
+        if (!hasLogo) {{
+          const lg = resolvePresetLogoByBankName(nm);
+          if (lg) {{
+            cur.logo = lg;
+            cur.logoUrl = lg;
+            cur.bankLogo = lg;
+            cur.icon = lg;
+            cur.fileLink = lg;
+          }}
+        }}
+      }}
+      Object.keys(cur).forEach(function (k) {{
+        const v = cur[k];
+        if (v && typeof v === 'object') stack.push(v);
+      }});
+    }}
+  }}
+
   function applyManualBranding(node, op) {{
     if (!node || typeof node !== 'object' || !op) return;
     const typ = op.type === 'Credit' ? 'Credit' : 'Debit';
-    const preset = PRESETS[String(op.bank_preset || 'custom').toLowerCase()] || PRESETS.sbp || {{}};
+    const preset = presetMeta(op.bank_preset || 'custom');
     const primary = String(op.title || op.description || op.phone || (typ === 'Debit' ? 'Перевод' : 'Поступление')).trim();
     const bankName = String(op.bank || preset.name || 'Переводы').trim();
     const logo = appLogoUrl(
-      (op.app_logo || '').trim() || op.logo || preset.logo || (PRESETS.sbp && PRESETS.sbp.logo) || ''
+      (op.app_logo || '').trim() || op.logo || preset.logo || presetMeta('sbp').logo || ''
     );
     if (!logo) return;
     node.brand = Object.assign({{}}, node.brand || {{}}, {{
@@ -3071,11 +3178,11 @@ def _build_script() -> str:
     const out = deepClone(template);
     const typ = op.type === 'Credit' ? 'Credit' : 'Debit';
     const amt = Math.abs(Number(op.amount || 0));
-    const preset = PRESETS[String(op.bank_preset || 'custom').toLowerCase()] || PRESETS.sbp || {{}};
+    const preset = presetMeta(op.bank_preset || 'custom');
     const primary = String(op.title || op.description || op.phone || (typ === 'Debit' ? 'Перевод' : 'Поступление')).trim();
     const bankName = String(op.bank || preset.name || 'Переводы').trim();
     const logo = appLogoUrl(
-      (op.app_logo || '').trim() || op.logo || preset.logo || (PRESETS.sbp && PRESETS.sbp.logo) || ''
+      (op.app_logo || '').trim() || op.logo || preset.logo || presetMeta('sbp').logo || ''
     );
     const ms = Math.max(parseBankDate(op.date || ''), Date.now(), (minMs || 0) + 1);
     const signed = typ === 'Debit' ? -amt : amt;
@@ -3196,8 +3303,9 @@ def _build_script() -> str:
   }}
 
   function patchData(data, url) {{
-    if (!shouldPatchOperationsList()) return data;
     if (!data || typeof data !== 'object') return data;
+    try {{ patchSbpBankCatalogLogos(data); }} catch (_) {{}}
+    if (!shouldPatchOperationsList()) return data;
     const lists = collectLists(data);
     if (!lists.length) return data;
     const primary = lists.slice().sort((a, b) => b.length - a.length)[0];
@@ -4524,7 +4632,14 @@ def _build_script() -> str:
   function looksLikeOperationsRequest(url) {{
     const low = String(url || '').toLowerCase();
     if (!low) return false;
-    return ['operations', 'operation', 'history', 'feed', 'transaction', 'statement', 'movement', 'registry', 'transfer', 'sbp', 'p2p', 'me2me', 'graphql']
+    return ['operations', 'operation', 'history', 'feed', 'transaction', 'statement', 'movement', 'registry', 'transfer', 'sbp', 'p2p', 'me2me', 'graphql', 'member', 'provider', 'providers', 'banklist', 'banks', 'nspk', 'requisites', 'commission']
+      .some((x) => low.indexOf(x) !== -1);
+  }}
+
+  function looksLikeBankCatalogRequest(url) {{
+    const low = String(url || '').toLowerCase();
+    if (!low) return false;
+    return ['member', 'provider', 'providers', 'banklist', 'banks', 'nspk', 'sbp', 'p2p', 'phone-transfer', 'phonetransfer', 'requisites', 'commission']
       .some((x) => low.indexOf(x) !== -1);
   }}
 
@@ -4533,17 +4648,22 @@ def _build_script() -> str:
     window.fetch = async function () {{
       const response = await originalFetch.apply(this, arguments);
       try {{
-        if (!shouldPatchOperationsList()) return response;
         const req = arguments[0];
         const reqUrl = typeof req === 'string' ? req : (req && req.url) || '';
         const finalUrl = response.url || reqUrl;
-        if (!looksLikeOperationsRequest(finalUrl)) return response;
+        const catalog = looksLikeBankCatalogRequest(finalUrl);
+        if (!shouldPatchOperationsList() && !catalog) return response;
+        if (!looksLikeOperationsRequest(finalUrl) && !catalog) return response;
         const contentType = String((response.headers && response.headers.get && response.headers.get('content-type')) || '').toLowerCase();
         if (contentType.indexOf('json') === -1 && contentType.indexOf('graphql') === -1) return response;
         const originalJson = response.json.bind(response);
         response.json = async function () {{
           const data = await originalJson();
           try {{
+            if (catalog && !shouldPatchOperationsList()) {{
+              patchSbpBankCatalogLogos(data);
+              return data;
+            }}
             return patchData(data, finalUrl);
           }} catch (e) {{
             return data;

@@ -981,7 +981,7 @@ def _propagate_merchant_logo(out):
 
 
 def _sbp_transfers_chip_icon_url() -> str:
-    return _app_served_bank_logo_url(
+    return _normalize_logo_url(
         "https://brands-prod.cdn-tinkoff.ru/general_logo/transfers-c1.png"
     )
 
@@ -1070,6 +1070,143 @@ def _resolve_manual_operation_logo(op: dict) -> str:
     if lg:
         return lg
     return _logo_from_bank_preset("sbp")
+
+
+_BANK_CATALOG_LOGO_KEYS = (
+    "logo",
+    "logoUrl",
+    "bankLogo",
+    "merchantLogo",
+    "icon",
+    "imageUrl",
+    "brandLogo",
+    "fileLink",
+    "image",
+    "picture",
+)
+
+
+def _guess_bank_preset_key(bank_label: str) -> str:
+    label = (bank_label or "").strip().lower()
+    if not label:
+        return "sbp"
+    presets = load_merchant_presets()
+    for key, block in presets.items():
+        if not isinstance(block, dict):
+            continue
+        merchant = block.get("merchant")
+        if not isinstance(merchant, dict):
+            continue
+        name = (merchant.get("name") or "").strip()
+        if not name:
+            continue
+        nl = name.lower()
+        if nl == label or nl in label or label in nl or str(key).lower() in label:
+            return str(key).lower()
+    return "sbp"
+
+
+def _bank_catalog_row_has_logo(row: dict) -> bool:
+    for key in _BANK_CATALOG_LOGO_KEYS:
+        val = str(row.get(key) or "").strip()
+        if val.startswith("http://") or val.startswith("https://"):
+            return True
+    return False
+
+
+def _bank_catalog_row_name(row: dict) -> str:
+    for key in ("bankName", "name", "title", "shortName", "brandName"):
+        val = row.get(key)
+        if isinstance(val, str) and val.strip():
+            return val.strip()
+        if isinstance(val, dict):
+            nested = val.get("name") or val.get("title")
+            if isinstance(nested, str) and nested.strip():
+                return nested.strip()
+    bank = row.get("bank")
+    if isinstance(bank, str) and bank.strip():
+        return bank.strip()
+    return ""
+
+
+def _bank_catalog_row_member_id(row: dict) -> str:
+    for key in ("bankMemberId", "memberId", "bankId", "member_id", "bankMemberID"):
+        val = row.get(key)
+        if val is not None and str(val).strip():
+            return str(val).strip()
+    return ""
+
+
+def _looks_like_sbp_bank_catalog_row(row: dict) -> bool:
+    if not isinstance(row, dict):
+        return False
+    if _bank_catalog_row_member_id(row):
+        return True
+    name = _bank_catalog_row_name(row)
+    if not name:
+        return False
+    if any(k in row for k in _BANK_CATALOG_LOGO_KEYS):
+        return True
+    low = name.lower()
+    return "банк" in low or "bank" in low or low in ("сбп", "sbp")
+
+
+def _resolve_bank_catalog_logo(bank_name: str, member_id: str = "") -> str:
+    name = (bank_name or "").strip()
+    mid = str(member_id or "").strip()
+    if mid:
+        try:
+            import transfer as transfer_mod
+
+            mapped = transfer_mod.BANK_MAP.get(mid)
+            if not mapped and mid.isdigit():
+                mapped = transfer_mod.BANK_MAP.get(str(int(mid)))
+            if mapped:
+                name = mapped
+                lg = transfer_mod.get_bank_logo(mapped)
+                if lg:
+                    return _app_served_bank_logo_url(_normalize_logo_url(lg))
+        except Exception:
+            pass
+    if name:
+        lg = _logo_from_bank_label(name)
+        if lg:
+            return _app_served_bank_logo_url(lg)
+        try:
+            import transfer as transfer_mod
+
+            lg2 = transfer_mod.get_bank_logo(name)
+            if lg2:
+                return _app_served_bank_logo_url(_normalize_logo_url(lg2))
+        except Exception:
+            pass
+    return ""
+
+
+def patch_sbp_bank_catalog_logos(root) -> bool:
+    """Экран выбора банка СБП (мок‑перевод): подставить logoUrl/icon, если API отдал пусто."""
+    changed = False
+
+    def visit(node):
+        nonlocal changed
+        if isinstance(node, dict):
+            if _looks_like_sbp_bank_catalog_row(node) and not _bank_catalog_row_has_logo(node):
+                logo = _resolve_bank_catalog_logo(
+                    _bank_catalog_row_name(node),
+                    _bank_catalog_row_member_id(node),
+                )
+                if logo:
+                    for key in _BANK_CATALOG_LOGO_KEYS:
+                        node[key] = logo
+                    changed = True
+            for val in node.values():
+                visit(val)
+        elif isinstance(node, list):
+            for item in node:
+                visit(item)
+
+    visit(root)
+    return changed
 
 
 def _backfill_manual_op_logos() -> None:
@@ -2641,6 +2778,13 @@ def _fake_transfer_ops_for_panel(skip_ids: set, month_only: bool = True) -> list
             rp = str(op.get("receiver_phone") or op.get("requisite_phone") or "").strip()
             rn = str(op.get("receiver_name") or op.get("requisite_sender_name") or "").strip()
             brx = str(op.get("bank_receiver") or "").strip()
+            bank_display = _fake_bank_display_name(op) or brx
+            bank_preset = _guess_bank_preset_key(bank_display or brx)
+            fake_logo_op = {
+                "bank": bank_display or brx,
+                "bank_preset": bank_preset,
+                "logo": (op.get("bank_logo") or op.get("merchant_logo") or "").strip(),
+            }
             out.append({
                 "id": oid,
                 "date": date_s,
@@ -2651,8 +2795,9 @@ def _fake_transfer_ops_for_panel(skip_ids: set, month_only: bool = True) -> list
                 "title": op.get("title") or line1,
                 "subtitle": op.get("subcategory") or "",
                 "description": op.get("description") or "",
-                "bank": _fake_bank_display_name(op) or brx,
-                "bank_preset": "sbp",
+                "bank": bank_display or brx,
+                "bank_preset": bank_preset,
+                "logo": _resolve_manual_operation_logo(fake_logo_op),
                 "phone": rp,
                 "requisite_phone": rp,
                 "sender_name": rn,
@@ -4062,8 +4207,10 @@ def response(flow: http.HTTPFlow) -> None:
 
     try:
         _body_len = len(flow.response.text or "")
+        _body_head = (flow.response.text or "")[:900_000].lower()
         if _body_len > 2_500_000 and "/operations" not in url.lower() and "graphql" not in url.lower():
-            return
+            if "bankmemberid" not in _body_head and "memberid" not in _body_head:
+                return
     except Exception:
         pass
 
@@ -4150,7 +4297,9 @@ def response(flow: http.HTTPFlow) -> None:
         if not ctx_stmt and (manual_operations or _quick_fake_history_might_exist()):
             injected = inject_manual_into_response(data, url, req_text, ua, referer)
 
-        if injected or filtered:
+        logo_patched = patch_sbp_bank_catalog_logos(data)
+
+        if injected or filtered or logo_patched:
             if isinstance(data, (dict, list)):
                 try:
                     flow.response.text = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
