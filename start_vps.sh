@@ -50,4 +50,26 @@ if [[ -z "${TBANK_PANEL_FETCH_ORIGIN:-}" ]]; then
   export TBANK_PANEL_FETCH_ORIGIN="http://${TBANKMITM_PUBLIC_IP}:${TBANKMITM_PROXY_PORT}"
 fi
 
-exec ./venv/bin/python mitm_run_dump.py
+./venv/bin/python mitm_run_dump.py >>/tmp/tbankmitm.log 2>&1 &
+MITM_PID=$!
+sleep 4
+if ! kill -0 "$MITM_PID" 2>/dev/null; then
+  echo "[start_vps] mitm упал сразу после старта — последние строки лога:"
+  tail -40 /tmp/tbankmitm.log
+  exit 1
+fi
+if command -v ss >/dev/null 2>&1; then
+  if ! ss -ltn 2>/dev/null | grep -q ':8082 '; then
+    echo "[start_vps] порт 8082 не слушается — см. /tmp/tbankmitm.log"
+    tail -40 /tmp/tbankmitm.log
+    exit 1
+  fi
+elif command -v netstat >/dev/null 2>&1; then
+  if ! netstat -ltn 2>/dev/null | grep -q ':8082 '; then
+    echo "[start_vps] порт 8082 не слушается — см. /tmp/tbankmitm.log"
+    tail -40 /tmp/tbankmitm.log
+    exit 1
+  fi
+fi
+echo "[start_vps] OK: mitm PID=$MITM_PID, панель http://${TBANKMITM_PUBLIC_IP}:${TBANKMITM_PROXY_PORT:-8082}/admin"
+wait "$MITM_PID"

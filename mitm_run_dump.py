@@ -19,7 +19,12 @@ def main() -> None:
 
     from mitm_addon_chain import build_mitmdump_argv
 
-    mitmdump(build_mitmdump_argv(script_dir))
+    try:
+        argv = build_mitmdump_argv(script_dir)
+    except FileNotFoundError as ex:
+        print(ex, file=sys.stderr)
+        sys.exit(1)
+    mitmdump(argv)
 
 
 if __name__ == "__main__":

@@ -18,7 +18,6 @@ MITM_ADDON_SCRIPTS: tuple[str, ...] = (
     "name.py",
     "reki.py",
     "panel_bridge.py",
-    "bank_tls_upstream.py",
     "browser_ops_injector.py",
     "tbank_sbp_debit_injector.py",
 )
@@ -30,7 +29,11 @@ def build_mitmdump_argv(script_dir: str) -> list[str]:
     for name in MITM_ADDON_SCRIPTS:
         path = os.path.join(script_dir, name)
         if not os.path.isfile(path):
-            raise FileNotFoundError(f"Mitm addon script not found: {path}")
+            raise FileNotFoundError(
+                f"Mitm addon script not found: {path}\n"
+                f"Проверьте git pull / deploy; для старого клона удалите лишние строки в mitm_addon_chain.py "
+                f"(bank_tls_upstream.py / bank_pwa_bootstrap.py)."
+            )
         argv.extend(["-s", path])
 
     listen = os.environ.get("TBANKMITM_PROXY_LISTEN_HOST", "127.0.0.1").strip() or "127.0.0.1"

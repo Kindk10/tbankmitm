@@ -47,6 +47,27 @@ def _sni_matches(sni_l: str) -> bool:
     return False
 
 
+def _apply_upstream_tls_options() -> None:
+    """ssl_insecure уже в argv mitm_addon_chain; дублируем для надёжности (RU CA / битая цепочка банка)."""
+    try:
+        from mitmproxy import ctx
+
+        ctx.options.ssl_insecure = True
+        if os.environ.get("TBANKMITM_HTTP2", "").strip().lower() in ("1", "true", "yes", "on"):
+            ctx.options.http2 = True
+    except Exception:
+        pass
+
+
+def running() -> None:
+    _apply_upstream_tls_options()
+
+
+def configure(updated) -> None:
+    if updated:
+        _apply_upstream_tls_options()
+
+
 class TlsPassthroughHosts:
     def tls_clienthello(self, data) -> None:
         if not _TLS_PT:
