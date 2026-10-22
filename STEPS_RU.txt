@@ -1,35 +1,15 @@
 Порядок действий
 
-1) Один раз: запустите setup.bat (создаётся venv, ставятся mitmproxy и pymupdf для transfer.py — import fitz).
-   Если venv уже есть, но пишет "mitmproxy not installed" или "No module named 'fitz'" — запустите install_mitm.bat
+1) Один раз: setup.bat (Windows) или TBANKMITM_APT=1 bash setup_linux.sh (VPS).
 
-Веб mybank / дубли карточек: history.py режет вставку для браузера (User-Agent) на api.*.tbank.ru и т.п., если в URL нет явных признаков ленты (graphql, history, operation, …).
-  Вернуть старое поведение (риск дублей): BANK_WEB_INJECT_ALL=1
-  Только GraphQL без фильтра по operationName: BANK_GRAPHQL_INJECT_ALL=1
-  Отключить схлопывание параллельных вставок в браузере: BANK_MANUAL_CROSS_DEBOUNCE=0
+2) Запуск: start.bat или bash start_vps.sh — слушает 0.0.0.0:8082.
 
-Ошибка pip ProxyError / 10061:
-Установка идёт через pip_install_mitm.py: из окружения убираются переменные *proxy*, pip не читает %APPDATA%\pip\pip.ini (PIP_CONFIG_FILE=nul), PyPI — напрямую (--isolated, trusted-host).
-Если всё равно ошибка — в Windows: Параметры — Сеть — Прокси — выключите ручной прокси на время установки или удалите строку proxy= из pip.ini вручную.
+3) Панель: http://<IP>:8082/admin
+   panel_fetch_origin в config.json = http://<IP>:8082
 
-2) Каждый раз: запустите start.bat — окно не закрывать, пока нужен прокси.
-   start.bat слушает 0.0.0.0:8082 (телефон / Potatso / LAN) и открывает панель без IP-фильтра.
-   Если при двойном щелчке окно мигнуло и пропало: start.bat перезапускает себя в cmd /k — должно появиться отдельное окно «Mitmproxy».
-   Если cmd уже открыт: start.bat откроет новое окно; всё в текущем окне: start.bat __stay
-   Если «вообще ничего» — свойства start.bat → разблокировать (Unblock), проверьте антивирус и что .bat открывается через cmd.exe.
+4) iPhone / Potatso:
+   - Сначала Potatso ON → http://mitm.it → сертификат mitm → доверие в iOS.
+   - Не открывать mybank без прокси перед работой (PWA-кэш без инжекта).
+   - Цепочка банка на VPS: ssl_insecure (не ломать mitm_addon_chain лишними аддонами).
 
-3) Панель: http://127.0.0.1:8082/admin
-   С телефона / через Potatso: http://<IP_ПК_или_VPS>:8082/admin
-   В панели → Настройки → panel_fetch_origin = http://<тот_же_IP>:8082 (иначе суммы трат на главной с телефона не подтянутся).
-
-4) Телефон (Potatso и т.п.): HTTP-прокси на IP компьютера/VPS, порт 8082.
-   Сначала включите Potatso, затем откройте http://mitm.it в Safari и установите сертификат mitm (Профиль → Настройки → Основные → Об этом устройстве → Доверие сертификатам — ВКЛ для mitmproxy).
-   Без доверия mitm страница банка не загрузится (особенно после проблем с CA у .ru-сайтов: телефон видит только cert mitm, цепочку банка проверяет VPS с ssl_insecure).
-   Не заходите в mybank «напрямую» без прокси перед работой — PWA закэширует оболочку без инжекта. Если уже заходили: Safari → очистить данные сайта tbank / tbank-online или удалить PWA с домашнего экрана.
-   Windows Firewall: разрешите входящий TCP 8082.
-
-Почему были ошибки «is not recognized»:
-Файлы .bat были в UTF-8 с кириллицей. Старый cmd.exe читает их в кодировке OEM и выполняет обрывки текста как команды.
-Сейчас в .bat только английский (ASCII) — должно работать.
-
-Подсказки на русском — в этом файле; сами setup.bat / start.bat — на английском специально.
+5) Деплой с ПК: bash deploy_to_vps.sh (или scp файлов из списка deploy_to_vps.sh).

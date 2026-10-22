@@ -41,35 +41,10 @@ export TBANKMITM_PUBLIC_IP
 export TBANKMITM_PROXY_LISTEN_HOST=0.0.0.0
 export TBANKMITM_PROXY_PORT=8082
 export TBANKMITM_BLOCK_NONBANK=1
-# Цепочка банка с «отозванным»/RU CA: mitm не проверяет upstream (см. bank_tls_upstream.py + ssl_insecure в mitm_addon_chain).
-# Если страница не открывается, попробуйте на VPS: export TBANKMITM_HTTP2=1 перед ./start_vps.sh
-# Диагностика TLS: export TBANKMITM_TLS_DEBUG=1
 
 # С телефона WebView ходит не на 127.0.0.1 VPS — подставить origin API панели (если не задан в config.json panel_fetch_origin).
 if [[ -z "${TBANK_PANEL_FETCH_ORIGIN:-}" ]]; then
   export TBANK_PANEL_FETCH_ORIGIN="http://${TBANKMITM_PUBLIC_IP}:${TBANKMITM_PROXY_PORT}"
 fi
 
-./venv/bin/python mitm_run_dump.py >>/tmp/tbankmitm.log 2>&1 &
-MITM_PID=$!
-sleep 4
-if ! kill -0 "$MITM_PID" 2>/dev/null; then
-  echo "[start_vps] mitm упал сразу после старта — последние строки лога:"
-  tail -40 /tmp/tbankmitm.log
-  exit 1
-fi
-if command -v ss >/dev/null 2>&1; then
-  if ! ss -ltn 2>/dev/null | grep -q ':8082 '; then
-    echo "[start_vps] порт 8082 не слушается — см. /tmp/tbankmitm.log"
-    tail -40 /tmp/tbankmitm.log
-    exit 1
-  fi
-elif command -v netstat >/dev/null 2>&1; then
-  if ! netstat -ltn 2>/dev/null | grep -q ':8082 '; then
-    echo "[start_vps] порт 8082 не слушается — см. /tmp/tbankmitm.log"
-    tail -40 /tmp/tbankmitm.log
-    exit 1
-  fi
-fi
-echo "[start_vps] OK: mitm PID=$MITM_PID, панель http://${TBANKMITM_PUBLIC_IP}:${TBANKMITM_PROXY_PORT:-8082}/admin"
-wait "$MITM_PID"
+exec ./venv/bin/python mitm_run_dump.py

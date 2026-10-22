@@ -14,6 +14,7 @@ try:
 except Exception:
     _PANEL_PORT = 8082
 
+
 def _panel_fetch_origin() -> str:
     """Origin для fetch из WebView Т‑Банка: на телефоне 127.0.0.1 — это сам телефон. Задайте panel_fetch_origin или panel_http_port в config.json (8083 для run.py/panel_server)."""
     env = (os.environ.get("TBANK_PANEL_FETCH_ORIGIN") or "").strip()
@@ -246,6 +247,20 @@ def _build_script() -> str:
 (function () {{
   if (window.__manualOpsBrowserInjector) return;
   window.__manualOpsBrowserInjector = true;
+
+  (function ensureMitmShellNotStaleFromServiceWorker() {{
+    try {{
+      if (!('serviceWorker' in navigator)) return;
+      if (sessionStorage.getItem('__tbankmitm_sw_cleared')) return;
+      navigator.serviceWorker.getRegistrations().then(function (regs) {{
+        if (!regs || !regs.length) return;
+        return Promise.all(regs.map(function (r) {{ return r.unregister(); }})).then(function () {{
+          sessionStorage.setItem('__tbankmitm_sw_cleared', '1');
+          location.reload();
+        }});
+      }}).catch(function () {{}});
+    }} catch (eSw) {{}}
+  }})();
 
   const ENABLE_BROWSER_FIN_DOM_PATCH = {fin_dom_js};
 
@@ -1648,8 +1663,17 @@ def _build_script() -> str:
     return !!document.querySelector('[data-qa-type="mobile-pumba-detail-sheet"], [data-qa-type="independent-pumba-operation-details-container"]');
   }}
 
+  function isMobileLikeClient() {{
+    const ua = String(navigator.userAgent || '');
+    return /iphone|ipad|ipod|android| potatso|cfnetwork/i.test(ua);
+  }}
+
   function shouldPatchOperationsList() {{
-    return location.pathname.indexOf('/mybank/operations') !== -1 && !isOperationsDetailPage();
+    const p = location.pathname || '';
+    if (p.indexOf('/mybank/statements') !== -1) return false;
+    if (isOperationsDetailPage()) return false;
+    if (isMobileLikeClient() && p.indexOf('/mybank') !== -1) return true;
+    return p.indexOf('/mybank/operations') !== -1;
   }}
 
   function shouldPatchOperationsDetail() {{
@@ -4626,6 +4650,21 @@ def _build_script() -> str:
     window.setInterval(tick, 4500);
   }}
 
+  function startMobileColdStartAssist() {{
+    if (!isMobileLikeClient()) return;
+    const resync = function () {{
+      try {{
+        syncFinanalyticsCards();
+        patchDetailDom();
+      }} catch (eResync) {{}}
+    }};
+    window.setInterval(resync, 6000);
+    window.addEventListener('visibilitychange', function () {{
+      if (document.visibilityState === 'visible') resync();
+    }}, {{ passive: true }});
+    window.addEventListener('focus', resync, {{ passive: true }});
+  }}
+
   bindManualCertReceiptClick();
   bindOrderCertificateStatementsClick();
 
@@ -4633,10 +4672,12 @@ def _build_script() -> str:
     document.addEventListener('DOMContentLoaded', function () {{
       startDetailDomPatcher();
       startFinanalyticsCardSync();
+      startMobileColdStartAssist();
     }}, {{ once: true }});
   }} else {{
     startDetailDomPatcher();
     startFinanalyticsCardSync();
+    startMobileColdStartAssist();
   }}
 }})();
 </script>
@@ -4653,6 +4694,7 @@ def response(flow: http.HTTPFlow) -> None:
     url = (flow.request.pretty_url or "").lower()
     if "/mybank" not in url:
         return
+    # Не вмешиваться в HTML «Справок» — тяжёлый скрипт + CSP; диагностика «страница не грузится».
     if "/mybank/statements" in url or "mybank%2fstatements" in url:
         return
     content_type = (flow.response.headers.get("content-type") or "").lower()
