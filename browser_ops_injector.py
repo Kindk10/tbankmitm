@@ -1686,7 +1686,8 @@ def _build_script() -> str:
 
   function touchManualDetailStylesOrder() {{
     const st =
-      document.getElementById('manual-detail-pumba-cards-v34')
+      document.getElementById('manual-detail-pumba-cards-v35')
+      || document.getElementById('manual-detail-pumba-cards-v34')
       || document.getElementById('manual-detail-pumba-cards-v33')
       || document.getElementById('manual-detail-pumba-cards-v32')
       || document.getElementById('manual-detail-pumba-cards-v31')
@@ -1721,15 +1722,15 @@ def _build_script() -> str:
   }}
 
   function injectManualDetailStyles() {{
-    if (document.getElementById('manual-detail-pumba-cards-v34')) return;
-    ['manual-detail-pumba-cards-v3', 'manual-detail-pumba-cards-v4', 'manual-detail-pumba-cards-v5', 'manual-detail-pumba-cards-v6', 'manual-detail-pumba-cards-v7', 'manual-detail-pumba-cards-v8', 'manual-detail-pumba-cards-v9', 'manual-detail-pumba-cards-v10', 'manual-detail-pumba-cards-v11', 'manual-detail-pumba-cards-v12', 'manual-detail-pumba-cards-v13', 'manual-detail-pumba-cards-v14', 'manual-detail-pumba-cards-v15', 'manual-detail-pumba-cards-v16', 'manual-detail-pumba-cards-v17', 'manual-detail-pumba-cards-v18', 'manual-detail-pumba-cards-v19', 'manual-detail-pumba-cards-v20', 'manual-detail-pumba-cards-v21', 'manual-detail-pumba-cards-v22', 'manual-detail-pumba-cards-v23', 'manual-detail-pumba-cards-v24', 'manual-detail-pumba-cards-v25', 'manual-detail-pumba-cards-v26', 'manual-detail-pumba-cards-v27', 'manual-detail-pumba-cards-v28', 'manual-detail-pumba-cards-v29', 'manual-detail-pumba-cards-v30', 'manual-detail-pumba-cards-v31', 'manual-detail-pumba-cards-v32', 'manual-detail-pumba-cards-v33'].forEach(function (lid) {{
+    if (document.getElementById('manual-detail-pumba-cards-v35')) return;
+    ['manual-detail-pumba-cards-v3', 'manual-detail-pumba-cards-v4', 'manual-detail-pumba-cards-v5', 'manual-detail-pumba-cards-v6', 'manual-detail-pumba-cards-v7', 'manual-detail-pumba-cards-v8', 'manual-detail-pumba-cards-v9', 'manual-detail-pumba-cards-v10', 'manual-detail-pumba-cards-v11', 'manual-detail-pumba-cards-v12', 'manual-detail-pumba-cards-v13', 'manual-detail-pumba-cards-v14', 'manual-detail-pumba-cards-v15', 'manual-detail-pumba-cards-v16', 'manual-detail-pumba-cards-v17', 'manual-detail-pumba-cards-v18', 'manual-detail-pumba-cards-v19', 'manual-detail-pumba-cards-v20', 'manual-detail-pumba-cards-v21', 'manual-detail-pumba-cards-v22', 'manual-detail-pumba-cards-v23', 'manual-detail-pumba-cards-v24', 'manual-detail-pumba-cards-v25', 'manual-detail-pumba-cards-v26', 'manual-detail-pumba-cards-v27', 'manual-detail-pumba-cards-v28', 'manual-detail-pumba-cards-v29', 'manual-detail-pumba-cards-v30', 'manual-detail-pumba-cards-v31', 'manual-detail-pumba-cards-v32', 'manual-detail-pumba-cards-v33', 'manual-detail-pumba-cards-v34'].forEach(function (lid) {{
       const legacy = document.getElementById(lid);
       if (legacy) {{
         try {{ legacy.remove(); }} catch (eL) {{}}
       }}
     }});
     const st = document.createElement('style');
-    st.id = 'manual-detail-pumba-cards-v34';
+    st.id = 'manual-detail-pumba-cards-v35';
     st.textContent = `
 [data-manual-sbp-chip-root="1"] {{
   display: inline-flex !important;
@@ -1741,7 +1742,7 @@ def _build_script() -> str:
   gap: 6px !important;
   padding: 6px 12px !important;
   border-radius: 999px !important;
-  background: rgba(23, 52, 87, 0.92) !important;
+  background: var(--tui-background-neutral-1, rgba(48, 48, 51, 0.96)) !important;
   color: #f6f7f8 !important;
   font-weight: 700 !important;
   font-size: 13px !important;
@@ -1749,9 +1750,11 @@ def _build_script() -> str:
   overflow: hidden !important;
   white-space: nowrap !important;
 }}
-[data-manual-sbp-chip-root="1"] [data-manual-sbp-chip-label="1"] {{
-  color: #f6f7f8 !important;
-  -webkit-text-fill-color: #f6f7f8 !important;
+[data-manual-sbp-chip-root="1"] [data-manual-sbp-chip-icon-wrap="1"] img {{
+  display: block !important;
+  width: 16px !important;
+  height: 16px !important;
+  object-fit: contain !important;
 }}
 /* Инжект: ширина; горизонтальный padding даёт independent-pumba-operation-details-container — не дублировать */
 [data-manual-injected-account-cards="1"][data-qa-type="accountCardsShown-wrapper"],
@@ -2926,23 +2929,40 @@ def _build_script() -> str:
     }}
   }}
 
-  function transfersCategoryChipIconSvg() {{
-    return '<svg data-manual-sbp-chip-icon="1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">' +
-      '<path fill="#4FC5DF" d="M15.8 8.2 14.4 6.8l-4.6 4.6 4.6 4.6 1.4-1.4-3.2-3.2 3.2-3.2z"></path>' +
-      '<path fill="#428BF9" d="M8.2 15.8 9.6 17.2l4.6-4.6-4.6-4.6-1.4 1.4 3.2 3.2-3.2 3.2z"></path>' +
-      '</svg>';
+  function transfersCategoryChipIconSrc() {{
+    const raw = presetMeta('sbp').logo
+      || toImgproxy('https://brands-prod.cdn-tinkoff.ru/general_logo/transfers-c1.png')
+      || 'https://brands-prod.cdn-tinkoff.ru/general_logo/transfers-c1.png';
+    return appLogoUrl(raw);
+  }}
+
+  function transfersCategoryChipIconHtml() {{
+    const src = transfersCategoryChipIconSrc();
+    return '<img data-manual-sbp-chip-icon="1" src="' + src + '" alt="" width="16" height="16" decoding="async" loading="eager" style="display:block;width:16px;height:16px;object-fit:contain;" />';
   }}
 
   function normalizeTransfersChipText(raw) {{
     return String(raw || '').replace(/\\u00a0/g, ' ').replace(/\\s+/g, ' ').trim();
   }}
 
+  function isEditCategoryChipButton(el) {{
+    if (!el) return false;
+    const aria = String(el.getAttribute('aria-label') || '').toLowerCase();
+    if (aria.indexOf('редакт') !== -1 || aria.indexOf('edit') !== -1) return true;
+    const t = normalizeTransfersChipText(el.textContent);
+    if (t && t !== 'Переводы') return true;
+    if (t === '' && el.querySelector('svg') && !el.querySelector('[data-manual-sbp-chip-icon-wrap="1"]')) return true;
+    return false;
+  }}
+
   function findDetailTransfersCategoryChip(root) {{
     if (!root) return null;
-    const interactive = root.querySelectorAll('button, a[href], [role="button"]');
+    const headerScope = root.querySelector('[data-qa-type="tui/block-details"]') || root;
+    const interactive = headerScope.querySelectorAll('button, a[href], [role="button"]');
     for (let i = 0; i < interactive.length; i++) {{
       const btn = interactive[i];
       if (btn.closest('[data-qa-type="molecule-account-operation"]')) continue;
+      if (isEditCategoryChipButton(btn)) continue;
       if (normalizeTransfersChipText(btn.textContent) === 'Переводы') return btn;
     }}
     const leaves = root.querySelectorAll('span, p, div');
@@ -2976,7 +2996,7 @@ def _build_script() -> str:
       chip.style.setProperty('gap', '6px', 'important');
       chip.style.setProperty('padding', '6px 12px', 'important');
       chip.style.setProperty('border-radius', '999px', 'important');
-      chip.style.setProperty('background', 'rgba(23, 52, 87, 0.92)', 'important');
+      chip.style.setProperty('background', 'var(--tui-background-neutral-1, rgba(48, 48, 51, 0.96))', 'important');
       chip.style.setProperty('color', '#f6f7f8', 'important');
       chip.style.setProperty('font-weight', '700', 'important');
       chip.style.setProperty('font-size', '13px', 'important');
@@ -2988,27 +3008,59 @@ def _build_script() -> str:
     }} catch (_) {{}}
   }}
 
+  function ensureTransfersChipIcon(chip) {{
+    if (!chip) return;
+    const iconHtml = transfersCategoryChipIconHtml();
+    const src = transfersCategoryChipIconSrc();
+    chip.querySelectorAll('svg[data-manual-sbp-chip-icon="1"]').forEach(function (n) {{ try {{ n.remove(); }} catch (_) {{}} }});
+    Array.from(chip.querySelectorAll('img')).forEach(function (node) {{
+      if (node.closest('[data-manual-sbp-chip-icon-wrap="1"]')) return;
+      if (normalizeTransfersChipText(chip.textContent) === 'Переводы') {{
+        try {{ node.remove(); }} catch (_) {{}}
+      }}
+    }});
+    Array.from(chip.querySelectorAll('[data-qa-type="uikit/icon"]')).forEach(function (node) {{
+      if (node.closest('[data-manual-sbp-chip-icon-wrap="1"]')) return;
+      try {{ node.remove(); }} catch (_) {{}}
+    }});
+    let wrap = chip.querySelector('[data-manual-sbp-chip-icon-wrap="1"]');
+    if (!wrap) {{
+      wrap = document.createElement('span');
+      wrap.setAttribute('data-manual-sbp-chip-icon-wrap', '1');
+      wrap.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;flex:0 0 16px;';
+      let anchor = null;
+      const leaves = chip.querySelectorAll('span, p');
+      for (let i = 0; i < leaves.length; i++) {{
+        const el = leaves[i];
+        if (el.children.length) continue;
+        if (normalizeTransfersChipText(el.textContent) === 'Переводы') {{
+          anchor = el;
+          break;
+        }}
+      }}
+      if (anchor && anchor.parentElement === chip) chip.insertBefore(wrap, anchor);
+      else chip.insertBefore(wrap, chip.firstChild);
+    }}
+    let img = wrap.querySelector('[data-manual-sbp-chip-icon="1"]');
+    if (!img || img.tagName !== 'IMG') {{
+      wrap.innerHTML = iconHtml;
+    }} else if (String(img.getAttribute('src') || '') !== src) {{
+      img.setAttribute('src', src);
+    }}
+    chip.setAttribute('data-manual-sbp-chip-root', '1');
+    chip.setAttribute('data-manual-sbp-chip-patched', '1');
+    applyTransfersCategoryChipStyles(chip);
+  }}
+
   function patchDetailTransfersCategoryChip() {{
     const roots = document.querySelectorAll(
       '[data-qa-type="independent-pumba-operation-details-container"], [data-qa-type="mobile-pumba-detail-sheet"]'
     );
     if (!roots.length) return;
-    const iconSvg = transfersCategoryChipIconSvg();
     roots.forEach(function (root) {{
       const chip = findDetailTransfersCategoryChip(root);
       if (!chip) return;
-      if (chip.getAttribute('data-manual-sbp-chip-root') === '1') {{
-        applyTransfersCategoryChipStyles(chip);
-        return;
-      }}
-      chip.setAttribute('data-manual-sbp-chip-root', '1');
-      chip.setAttribute('data-manual-sbp-chip-patched', '1');
-      chip.innerHTML =
-        '<span data-manual-sbp-chip-icon-wrap="1" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;flex:0 0 16px;">' +
-          iconSvg +
-        '</span>' +
-        '<span data-manual-sbp-chip-label="1" style="color:#f6f7f8;font-weight:700;font-size:13px;line-height:16px;">Переводы</span>';
-      applyTransfersCategoryChipStyles(chip);
+      ensureTransfersChipIcon(chip);
     }});
   }}
 
@@ -3485,15 +3537,15 @@ def _build_script() -> str:
       (document.head || document.documentElement).appendChild(st);
     }}
     st.textContent =
-      '#manual-operation-document-viewer {{ position: fixed; inset: 0; z-index: 2147483646; background: rgba(0,0,0,0); transition: background 380ms ease; font-family: Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }}' +
-      '#manual-operation-document-viewer .manual-operation-document-sheet {{ position: absolute; inset: 0; display: flex; flex-direction: column; overflow: hidden; border-radius: 0; background: #8a8a8a; transform: translateY(100%); transition: transform 420ms cubic-bezier(0.32, 0.72, 0, 1); will-change: transform; }}' +
-      '#manual-operation-document-viewer .manual-operation-document-header {{ position: relative; flex: 0 0 56px; height: 56px; box-sizing: border-box; background: #202023; color: #f6f7f8; }}' +
+      '#manual-operation-document-viewer {{ position: fixed; inset: 0; z-index: 2147483646; background: rgba(0,0,0,0); transition: background 380ms ease; font-family: Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; overflow: hidden; }}' +
+      '#manual-operation-document-viewer .manual-operation-document-sheet {{ position: absolute; left: 0; right: 0; bottom: 0; top: max(6%, env(safe-area-inset-top, 0px)); display: flex; flex-direction: column; overflow: hidden; border-radius: 24px 24px 0 0; background: #8a8a8a; transform: translateY(100%); transition: transform 420ms cubic-bezier(0.32, 0.72, 0, 1); will-change: transform; }}' +
+      '#manual-operation-document-viewer .manual-operation-document-header {{ position: relative; flex: 0 0 auto; height: 56px; min-height: 56px; box-sizing: border-box; background: #202023; color: #f6f7f8; border-radius: 24px 24px 0 0; overflow: hidden; }}' +
       '#manual-operation-document-viewer .manual-operation-document-close, #manual-operation-document-viewer .manual-operation-document-share {{ appearance: none; border: 0; padding: 0; background: transparent; color: #428bf9; font-family: inherit; font-size: 16px; font-weight: 500; line-height: 20px; -webkit-tap-highlight-color: transparent; }}' +
       '#manual-operation-document-viewer .manual-operation-document-close {{ position: absolute; left: 17px; top: 50%; transform: translateY(-50%); }}' +
       '#manual-operation-document-viewer .manual-operation-document-title {{ position: absolute; left: 50%; top: 50%; width: max-content; max-width: calc(100% - 140px); overflow: visible; transform: translate(-50%, -50%); color: #f6f7f8; font-family: inherit; font-size: 17px; font-weight: 700; line-height: 22px; text-align: center; white-space: nowrap; }}' +
       '#manual-operation-document-viewer .manual-operation-document-share {{ position: absolute; right: 14px; top: 50%; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 40px; transform: translateY(-50%); }}' +
       '#manual-operation-document-viewer .manual-operation-document-share svg {{ display: block; width: 25px; height: 25px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2.2; }}' +
-      '#manual-operation-document-viewer .manual-operation-document-body {{ flex: 1 1 auto; min-height: 0; overflow-x: hidden; overflow-y: auto; background: #fff; -webkit-overflow-scrolling: touch; padding-bottom: max(16px, env(safe-area-inset-bottom)); }}' +
+      '#manual-operation-document-viewer .manual-operation-document-body {{ flex: 1 1 auto; min-height: 0; height: 0; overflow-x: hidden; overflow-y: scroll; background: #fff; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; touch-action: pan-y; padding-bottom: max(24px, env(safe-area-inset-bottom)); }}' +
       '#manual-operation-document-viewer .manual-operation-document-image {{ display: block; width: 100%; height: auto; margin: 0; background: #fff; }}' +
       '#manual-operation-document-viewer .manual-operation-document-frame {{ display: none; width: 100%; height: 100%; min-height: 100%; border: 0; background: #8a8a8a; }}';
   }}
@@ -3561,6 +3613,10 @@ def _build_script() -> str:
           frame.style.display = 'block';
           frame.src = url + '#view=FitH&zoom=page-width';
         }}
+      }}, {{ once: true }});
+      image.addEventListener('load', function () {{
+        const body = viewer.querySelector('.manual-operation-document-body');
+        if (body) body.scrollTop = 0;
       }}, {{ once: true }});
       image.src = renderUrl;
     }}
